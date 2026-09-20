@@ -105,6 +105,14 @@ flywheel tolerance. This is 4414's "most robust to errors" rule with speed as
 the only knob. No polynomial fit: the grid is 25 by 21 and the hub interpolates
 it directly.
 
+Running the sweep with the placeholder inputs shows the band is 125 to 175 RPM
+at every distance, for any launch angle from 45° to 75°: the near lip sets the
+floor and the far edge of the 14 in opening sets the ceiling. Radial velocity
+shifts the band rather than closing it, which is the point of putting it in
+the table. The consequence is that the flywheel tolerance has to be 50 RPM,
+not the teleop spec's 100, and holding that is a shooter tuning requirement
+before any moving shot is attempted.
+
 **Visualiser**, three panels matching the 4414 binder image:
 
 - Trajectory fan for the selected distance and radial velocity. Every RPM in the
