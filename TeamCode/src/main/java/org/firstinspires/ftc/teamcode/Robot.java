@@ -14,6 +14,7 @@ import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 
 public class Robot {
     private final Telemetry telemetry;
@@ -24,6 +25,7 @@ public class Robot {
     public final IntakeSubsystem intake;
     public final IndexerSubsystem indexer;
     public final ShooterSubsystem shooter;
+    public final VisionSubsystem vision;
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driverGamepad) {
         this.telemetry = telemetry;
@@ -41,11 +43,28 @@ public class Robot {
         intake = new IntakeSubsystem(hardwareMap);
         indexer = new IndexerSubsystem(hardwareMap);
         shooter = new ShooterSubsystem(hardwareMap);
+        vision = new VisionSubsystem(hardwareMap);
     }
 
     /** Called once when the OpMode enters INIT. */
     public void init() {
         odometry.init();
+    }
+
+    /** Called repeatedly while the OpMode sits in INIT. D-pad left = red, right = blue. */
+    public void initLoop() {
+        driver.readButtons();
+        CommandScheduler.getInstance().run();
+        if (driver.wasJustPressed(GamepadKeys.Button.DPAD_LEFT)) vision.setAlliance(Alliance.RED);
+        if (driver.wasJustPressed(GamepadKeys.Button.DPAD_RIGHT)) vision.setAlliance(Alliance.BLUE);
+        telemetry.addData("Alliance (dpad L/R)", vision.getAlliance());
+        telemetry.addData("Camera sees", vision.getTargetName());
+        telemetry.update();
+    }
+
+    /** Called once when the driver presses START. */
+    public void start() {
+        vision.stopLiveView();
     }
 
     /** Called repeatedly while the OpMode is running. */
@@ -59,7 +78,11 @@ public class Robot {
 
         // Hold left bumper to drive robot-relative; otherwise drive field-relative.
         boolean fieldCentric = !driver.isDown(GamepadKeys.Button.LEFT_BUMPER);
-        drive.drive(driver.getLeftY(), driver.getLeftX(), driver.getRightX(),
+        double rotate = driver.getRightX();
+        if (driver.isDown(GamepadKeys.Button.Y) && vision.hasTarget()) {
+            rotate = aimRotation(vision.getBearingDeg());
+        }
+        drive.drive(driver.getLeftY(), driver.getLeftX(), rotate,
                 fieldCentric, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
         if (driver.wasJustPressed(GamepadKeys.Button.RIGHT_BUMPER)) {
@@ -91,7 +114,15 @@ public class Robot {
     /** Called once when the OpMode stops. */
     public void stop() {
         shooter.idle();
+        vision.close();
         CommandScheduler.getInstance().cancelAll();
         CommandScheduler.getInstance().reset();
+    }
+
+    /** P-controller from tag bearing (deg, +left) to clockwise rotation power. */
+    private static double aimRotation(double bearingDeg) {
+        if (Math.abs(bearingDeg) < Constants.AIM_DEADBAND_DEG) return 0;
+        double rotate = -Constants.AIM_KP * bearingDeg;
+        return Math.max(-Constants.AIM_MAX_ROTATE, Math.min(Constants.AIM_MAX_ROTATE, rotate));
     }
 }
