@@ -124,6 +124,29 @@ public class ShotSolverTest {
     }
 
     @Test
+    public void missingTimeOfFlightIsInvalid() {
+        // Same RPM/BAND fixture, but the TOF cells around (2 m, 0 m/s) are missing.
+        double[][] tofMissing = {
+                {0.8, 0.8, 0.8},
+                {Double.NaN, Double.NaN, Double.NaN},
+                {1.2, 1.2, 1.2}};
+        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, tofMissing, 60, 0.002, 0, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver.Shot shot = s.solve(0, 0, 0, 0, 0, 2, 0);
+        assertFalse(shot.valid);
+        assertEquals("NO SHOT", shot.reason);
+    }
+
+    @Test
+    public void zeroHorizontalExitSpeedIsInvalid() {
+        // 90 deg launch: horizontal exit speed is ~0, so no tangential lead is possible.
+        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, TOF, 90, 0.002, 0, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver.Shot shot = s.solve(0, 0, 0, 0, 0.5, 2, 0);
+        assertFalse(shot.valid);
+        assertEquals("NO SHOT", shot.reason);
+        assertFalse(Double.isNaN(shot.headingRad));
+    }
+
+    @Test
     public void feedDelayAdvancesThePose() {
         ShotSolver.Shot s = solver(0, 0.5).solve(0, 0, 0, 1.0, 0, 2, 0);
         assertEquals(1.5, s.distanceM, EPS);

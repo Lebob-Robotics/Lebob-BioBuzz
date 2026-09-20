@@ -106,16 +106,21 @@ public final class ShotSolver {
         double idle = Double.isNaN(stationary) ? fallbackRpm : stationary;
         double tolerance = Math.atan(halfOpeningM / d);
 
+        // 5. Horizontal exit speed, needed both to gate the shot and (below) to compute the lead.
+        // cos(90 deg) in doubles is ~6e-17, not exactly zero, so an unguarded ratio would clamp to a
+        // bogus +-90 deg lead instead of rejecting the shot; the epsilon below catches that and NaN.
+        double horizontalExit = tableRpm * exitSpeedPerRpm * Math.cos(launchAngleRad);
+
         String reason = "OK";
         if (d < dist[0] || d > dist[dist.length - 1]) reason = "OUT OF RANGE";
         else if (radial > vel[vel.length - 1]) reason = "CLOSING TOO FAST";
         else if (radial < vel[0]) reason = "BACKING TOO FAST";
-        else if (Double.isNaN(tableRpm) || Double.isNaN(tableBand) || tableBand < minBandRpm) reason = "NO SHOT";
+        else if (Double.isNaN(tableRpm) || Double.isNaN(tableBand) || Double.isNaN(tableTof)
+                || tableBand < minBandRpm || !(horizontalExit > 1e-6)) reason = "NO SHOT";
         if (!reason.equals("OK")) {
             return new Shot(false, reason, Double.NaN, idle, bearing, tolerance, d, radial, tangential, Double.NaN, tableBand);
         }
-        // 5. Heading lead so exit velocity plus robot velocity points along the bearing.
-        double horizontalExit = tableRpm * exitSpeedPerRpm * Math.cos(launchAngleRad);
+        // 6. Heading lead so exit velocity plus robot velocity points along the bearing.
         double lead = Math.asin(Math.max(-1, Math.min(1, tangential / horizontalExit)));
         return new Shot(true, reason, tableRpm, idle, wrap(bearing - lead), tolerance, d, radial, tangential, tableTof, tableBand);
     }
