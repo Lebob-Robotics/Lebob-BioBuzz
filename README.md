@@ -10,7 +10,7 @@ our own code in `TeamCode`.
 
 - **JDK 17.** <https://adoptium.net/temurin/releases/?version=17>
 - **Android SDK packages** <https://developer.android.com/studio#command-line-tools-only> (listed below)
-- **FIRST Tech Challenge SDK v11.2.1** <https://github.com/FIRST-Tech-Challenge/FtcRobotController/releases/tag/v11.2.1> (already in this repository)
+- **FIRST Tech Challenge SDK v12.0** <https://github.com/FIRST-Tech-Challenge/FtcRobotController/releases/tag/v12.0> (already in this repository, the BIOBUZZ season release)
 
 The required SDK packages:
 
