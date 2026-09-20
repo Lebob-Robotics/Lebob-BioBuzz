@@ -55,17 +55,17 @@ the other before the lookup.
 With a fixed launch angle the near lip sets the lowest speed that scores and
 the far edge of the 14 in opening sets the highest. With the current inputs
 that window is about 0.3 m/s of ball speed, 125 to 175 RPM, at every distance
-and for any launch angle from 45° to 75°. The table only keeps cells whose band
-is at least twice `rpmToleranceRpm`, so the flywheel must hold ±50 RPM
-(`Constants.SHOOTER_TOLERANCE_RPM`). Tune the shooter PIDF until the logged
-`left_rpm` and `right_rpm` sit inside that at a steady target before spending
-time on moving shots. A bigger window needs a hood, which is a hardware
-conversation.
+the table keeps and for any launch angle from 45° to 75°. The table only
+keeps cells whose band is at least twice `rpmToleranceRpm`, so the flywheel
+must hold ±50 RPM (`Constants.SHOOTER_TOLERANCE_RPM`). Tune the shooter PIDF
+until the logged `left_rpm` and `right_rpm` sit inside that at a steady
+target before spending time on moving shots. A bigger window needs a hood,
+which is a hardware conversation.
 
 ## Reading the logs
 
 Each run writes `/sdcard/FIRST/shots/<date-time>.csv` on the hub while Y is
-held. Pull them with:
+held and the Cell position is known. Pull them with:
 
     adb pull /sdcard/FIRST/shots ./shots
 
