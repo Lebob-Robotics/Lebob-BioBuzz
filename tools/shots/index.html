@@ -87,6 +87,15 @@ $('ball').onchange = () => { const b = Shots.BALLS[$('ball').value]; $('ballDiam
 
 let grid = null, params = null;
 
+// Shows/hides the banner and reports pass/fail; also gates the export button.
+let selfCheckFailed = false;
+function showSelfCheck(fails) {
+  selfCheckFailed = fails.length > 0;
+  $('banner').style.display = selfCheckFailed ? 'block' : 'none';
+  $('banner').textContent = selfCheckFailed ? 'Self-check failed, export disabled:\n' + fails.join('\n') : '';
+  return selfCheckFailed;
+}
+
 $('compute').onclick = () => {
   params = readInputs();
   $('status').textContent = 'computing...';
@@ -95,6 +104,7 @@ $('compute').onclick = () => {
     grid = Shots.solveGrid(params);
     $('distIdx').max = grid.dist.length - 1; $('velIdx').max = grid.vel.length - 1;
     $('velIdx').value = Math.round((grid.vel.length - 1) / 2);
+    showSelfCheck(Shots.selfCheck(params));
     $('exportJava').disabled = selfCheckFailed;
     $('status').textContent = 'computed ' + grid.dist.length + ' x ' + grid.vel.length + ' cells in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s';
     draw();
@@ -176,10 +186,8 @@ function drawStats(i, j, d) {
     : 'RPM ' + rpm + '  band ' + band + ' RPM (' + grid.lo[i][j] + '-' + grid.hi[i][j] + ')  TOF ' + tof.toFixed(2) + ' s  heading tol +/-' + headingTolDeg.toFixed(1) + ' deg  horizontal exit ' + uh.toFixed(2) + ' m/s';
 }
 
-// Self-check on load. A failure shows the banner and keeps export disabled.
-const fails = Shots.selfCheck();
-const selfCheckFailed = fails.length > 0;
-if (selfCheckFailed) { $('banner').style.display = 'block'; $('banner').textContent = 'Self-check failed, export disabled:\n' + fails.join('\n'); }
+// Self-check on load, against the defaults. A failure shows the banner and keeps export disabled.
+showSelfCheck(Shots.selfCheck());
 </script>
 </body>
 </html>

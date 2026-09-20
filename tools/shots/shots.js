@@ -151,11 +151,13 @@
       '}\n';
   }
 
-  // Two checks that fail loudly if the physics is broken. Export is refused when this returns anything.
-  function selfCheck() {
+  // Two checks that fail loudly if the physics is broken, or if the operator's inputs leave no usable
+  // shot. Export is refused when this returns anything.
+  function selfCheck(p0) {
+    const base = Object.assign({}, DEFAULTS, p0);
     const fails = [];
     // 1. With no drag the flight must match the closed-form parabola to 1 mm.
-    const p = Object.assign({}, DEFAULTS, { dragCd: 0, lipHeightM: 100 });  // nothing to hit
+    const p = Object.assign({}, base, { dragCd: 0, lipHeightM: 100 });  // nothing to hit
     const s = simulate(3000, 0.3, 2, p);
     const a = p.launchAngleDeg * Math.PI / 180, v0 = 3000 * p.exitSpeedPerRpm;
     for (const frac of [0.25, 0.5, 0.75]) {
@@ -164,8 +166,8 @@
       const err = Math.hypot(s.points[n][0] - ex, s.points[n][1] - ey);
       if (err > 0.001) fails.push('no-drag flight is ' + (err * 1000).toFixed(2) + ' mm off the parabola at t=' + t.toFixed(3) + ' s');
     }
-    // 2. Standing still, a longer shot needs more RPM.
-    const g = solveGrid(Object.assign({}, DEFAULTS, { velMinMps: 0, velMaxMps: 0 }));
+    // 2. Standing still, at the operator's inputs, a longer shot needs more RPM and at least one exists.
+    const g = solveGrid(Object.assign({}, base, { velMinMps: 0, velMaxMps: 0 }));
     let last = -Infinity, any = false;
     for (let i = 0; i < g.dist.length; i++) {
       const r = g.rpm[i][0];

@@ -8,7 +8,7 @@ const Shots = require('./shots.js');
 const inputs = JSON.parse(fs.readFileSync(path.join(__dirname, 'inputs.json'), 'utf8'));
 const p = Object.assign({}, Shots.DEFAULTS, inputs);
 
-const fails = Shots.selfCheck();
+const fails = Shots.selfCheck(p);
 if (fails.length) {
   console.error('Self-check failed, not exporting:\n  ' + fails.join('\n  '));
   process.exit(1);
