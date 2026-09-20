@@ -149,8 +149,9 @@ or right (blue).
 | Right trigger (hold) | Intake and indexer run |
 | Left trigger (hold) | Intake and indexer reverse |
 | Right bumper | Shooter on / off |
-| X (hold) | Fire (indexer feeds once the shooter is at speed) |
-| Y (hold) | Aim at our Hive cell |
+| X (hold) | Fire: feeds only when at speed, and when aiming also only with a valid shot and heading inside the Cell width |
+| Y (hold) | Aim: rotation tracks the solved shot heading, shooter runs at the table RPM. Falls back to tag bearing if the Cell position is unknown |
+| D-pad up / down | Trim every shooter target by ±50 RPM for the rest of the run |
 
 ## Testing on the robot
 
@@ -172,3 +173,20 @@ result in the PR.
 
 Tuning values (shooter RPM and PIDF, aim gain, Pinpoint pod offsets) live in
 `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Constants.java`.
+
+### Shoot on the move
+
+Tools and the measurement procedure are in `tools/shots/README.md`. Verify in
+this order, recording hits in the PR:
+
+0. Velocity frame: strafe left with the robot facing +X and confirm the Pose
+   telemetry shows `v` growing in the second component, then turn 90° and
+   repeat; the same component must still grow. If it swaps, the Pinpoint
+   reports robot-frame velocity and `OdometrySubsystem.getVelocity()` must
+   rotate it by the heading before the solver sees it.
+1. Stationary at 1.0, 1.5, 2.0 and 2.5 m: at least 8 of 10 Pollen in. Fix the
+   table inputs before moving on.
+2. Strafing across the Cell at a steady speed: 7 of 10.
+3. Driving toward and away at a steady speed: 7 of 10, and "NO SHOT: CLOSING
+   TOO FAST" appears near the speed the band chart predicts.
+4. Free driving: log, video, count, fix what the log shows.
