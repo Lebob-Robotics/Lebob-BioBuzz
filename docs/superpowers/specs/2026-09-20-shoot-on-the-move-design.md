@@ -67,7 +67,10 @@ Three parts, kept apart so each can be checked on its own.
 
 `tools/shots/index.html`, vanilla JavaScript with Plotly from its CDN for the
 plots (so it needs internet the first time; the browser caches it after).
-Opened straight from the file system, no server, no build step. A
+Opened straight from the file system, no server, no build step. The physics
+lives in `tools/shots/shots.js`, loaded by the page and by a node script
+`tools/shots/export.js` that regenerates the Java table from
+`tools/shots/inputs.json`, so the table can be rebuilt without a browser. A
 solver in the browser is chosen over Python because the page needs the physics
 anyway to draw trajectories, and one copy of the maths is better than two that
 drift.
