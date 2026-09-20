@@ -109,14 +109,18 @@ public class Robot {
             tracker.update(vision.getTargetFrameNanos(), vision.getTargetX(), vision.getTargetY(), vision.getTargetZ());
         }
 
-        // Aim. Y held: solver heading if we know where the Cell is, else the raw tag bearing, else the stick.
+        // Solve whenever the Cell is tracked, Y or not, so the wheels pre-spin at the right speed.
+        ShotSolver.Shot shot = tracker.hasTarget(now)
+                ? solver.solve(x, y, heading, vel[0], vel[1], tracker.getX(), tracker.getY())
+                : null;
+        double headingErr = shot != null ? shot.headingErrorRad(heading) : 0;
+        shooter.setTargetRpm(shot != null ? (shot.valid ? shot.rpm : shot.idleRpm) : Constants.SHOOTER_SETPOINT_RPM);
+
+        // Y governs rotation only: solver heading if we have a shot, else the raw tag bearing, else the stick.
         boolean aiming = driver.isDown(GamepadKeys.Button.Y);
         double rotate = driver.getRightX();
-        ShotSolver.Shot shot = null;
-        if (aiming && tracker.hasTarget(now)) {
-            shot = solver.solve(x, y, heading, vel[0], vel[1], tracker.getX(), tracker.getY());
-            shooter.setTargetRpm(shot.valid ? shot.rpm : shot.idleRpm);
-            rotate = aimRotation(Math.toDegrees(shot.headingErrorRad(heading)));
+        if (aiming && shot != null) {
+            rotate = aimRotation(Math.toDegrees(headingErr));
         } else if (aiming && vision.hasTarget()) {
             rotate = aimRotation(vision.getBearingDeg());
         }
@@ -124,11 +128,11 @@ public class Robot {
         boolean fieldCentric = !driver.isDown(GamepadKeys.Button.LEFT_BUMPER);
         drive.drive(driver.getLeftY(), driver.getLeftX(), rotate, fieldCentric, heading);
 
-        // Fire gate. With a solved shot: valid, at speed, and pointing inside the Cell width.
+        // Fire gate. Aiming with a solved shot: valid, at speed, and pointing inside the Cell width.
         boolean fire = driver.isDown(GamepadKeys.Button.X);
-        boolean ready = shot == null
-                ? shooter.atSpeed()
-                : shot.valid && shooter.atSpeed() && Math.abs(shot.headingErrorRad(heading)) < shot.headingToleranceRad;
+        boolean ready = (aiming && shot != null)
+                ? shot.valid && shooter.atSpeed() && Math.abs(headingErr) < shot.headingToleranceRad
+                : shooter.atSpeed();
         double rightTrigger = driver.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER);
         double leftTrigger = driver.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER);
         boolean firing = false;
@@ -147,10 +151,10 @@ public class Robot {
             indexer.stop();
         }
 
-        if (shot != null && log != null) {
+        if (aiming && shot != null && log != null) {
             log.row(x, y, heading, vel[0], vel[1], shot.distanceM, shot.radialVel, shot.tangentialVel,
                     shot.valid ? shot.rpm : shot.idleRpm, shooter.getLeftRpm(), shooter.getRightRpm(),
-                    shot.headingErrorRad(heading), shot.valid ? 1 : 0, firing ? 1 : 0);
+                    headingErr, shot.valid ? 1 : 0, firing ? 1 : 0);
         }
 
         telemetry.addData("Alliance", vision.getAlliance());
@@ -161,11 +165,11 @@ public class Robot {
         telemetry.addData("Target", tracker.hasTarget(now)
                 ? String.format("%.2f %.2f m  seen %.1f s ago", tracker.getX(), tracker.getY(), tracker.ageS(now))
                 : vision.hasTarget() ? "tag only, no pose" : "none");
-        telemetry.addData("Shot", shot == null ? "hold Y" : shot.valid
+        telemetry.addData("Shot", shot == null ? "hold Y" : (aiming ? "AIM " : "") + (shot.valid
                 ? String.format("OK d %.2f  radial %+.2f  tang %+.2f  rpm %.0f  err %+.1f deg  tol %.1f",
                         shot.distanceM, shot.radialVel, shot.tangentialVel, shot.rpm,
-                        Math.toDegrees(shot.headingErrorRad(heading)), Math.toDegrees(shot.headingToleranceRad))
-                : String.format("NO SHOT: %s  d %.2f  radial %+.2f", shot.reason, shot.distanceM, shot.radialVel));
+                        Math.toDegrees(headingErr), Math.toDegrees(shot.headingToleranceRad))
+                : String.format("NO SHOT: %s  d %.2f  radial %+.2f", shot.reason, shot.distanceM, shot.radialVel)));
         telemetry.addData("Log", log == null ? "not writing" : log.fileName());
         telemetry.addData("Battery", "%.1f V", battery.getVoltage());
         telemetry.update();

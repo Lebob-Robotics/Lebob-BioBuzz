@@ -150,7 +150,7 @@ or right (blue).
 | Left trigger (hold) | Intake and indexer reverse |
 | Right bumper | Shooter on / off |
 | X (hold) | Fire: feeds only when at speed, and when aiming also only with a valid shot and heading inside the Cell width |
-| Y (hold) | Aim: rotation tracks the solved shot heading, shooter runs at the table RPM. Falls back to tag bearing if the Cell position is unknown |
+| Y (hold) | Aim: rotation tracks the solved shot heading. The shooter target follows the table whenever the Cell position is known, aiming or not. |
 | D-pad up / down | Trim every shooter target by ±50 RPM for the rest of the run |
 
 ## Testing on the robot
