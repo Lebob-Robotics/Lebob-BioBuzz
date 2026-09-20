@@ -33,19 +33,28 @@ public class ShooterSubsystem extends SubsystemBase {
     /** Back into RUN_USING_ENCODER so the hub PID holds the setpoint. */
     public void spinUp() {
         running = true;
-        double tps = ShooterMath.rpmToTicksPerSecond(getTargetRpm(), Constants.SHOOTER_TICKS_PER_REV);
         for (DcMotorEx m : new DcMotorEx[]{left, right}) {
             m.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
+        sendVelocity();
+    }
+
+    /** Sends the current target to both motors without touching the run mode. */
+    private void sendVelocity() {
+        double tps = ShooterMath.rpmToTicksPerSecond(getTargetRpm(), Constants.SHOOTER_TICKS_PER_REV);
         left.setVelocity(tps);
         right.setVelocity(tps);
     }
 
-    /** Changes the target. Re-sends the velocity command only if the target moved and the wheels are running. */
+    /**
+     * Changes the target. Ignores moves smaller than Constants.SHOOTER_RETARGET_RPM (noise next to the
+     * scoring band) and, when running, only re-sends the velocity: re-asserting RUN_USING_ENCODER every
+     * loop would restart the hub PID's settling instead of letting it hold.
+     */
     public void setTargetRpm(double rpm) {
-        if (rpm == targetRpm) return;
+        if (Math.abs(rpm - targetRpm) < Constants.SHOOTER_RETARGET_RPM) return;
         targetRpm = rpm;
-        if (running) spinUp();
+        if (running) sendVelocity();
     }
 
     /** Target plus the driver's trim. */
@@ -56,7 +65,7 @@ public class ShooterSubsystem extends SubsystemBase {
     /** Driver adjustment applied to every target for the rest of the run. */
     public void trim(double deltaRpm) {
         trimRpm += deltaRpm;
-        if (running) spinUp();
+        if (running) sendVelocity();
     }
 
     public double getTrimRpm() {

@@ -41,6 +41,8 @@ public final class Constants {
     public static final double SHOOTER_TICKS_PER_REV = 28.0;
     public static final double SHOOTER_SETPOINT_RPM = 3500.0;   // tune on the robot
     public static final double SHOOTER_TOLERANCE_RPM = 50.0;   // the shot table needs the wheel within this; see tools/shots/README.md
+    // The scoring band is about 125 RPM wide, so a target change under this is noise: skip the hub writes.
+    public static final double SHOOTER_RETARGET_RPM = 10.0;
     // Velocity PIDF starting point: F = 32767 / max ticks per second, P = 0.1 F, I = 0.1 P, D = 0.
     public static final double SHOOTER_P = 1.17;
     public static final double SHOOTER_I = 0.117;
