@@ -3,7 +3,7 @@
   "ballDiameterM": 0.0711,
   "ballMassKg": 0.0249,
   "dragCd": 0.45,
-  "launchAngleDeg": 60,
+  "launchAngleDeg": 80,
   "exitHeightM": 0.40,
   "exitSpeedPerRpm": 0.0023,
   "shooterOffsetM": 0.15,
@@ -11,6 +11,6 @@
   "lipHeightM": 1.359,
   "openingWidthM": 0.508,
   "openingLengthM": 0.356,
-  "openingTiltDeg": 30,
+  "openingTiltDeg": 60,
   "marginM": 0.02
 }

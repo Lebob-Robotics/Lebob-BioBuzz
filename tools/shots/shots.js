@@ -18,7 +18,7 @@
     ballDiameterM: BALLS.POLLEN.ballDiameterM,
     ballMassKg: BALLS.POLLEN.ballMassKg,
     dragCd: 0.45,             // guess; calibrate against measured landing distance
-    launchAngleDeg: 60,       // measure on the robot
+    launchAngleDeg: 80,       // measure on the robot
     exitHeightM: 0.40,        // measure on the robot
     exitSpeedPerRpm: 0.0023,  // m/s of ball per flywheel RPM; measure with slow-motion video
     shooterOffsetM: 0.15,     // ball exit point forward of the robot centre
@@ -26,10 +26,10 @@
     lipHeightM: 1.359,        // near lip of the up-facing Cell, 53.5 in
     openingWidthM: 0.508,     // 20 in
     openingLengthM: 0.356,    // 14 in along the tilted face
-    openingTiltDeg: 30,       // face rises away from the robot; confirm against manual Figure 9-10
+    openingTiltDeg: 60,       // face rises away from the robot; confirm against manual Figure 9-10
     marginM: 0.02,            // clearance beyond the ball radius at each edge
-    distMinM: 0.6, distMaxM: 3.0, distStepM: 0.1,
-    velMinMps: -1.0, velMaxMps: 1.0, velStepMps: 0.1,
+    distMinM: 0.1, distMaxM: 1.5, distStepM: 0.075,
+    velMinMps: -2.3, velMaxMps: 2.3, velStepMps: 0.1,
     rpmMin: 1500, rpmMax: 5500, rpmStep: 25,
     dtS: 0.002,
   };

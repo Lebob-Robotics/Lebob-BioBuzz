@@ -54,8 +54,8 @@ the other before the lookup.
 
 With a fixed launch angle the near lip sets the lowest speed that scores and
 the far edge of the 14 in opening sets the highest. With the current inputs
-that window is about 0.3 m/s of ball speed, 125 to 175 RPM, at every distance
-the table keeps and for any launch angle from 45° to 75°. The table only
+that window is about 0.3 m/s of ball speed, 150 to 225 RPM, at every distance
+the table keeps. The table only
 keeps cells whose band is at least twice `rpmToleranceRpm`, so the flywheel
 must hold ±50 RPM (`Constants.SHOOTER_TOLERANCE_RPM`). Tune the shooter PIDF
 until the logged `left_rpm` and `right_rpm` sit inside that at a steady

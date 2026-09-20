@@ -85,12 +85,12 @@ characterisation session (below) as defaults:
   (linear, one constant), shooter offset forward of the robot centre, flywheel
   speed tolerance.
 - Cell: near lip height (53.5 in from the teleop spec), opening 20 in wide by
-  14 in tall, opening tilt 30° from horizontal with the far edge higher than
+  14 in tall, opening tilt 60° from horizontal with the far edge higher than
   the near lip, ball clearance margin at each edge. These are read from
   Competition Manual Figure 9-10 and the field CAD before the first table is
   exported, and the page shows them on the plot so an error is visible.
-- Sweep ranges: distance 0.6 to 3.0 m in 0.1 m steps, radial velocity −1.0 to
-  +1.0 m/s in 0.1 m/s steps (positive is closing), RPM 1500 to 5500 in 25 RPM
+- Sweep ranges: distance 0.1 to 1.5 m in 0.075 m steps, radial velocity −2.3 to
+  +2.3 m/s in 0.1 m/s steps (positive is closing), RPM 1500 to 5500 in 25 RPM
   steps.
 
 **Physics**: two-dimensional flight in the vertical plane through the Cell
@@ -105,11 +105,12 @@ bounce out of the Cell are not modelled.
 The table stores the band centre, the band width, and time of flight at the
 centre. A cell is marked invalid when the band is narrower than twice the
 flywheel tolerance. This is 4414's "most robust to errors" rule with speed as
-the only knob. No polynomial fit: the grid is 25 by 21 and the hub interpolates
+the only knob. No polynomial fit: the grid is 19 by 47 and the hub interpolates
 it directly.
 
-Running the sweep with the placeholder inputs shows the band is 125 to 175 RPM
-at every distance the table keeps, for any launch angle from 45° to 75°: the
+Running the sweep with the placeholder inputs shows the band is 150 to 225 RPM
+at every distance the table keeps (80° launch, 60° opening tilt; it was 125 to
+175 RPM for launch angles from 45° to 75° at a 30° tilt): the
 near lip sets the floor and the far edge of the 14 in opening sets the
 ceiling. Radial velocity shifts the band rather than closing it, which is the
 point of putting it in the table. The consequence is that the flywheel
