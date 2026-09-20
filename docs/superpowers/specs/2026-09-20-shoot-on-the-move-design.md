@@ -66,7 +66,8 @@ Three parts, kept apart so each can be checked on its own.
 ### Offline solver and visualiser
 
 `tools/shots/index.html`, vanilla JavaScript with Plotly from its CDN for the
-plots. Opened straight from the file system, no server, no build step. A
+plots (so it needs internet the first time; the browser caches it after).
+Opened straight from the file system, no server, no build step. A
 solver in the browser is chosen over Python because the page needs the physics
 anyway to draw trajectories, and one copy of the maths is better than two that
 drift.
@@ -131,7 +132,8 @@ shows a red banner and disables export.
 
 ### `ShotSolver` (robot, pure Java, unit tested)
 
-Static-free plain class constructed with the table and the shooter constants.
+A plain class with no static state, constructed with the table and the shooter
+constants.
 One method, `solve(pose, velocity, target)`, returns a small result object:
 `rpm`, `headingRad`, `valid`, and for telemetry `distance`, `radialVel`,
 `tangentialVel`, `timeOfFlight`, `bandWidth`.
