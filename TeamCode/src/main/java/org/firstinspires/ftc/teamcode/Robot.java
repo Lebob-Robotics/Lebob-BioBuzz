@@ -1,6 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.arcrobotics.ftclib.command.CommandScheduler;
+import com.arcrobotics.ftclib.gamepad.GamepadEx;
+import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -11,26 +14,24 @@ import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 
 public class Robot {
     private final Telemetry telemetry;
-    private final Gamepad driver;
+    private final GamepadEx driver;
 
     public final MecanumDriveSubsystem drive;
     public final OdometrySubsystem odometry;
 
-    public Robot(
-            HardwareMap hardwareMap,
-            Telemetry telemetry,
-            Gamepad driver
-    ) {
+    public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driverGamepad) {
         this.telemetry = telemetry;
-        this.driver = driver;
+        this.driver = new GamepadEx(driverGamepad);
+
+        // One bulk read per hub per loop instead of one bus transaction per motor read.
+        for (LynxModule hub : hardwareMap.getAll(LynxModule.class)) {
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
+        }
 
         CommandScheduler.getInstance().reset();
 
-        // Construct subsystems.
         drive = new MecanumDriveSubsystem(hardwareMap);
         odometry = new OdometrySubsystem(hardwareMap);
-        // intake = new IntakeSubsystem(hardwareMap);
-        // outtake = new OuttakeSubsystem(hardwareMap);
     }
 
     /** Called once when the OpMode enters INIT. */
@@ -40,15 +41,17 @@ public class Robot {
 
     /** Called repeatedly while the OpMode is running. */
     public void periodic() {
+        driver.readButtons();
         CommandScheduler.getInstance().run();
 
-        if (driver.a) {
+        if (driver.wasJustPressed(GamepadKeys.Button.A)) {
             odometry.resetHeading();
         }
 
         // Hold left bumper to drive robot-relative; otherwise drive field-relative.
-        drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
-                !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
+        boolean fieldCentric = !driver.isDown(GamepadKeys.Button.LEFT_BUMPER);
+        drive.drive(driver.getLeftY(), driver.getLeftX(), driver.getRightX(),
+                fieldCentric, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
         telemetry.addData("Pose", odometry.getPose());
         telemetry.update();

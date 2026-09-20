@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.Constants;
 
 /**
  * Wraps a goBILDA Pinpoint Odometry Computer reading two dead-wheel pods, and
@@ -16,14 +17,12 @@ public class OdometrySubsystem extends SubsystemBase {
     private final GoBildaPinpointDriver pinpoint;
 
     public OdometrySubsystem(HardwareMap hardwareMap) {
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.PINPOINT);
     }
 
     /** Called once from the OpMode's init(). Configures the Pinpoint and zeroes its pose. */
     public void init() {
-        // TODO: measure the pods' offsets from the robot's tracking point (usually its
-        // center) in mm, and set them here so Pinpoint reports an accurate field pose.
-        pinpoint.setOffsets(0.0, 0.0, DistanceUnit.MM);
+        pinpoint.setOffsets(Constants.PINPOINT_X_OFFSET_MM, Constants.PINPOINT_Y_OFFSET_MM, DistanceUnit.MM);
         pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         pinpoint.setEncoderDirections(
                 GoBildaPinpointDriver.EncoderDirection.FORWARD,
