@@ -45,6 +45,11 @@ Record here, then copy into `inputs.json` and regenerate.
 Time of flight at two distances, from the same video, checked against the
 table's `TOF_S` column.
 
+The table's distances are to the Cell's near lip, but the tag cluster's
+reported position (what `TargetTracker` places) is the opening centre;
+`ShotTable.LIP_TO_CENTRE_M`, generated alongside the table, converts one to
+the other before the lookup.
+
 ## Why the tolerance is 50 RPM
 
 With a fixed launch angle the near lip sets the lowest speed that scores and

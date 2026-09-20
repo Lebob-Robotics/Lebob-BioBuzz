@@ -137,7 +137,9 @@
       '    public static final double OPENING_WIDTH_M = ' + num(p.openingWidthM) + ';\n' +
       '    /** Ball radius plus edge margin: how far inside the opening\'s side edges the ball centre must pass. */\n' +
       '    public static final double LATERAL_CLEARANCE_M = ' + num(p.ballDiameterM / 2 + p.marginM) + ';\n' +
-      '    public static final double MIN_BAND_RPM = ' + num(2 * p.rpmToleranceRpm) + ';\n\n' +
+      '    public static final double MIN_BAND_RPM = ' + num(2 * p.rpmToleranceRpm) + ';\n' +
+      '    /** The table\'s distances are to the near lip; the tag cluster origin is the opening centre, this far beyond it. */\n' +
+      '    public static final double LIP_TO_CENTRE_M = ' + num(p.openingLengthM * Math.cos(p.openingTiltDeg * Math.PI / 180) / 2) + ';\n\n' +
       '    public static final double[] DIST_M = ' + row(g.dist) + ';\n' +
       '    public static final double[] VEL_MPS = ' + row(g.vel) + ';\n' +
       '    /** Band-centre flywheel RPM, [dist][vel]. NaN where no shot lands. */\n' +

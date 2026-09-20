@@ -20,6 +20,7 @@ public final class ShotSolver {
         public final double headingRad;
         /** Heading error allowed by the Cell width at this distance, radians. */
         public final double headingToleranceRad;
+        /** Distance to the Cell's near lip, matching the table's distance axis (targetX/targetY is the opening centre). */
         public final double distanceM;
         public final double radialVel;
         public final double tangentialVel;
@@ -55,14 +56,16 @@ public final class ShotSolver {
     private final double launchAngleRad;
     private final double exitSpeedPerRpm;
     private final double shooterOffsetM;
+    private final double lipToCentreM;
     private final double feedDelayS;
     private final double minBandRpm;
     private final double halfOpeningM;
     private final double fallbackRpm;
 
     public ShotSolver(double[] dist, double[] vel, double[][] rpm, double[][] band, double[][] tof,
-                      double launchAngleDeg, double exitSpeedPerRpm, double shooterOffsetM, double feedDelayS,
-                      double minBandRpm, double openingWidthM, double lateralClearanceM, double fallbackRpm) {
+                      double launchAngleDeg, double exitSpeedPerRpm, double shooterOffsetM, double lipToCentreM,
+                      double feedDelayS, double minBandRpm, double openingWidthM, double lateralClearanceM,
+                      double fallbackRpm) {
         this.dist = dist;
         this.vel = vel;
         this.rpm = rpm;
@@ -71,6 +74,7 @@ public final class ShotSolver {
         this.launchAngleRad = Math.toRadians(launchAngleDeg);
         this.exitSpeedPerRpm = exitSpeedPerRpm;
         this.shooterOffsetM = shooterOffsetM;
+        this.lipToCentreM = lipToCentreM;
         this.feedDelayS = feedDelayS;
         this.minBandRpm = minBandRpm;
         this.halfOpeningM = openingWidthM / 2 - lateralClearanceM;
@@ -80,7 +84,7 @@ public final class ShotSolver {
     /**
      * @param x, y, headingRad robot pose, field frame, metres and radians
      * @param vx, vy           robot velocity, field frame, m/s
-     * @param targetX, targetY Cell opening centre, field frame
+     * @param targetX, targetY Cell opening centre, field frame (what TargetTracker reports)
      */
     public Shot solve(double x, double y, double headingRad, double vx, double vy, double targetX, double targetY) {
         // 1. Where the robot will be when the ball leaves.
@@ -93,11 +97,13 @@ public final class ShotSolver {
         double dy = targetY - sy;
         double d = Math.hypot(dx, dy);
         double bearing = Math.atan2(dy, dx);
-        // 3. Robot velocity along and across the line to the Cell.
+        // 3. Robot velocity along and across the line to the Cell, from the un-shortened distance.
         double ux = dx / d;
         double uy = dy / d;
         double radial = vx * ux + vy * uy;
         double tangential = -vx * uy + vy * ux;
+        // The table's distance axis is to the Cell's near lip; the Cell tag gives the opening centre.
+        d -= lipToCentreM;
         // 4. Table lookup.
         double tableRpm = interpolate(dist, vel, rpm, d, radial);
         double tableBand = interpolate(dist, vel, band, d, radial);

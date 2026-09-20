@@ -33,7 +33,7 @@ public class Robot {
 
     private final ShotSolver solver = new ShotSolver(
             ShotTable.DIST_M, ShotTable.VEL_MPS, ShotTable.RPM, ShotTable.BAND_RPM, ShotTable.TOF_S,
-            ShotTable.LAUNCH_ANGLE_DEG, ShotTable.EXIT_SPEED_PER_RPM, ShotTable.SHOOTER_OFFSET_M,
+            ShotTable.LAUNCH_ANGLE_DEG, ShotTable.EXIT_SPEED_PER_RPM, ShotTable.SHOOTER_OFFSET_M, ShotTable.LIP_TO_CENTRE_M,
             Constants.FEED_DELAY_S, ShotTable.MIN_BAND_RPM, ShotTable.OPENING_WIDTH_M, ShotTable.LATERAL_CLEARANCE_M,
             Constants.SHOOTER_SETPOINT_RPM);
     private final TargetTracker tracker = new TargetTracker(

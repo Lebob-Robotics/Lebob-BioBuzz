@@ -27,7 +27,7 @@ public class ShotSolverTest {
 
     private static ShotSolver solver(double shooterOffsetM, double feedDelayS) {
         // 60 deg launch, 0.002 m/s per RPM: 2500 RPM gives 5 m/s exit, 2.5 m/s horizontal.
-        return new ShotSolver(DIST, VEL, RPM, BAND, TOF, 60, 0.002, shooterOffsetM, feedDelayS, 200, 0.508, 0.0555, 3500);
+        return new ShotSolver(DIST, VEL, RPM, BAND, TOF, 60, 0.002, shooterOffsetM, 0, feedDelayS, 200, 0.508, 0.0555, 3500);
     }
 
     @Test
@@ -111,7 +111,7 @@ public class ShotSolverTest {
     @Test
     public void idleFallsBackWhenTheStationaryCellIsMissing() {
         double[][] noStationary = {{2200, Double.NaN, 1800}, {2700, Double.NaN, 2300}, {3200, Double.NaN, Double.NaN}};
-        ShotSolver s = new ShotSolver(DIST, VEL, noStationary, BAND, TOF, 60, 0.002, 0, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver s = new ShotSolver(DIST, VEL, noStationary, BAND, TOF, 60, 0.002, 0, 0, 0, 200, 0.508, 0.0555, 3500);
         assertEquals(3500, s.solve(0, 0, 0, 0, 0, 2, 0).idleRpm, EPS);
     }
 
@@ -130,7 +130,7 @@ public class ShotSolverTest {
                 {0.8, 0.8, 0.8},
                 {Double.NaN, Double.NaN, Double.NaN},
                 {1.2, 1.2, 1.2}};
-        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, tofMissing, 60, 0.002, 0, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, tofMissing, 60, 0.002, 0, 0, 0, 200, 0.508, 0.0555, 3500);
         ShotSolver.Shot shot = s.solve(0, 0, 0, 0, 0, 2, 0);
         assertFalse(shot.valid);
         assertEquals("NO SHOT", shot.reason);
@@ -139,7 +139,7 @@ public class ShotSolverTest {
     @Test
     public void zeroHorizontalExitSpeedIsInvalid() {
         // 90 deg launch: horizontal exit speed is ~0, so no tangential lead is possible.
-        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, TOF, 90, 0.002, 0, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, TOF, 90, 0.002, 0, 0, 0, 200, 0.508, 0.0555, 3500);
         ShotSolver.Shot shot = s.solve(0, 0, 0, 0, 0.5, 2, 0);
         assertFalse(shot.valid);
         assertEquals("NO SHOT", shot.reason);
@@ -164,6 +164,15 @@ public class ShotSolverTest {
         ShotSolver.Shot far = solver(0, 0).solve(0, 0, 0, 0, 0, 3, 0);
         assertEquals(Math.atan((0.254 - 0.0555) / 1.0), near.headingToleranceRad, EPS);
         assertTrue(far.headingToleranceRad < near.headingToleranceRad);
+    }
+
+    @Test
+    public void lipToCentreShortensTheTableDistance() {
+        // Table distance is to the near lip; the tracked target is the opening centre, 0.15 m further out.
+        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, TOF, 60, 0.002, 0, 0.15, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver.Shot shot = s.solve(0, 0, 0, 0, 0, 2, 0);
+        assertEquals(1.85, shot.distanceM, EPS);
+        assertEquals(0, shot.headingRad, EPS);
     }
 
     @Test
