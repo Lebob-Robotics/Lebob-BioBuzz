@@ -33,6 +33,8 @@ jobs:
 
       - name: Set up the Android SDK command-line tools
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # build.common.gradle sets compileSdkVersion 30, which the runner image does
       # not ship, so the platform has to be installed. Build-tools 35.0.0 is the

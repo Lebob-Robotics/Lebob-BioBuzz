@@ -31,7 +31,7 @@ public final class Constants {
     // Pinpoint pod offsets from the tracking point, mm. X pod: left of centre positive.
     // Y pod: forward of centre positive. Measure on the robot per the goBILDA setup guide.
     public static final double PINPOINT_X_OFFSET_MM = 0.0;
-    public static final double PINPOINT_Y_OFFSET_MM = 0.0;
+    public static final double PINPOINT_Y_OFFSET_MM = -105.0;   // measured, from main 12cad4b
 
     // Intake and indexer open-loop powers.
     public static final double INTAKE_POWER = 1.0;
