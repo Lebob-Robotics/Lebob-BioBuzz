@@ -114,3 +114,61 @@ run the `TeamCode` configuration. Android Studio does the same `adb install` and
 launch shown above. If the Hub does not appear in the device dropdown, run
 `adb connect 192.168.43.1:5555` in a terminal first; Android Studio picks up
 devices from the same adb server.
+
+## Control Hub configuration
+
+The Robot Controller configuration must use these names. The PR template asks
+you to keep this table current when you add or move hardware.
+
+| Config name | Type | Hub / port | Mechanism |
+| --- | --- | --- | --- |
+| `front_left_drive` | goBILDA 5202/3/4 series | | Drive |
+| `front_right_drive` | goBILDA 5202/3/4 series | | Drive |
+| `back_left_drive` | goBILDA 5202/3/4 series | | Drive |
+| `back_right_drive` | goBILDA 5202/3/4 series | | Drive |
+| `intake` | goBILDA 5202/3/4 series | | Intake |
+| `indexer` | goBILDA 5202/3/4 series | | Indexer |
+| `shooter_left` | goBILDA 5202/3/4 series | | Shooter |
+| `shooter_right` | goBILDA 5202/3/4 series | | Shooter |
+| `pinpoint` | goBILDA Pinpoint Odometry Computer (I2C) | | Odometry |
+| `Webcam 1` | Webcam | USB | Vision |
+
+Fill in the hub and port column when the robot is wired.
+
+## Driver controls
+
+One driver on gamepad 1. Pick the alliance during INIT with D-pad left (red)
+or right (blue).
+
+| Input | Action |
+| --- | --- |
+| Left stick | Translate, field-centric |
+| Right stick X | Rotate |
+| Left bumper (hold) | Robot-centric translate |
+| A | Zero heading |
+| Right trigger (hold) | Intake and indexer run |
+| Left trigger (hold) | Intake and indexer reverse |
+| Right bumper | Shooter on / off |
+| X (hold) | Fire (indexer feeds once the shooter is at speed) |
+| Y (hold) | Aim at our Hive cell |
+
+## Testing on the robot
+
+Run through these after any change to the matching subsystem and record the
+result in the PR.
+
+1. Drive: each motor spins forward on positive power, the robot drives
+   straight, strafes right on stick right, and field-centric holds direction
+   after a spin.
+2. Odometry: Pinpoint LED green. X grows driving forward, Y grows driving left,
+   heading grows turning anticlockwise. Spinning in place moves X/Y under
+   100 mm. Returning to the start reads under 10 mm.
+3. Intake and indexer: run, reverse, stop. The indexer holds a ball when
+   stopped.
+4. Shooter: reaches the setpoint, telemetry RPM within tolerance, the AT SPEED
+   flag appears, and a Pollen lands in the Cell from the practice spot.
+5. Vision: telemetry shows a bearing with a Cell tag in view, and holding Y
+   turns the robot toward it and settles.
+
+Tuning values (shooter RPM and PIDF, aim gain, Pinpoint pod offsets) live in
+`TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Constants.java`.

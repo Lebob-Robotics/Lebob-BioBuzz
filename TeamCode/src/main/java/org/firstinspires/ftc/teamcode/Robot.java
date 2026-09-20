@@ -6,6 +6,7 @@ import com.arcrobotics.ftclib.gamepad.GamepadKeys;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -19,6 +20,7 @@ import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 public class Robot {
     private final Telemetry telemetry;
     private final GamepadEx driver;
+    private final VoltageSensor battery;
 
     public final MecanumDriveSubsystem drive;
     public final OdometrySubsystem odometry;
@@ -35,6 +37,7 @@ public class Robot {
         for (LynxModule hub : hardwareMap.getAll(LynxModule.class)) {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
+        battery = hardwareMap.voltageSensor.iterator().next();
 
         CommandScheduler.getInstance().reset();
 
@@ -107,7 +110,13 @@ public class Robot {
             indexer.stop();
         }
 
+        telemetry.addData("Alliance", vision.getAlliance());
         telemetry.addData("Pose", odometry.getPose());
+        telemetry.addData("Shooter", "%s target %.0f  L %.0f  R %.0f  %s",
+                shooter.isRunning() ? "ON" : "off", Constants.SHOOTER_SETPOINT_RPM,
+                shooter.getLeftRpm(), shooter.getRightRpm(), shooter.atSpeed() ? "AT SPEED" : "");
+        telemetry.addData("Tag bearing", vision.hasTarget() ? String.format("%.1f deg", vision.getBearingDeg()) : "no target");
+        telemetry.addData("Battery", "%.1f V", battery.getVoltage());
         telemetry.update();
     }
 
