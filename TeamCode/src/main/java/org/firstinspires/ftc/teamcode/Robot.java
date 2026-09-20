@@ -61,6 +61,7 @@ public class Robot {
         if (driver.wasJustPressed(GamepadKeys.Button.DPAD_LEFT)) vision.setAlliance(Alliance.RED);
         if (driver.wasJustPressed(GamepadKeys.Button.DPAD_RIGHT)) vision.setAlliance(Alliance.BLUE);
         telemetry.addData("Alliance (dpad L/R)", vision.getAlliance());
+        telemetry.addData("Camera", vision.isAvailable() ? "ok" : "NOT FOUND");
         telemetry.addData("Camera sees", vision.getTargetName());
         telemetry.update();
     }

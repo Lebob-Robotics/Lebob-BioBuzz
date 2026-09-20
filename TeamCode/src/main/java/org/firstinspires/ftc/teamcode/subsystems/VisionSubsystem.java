@@ -15,21 +15,33 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 /**
  * One webcam looking for our alliance's Hive cell. BIOBUZZ cells move, so this is for aiming only.
  * Cluster names in the SDK library are "RED SCORING", "RED AUDIENCE", "BLUE AUDIENCE", "BLUE SCORING".
+ * A missing or misconfigured webcam leaves the subsystem inert rather than killing the OpMode:
+ * isAvailable() is false, hasTarget() stays false, and aim assist simply does nothing.
  */
 public class VisionSubsystem extends SubsystemBase {
-    private final AprilTagProcessor processor;
-    private final VisionPortal portal;
+    private AprilTagProcessor processor;
+    private VisionPortal portal;
     private Alliance alliance = Alliance.RED;
     private AprilTagClusterDetection target;
 
     public VisionSubsystem(HardwareMap hardwareMap) {
-        processor = new AprilTagProcessor.Builder()
-                .setTagLibrary(AprilTagGameDatabase.getCurrentGameTagLibrary())
-                .build();
-        portal = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, Constants.WEBCAM))
-                .addProcessor(processor)
-                .build();
+        try {
+            processor = new AprilTagProcessor.Builder()
+                    .setTagLibrary(AprilTagGameDatabase.getCurrentGameTagLibrary())
+                    .build();
+            portal = new VisionPortal.Builder()
+                    .setCamera(hardwareMap.get(WebcamName.class, Constants.WEBCAM))
+                    .addProcessor(processor)
+                    .build();
+        } catch (RuntimeException e) {
+            processor = null;
+            portal = null;
+        }
+    }
+
+    /** False when the webcam was missing or failed to open at construction. */
+    public boolean isAvailable() {
+        return portal != null;
     }
 
     public void setAlliance(Alliance alliance) {
@@ -43,6 +55,7 @@ public class VisionSubsystem extends SubsystemBase {
     /** Picks the best-seen cluster belonging to our alliance from the latest frame. */
     @Override
     public void periodic() {
+        if (portal == null) return;
         AprilTagClusterDetection best = null;
         for (AprilTagDetection d : processor.getDetections()) {
             if (!(d instanceof AprilTagClusterDetection)) continue;
@@ -68,10 +81,10 @@ public class VisionSubsystem extends SubsystemBase {
 
     /** Turn off the Driver Station preview once the match starts to save CPU. */
     public void stopLiveView() {
-        portal.stopLiveView();
+        if (portal != null) portal.stopLiveView();
     }
 
     public void close() {
-        portal.close();
+        if (portal != null) portal.close();
     }
 }
