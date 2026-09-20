@@ -102,4 +102,20 @@ public class TargetTrackerTest {
         assertEquals(4, t.ageS(4 * S), EPS);
         assertFalse(t.hasTarget(6 * S));
     }
+
+    @Test
+    public void clearForgetsTargetAndPoses() {
+        TargetTracker t = new TargetTracker(8, 0, 0, 0, 0, 5);
+        t.recordPose(0, 0, 0, 0);
+        t.update(0, 0, 2, 0);
+        assertTrue(t.hasTarget(0));
+
+        t.clear();
+
+        assertFalse(t.hasTarget(0));
+        assertFalse(t.update(0, 0, 2, 0));   // no pose since clear(): same as never having recorded one
+
+        t.recordPose(S, 0, 0, 0);
+        assertTrue(t.update(0, 0, 2, 0));    // recovers once a fresh pose lands
+    }
 }

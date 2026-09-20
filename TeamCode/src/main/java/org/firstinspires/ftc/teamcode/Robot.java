@@ -90,7 +90,10 @@ public class Robot {
         CommandScheduler.getInstance().run();
         long now = System.nanoTime();
 
-        if (driver.wasJustPressed(GamepadKeys.Button.A)) odometry.resetHeading();
+        if (driver.wasJustPressed(GamepadKeys.Button.A)) {
+            odometry.resetHeading();
+            tracker.clear();   // the reset rotates the field frame; the old target and poses no longer apply
+        }
         if (driver.wasJustPressed(GamepadKeys.Button.RIGHT_BUMPER)) shooter.toggle();
         if (driver.wasJustPressed(GamepadKeys.Button.DPAD_UP)) shooter.trim(Constants.SHOOTER_TRIM_STEP_RPM);
         if (driver.wasJustPressed(GamepadKeys.Button.DPAD_DOWN)) shooter.trim(-Constants.SHOOTER_TRIM_STEP_RPM);

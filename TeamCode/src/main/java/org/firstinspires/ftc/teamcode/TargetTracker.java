@@ -107,4 +107,11 @@ public final class TargetTracker {
     public double ageS(long nowNanos) {
         return seen ? (nowNanos - seenNanos) / 1e9 : Double.POSITIVE_INFINITY;
     }
+
+    /** Forgets the target and every recorded pose. Call whenever the field frame moves, e.g. a heading reset. */
+    public void clear() {
+        seen = false;
+        count = 0;
+        next = 0;
+    }
 }
