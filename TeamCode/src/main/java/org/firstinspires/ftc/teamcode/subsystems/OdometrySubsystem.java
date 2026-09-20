@@ -21,9 +21,7 @@ public class OdometrySubsystem extends SubsystemBase {
 
     /** Called once from the OpMode's init(). Configures the Pinpoint and zeroes its pose. */
     public void init() {
-        // TODO: measure the pods' offsets from the robot's tracking point (usually its
-        // center) in mm, and set them here so Pinpoint reports an accurate field pose.
-        pinpoint.setOffsets(0.0, 0.0, DistanceUnit.MM);
+        pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
         pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         pinpoint.setEncoderDirections(
                 GoBildaPinpointDriver.EncoderDirection.FORWARD,
