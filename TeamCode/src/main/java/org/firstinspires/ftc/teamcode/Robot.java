@@ -9,6 +9,8 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 
@@ -18,6 +20,8 @@ public class Robot {
 
     public final MecanumDriveSubsystem drive;
     public final OdometrySubsystem odometry;
+    public final IntakeSubsystem intake;
+    public final IndexerSubsystem indexer;
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driverGamepad) {
         this.telemetry = telemetry;
@@ -32,6 +36,8 @@ public class Robot {
 
         drive = new MecanumDriveSubsystem(hardwareMap);
         odometry = new OdometrySubsystem(hardwareMap);
+        intake = new IntakeSubsystem(hardwareMap);
+        indexer = new IndexerSubsystem(hardwareMap);
     }
 
     /** Called once when the OpMode enters INIT. */
@@ -52,6 +58,19 @@ public class Robot {
         boolean fieldCentric = !driver.isDown(GamepadKeys.Button.LEFT_BUMPER);
         drive.drive(driver.getLeftY(), driver.getLeftX(), driver.getRightX(),
                 fieldCentric, odometry.getPose().getHeading(AngleUnit.RADIANS));
+
+        double rightTrigger = driver.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER);
+        double leftTrigger = driver.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER);
+        if (leftTrigger > Constants.TRIGGER_THRESHOLD) {
+            intake.reverse();
+            indexer.reverse();
+        } else if (rightTrigger > Constants.TRIGGER_THRESHOLD) {
+            intake.run();
+            indexer.feed();
+        } else {
+            intake.stop();
+            indexer.stop();
+        }
 
         telemetry.addData("Pose", odometry.getPose());
         telemetry.update();
