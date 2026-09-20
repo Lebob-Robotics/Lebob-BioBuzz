@@ -33,10 +33,11 @@ public class ShooterSubsystem extends SubsystemBase {
         right.setVelocity(tps);
     }
 
+    /** Cuts power and lets the flywheels coast down (FLOAT), rather than braking to zero velocity. */
     public void idle() {
         running = false;
-        left.setVelocity(0);
-        right.setVelocity(0);
+        left.setPower(0);
+        right.setPower(0);
     }
 
     public void toggle() {
