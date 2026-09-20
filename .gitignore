@@ -43,6 +43,10 @@ captures/
 *.iml
 .idea/
 .vscode/
+.metadata/
+.classpath
+.project
+.settings/
 
 # For Mac users
 .DS_Store
