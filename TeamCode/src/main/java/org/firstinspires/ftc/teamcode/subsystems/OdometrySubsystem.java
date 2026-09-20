@@ -41,7 +41,7 @@ public class OdometrySubsystem extends SubsystemBase {
         return pinpoint.getPosition();
     }
 
-    /** Field-frame velocity from the Pinpoint, metres per second, as {x, y}. */
+    /** Velocity from the Pinpoint, metres per second, as {x, y}. Assumed field-frame; confirm with README rung 0 before any moving shot. */
     public double[] getVelocity() {
         return new double[]{pinpoint.getVelX(DistanceUnit.METER), pinpoint.getVelY(DistanceUnit.METER)};
     }

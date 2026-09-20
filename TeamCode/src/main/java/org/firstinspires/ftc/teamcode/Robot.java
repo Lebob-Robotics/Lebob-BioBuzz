@@ -74,6 +74,10 @@ public class Robot {
         if (driver.wasJustPressed(GamepadKeys.Button.DPAD_RIGHT)) vision.setAlliance(Alliance.BLUE);
         telemetry.addData("Alliance (dpad L/R)", vision.getAlliance());
         telemetry.addData("Camera", vision.isAvailable() ? "ok" : "NOT FOUND");
+        if (Constants.CAMERA_FORWARD_M == 0 && Constants.CAMERA_LEFT_M == 0
+                && Constants.CAMERA_YAW_RAD == 0 && Constants.CAMERA_PITCH_RAD == 0) {
+            telemetry.addData("Camera mount", "CONSTANTS NOT SET, shot distance will be wrong");
+        }
         telemetry.addData("Camera sees", vision.getTargetName());
         telemetry.update();
     }
@@ -130,8 +134,8 @@ public class Robot {
 
         // Fire gate. Aiming with a solved shot: valid, at speed, and pointing inside the Cell width.
         boolean fire = driver.isDown(GamepadKeys.Button.X);
-        boolean ready = (aiming && shot != null)
-                ? shot.valid && shooter.atSpeed() && Math.abs(headingErr) < shot.headingToleranceRad
+        boolean ready = aiming
+                ? shot != null && shot.valid && shooter.atSpeed() && Math.abs(headingErr) < shot.headingToleranceRad
                 : shooter.atSpeed();
         double rightTrigger = driver.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER);
         double leftTrigger = driver.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER);
@@ -166,9 +170,9 @@ public class Robot {
                 ? String.format("%.2f %.2f m  seen %.1f s ago", tracker.getX(), tracker.getY(), tracker.ageS(now))
                 : vision.hasTarget() ? "tag only, no pose" : "none");
         telemetry.addData("Shot", shot == null ? "hold Y" : (aiming ? "AIM " : "") + (shot.valid
-                ? String.format("OK d %.2f  radial %+.2f  tang %+.2f  rpm %.0f  err %+.1f deg  tol %.1f",
+                ? String.format("OK d %.2f  radial %+.2f  tang %+.2f  rpm %.0f  err %+.1f deg  tol %.1f  band %.0f  tof %.2f",
                         shot.distanceM, shot.radialVel, shot.tangentialVel, shot.rpm,
-                        Math.toDegrees(headingErr), Math.toDegrees(shot.headingToleranceRad))
+                        Math.toDegrees(headingErr), Math.toDegrees(shot.headingToleranceRad), shot.bandRpm, shot.timeOfFlightS)
                 : String.format("NO SHOT: %s  d %.2f  radial %+.2f", shot.reason, shot.distanceM, shot.radialVel)));
         telemetry.addData("Log", log == null ? "not writing" : log.fileName());
         telemetry.addData("Battery", "%.1f V", battery.getVoltage());

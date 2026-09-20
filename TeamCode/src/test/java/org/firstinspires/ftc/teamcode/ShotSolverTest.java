@@ -167,6 +167,15 @@ public class ShotSolverTest {
     }
 
     @Test
+    public void headingToleranceUsesCentreDistance() {
+        // Opening centre is 2 m away; the table distance to the near lip is 1.85 m (lipToCentre 0.15).
+        // The heading tolerance should use the 2 m centre distance, not the shortened table distance.
+        ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, TOF, 60, 0.002, 0, 0.15, 0, 200, 0.508, 0.0555, 3500);
+        ShotSolver.Shot shot = s.solve(0, 0, 0, 0, 0, 2, 0);
+        assertEquals(Math.atan((0.254 - 0.0555) / 2.0), shot.headingToleranceRad, EPS);
+    }
+
+    @Test
     public void lipToCentreShortensTheTableDistance() {
         // Table distance is to the near lip; the tracked target is the opening centre, 0.15 m further out.
         ShotSolver s = new ShotSolver(DIST, VEL, RPM, BAND, TOF, 60, 0.002, 0, 0.15, 0, 200, 0.508, 0.0555, 3500);

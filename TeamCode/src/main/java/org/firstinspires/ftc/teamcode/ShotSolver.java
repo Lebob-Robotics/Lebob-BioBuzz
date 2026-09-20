@@ -110,7 +110,7 @@ public final class ShotSolver {
         double tableTof = interpolate(dist, vel, tof, d, radial);
         double stationary = interpolate(dist, vel, rpm, Math.max(dist[0], Math.min(dist[dist.length - 1], d)), 0);
         double idle = Double.isNaN(stationary) ? fallbackRpm : stationary;
-        double tolerance = Math.atan(halfOpeningM / d);
+        double tolerance = Math.atan(halfOpeningM / (d + lipToCentreM));
 
         // 5. Horizontal exit speed, needed both to gate the shot and (below) to compute the lead.
         // cos(90 deg) in doubles is ~6e-17, not exactly zero, so an unguarded ratio would clamp to a
