@@ -40,7 +40,7 @@ public final class Constants {
     // Shooter. 1:1 Yellow Jacket, 28 ticks per rev, 6000 RPM free speed.
     public static final double SHOOTER_TICKS_PER_REV = 28.0;
     public static final double SHOOTER_SETPOINT_RPM = 3500.0;   // tune on the robot
-    public static final double SHOOTER_TOLERANCE_RPM = 100.0;
+    public static final double SHOOTER_TOLERANCE_RPM = 50.0;   // the shot table needs the wheel within this; see tools/shots/README.md
     // Velocity PIDF starting point: F = 32767 / max ticks per second, P = 0.1 F, I = 0.1 P, D = 0.
     public static final double SHOOTER_P = 1.17;
     public static final double SHOOTER_I = 0.117;
@@ -54,4 +54,18 @@ public final class Constants {
     public static final double AIM_KP = 0.02;
     public static final double AIM_MAX_ROTATE = 0.5;
     public static final double AIM_DEADBAND_DEG = 1.0;
+
+    // Shoot on the move. Shooter geometry and the table live in the generated ShotTable.
+    public static final double FEED_DELAY_S = 0.15;          // indexer feed command to ball exit, measure on the robot
+    public static final double SHOOTER_TRIM_STEP_RPM = 50.0;  // D-pad up/down
+    public static final double TARGET_EXPIRY_S = 5.0;         // how long the last tag fix is trusted
+    public static final int POSE_BUFFER_SIZE = 50;            // about one second of loops
+
+    // Camera lens relative to the robot centre. Fill in from the CAD once the mount is designed.
+    public static final double CAMERA_FORWARD_M = 0.0;
+    public static final double CAMERA_LEFT_M = 0.0;
+    public static final double CAMERA_YAW_RAD = 0.0;          // positive turned left
+    public static final double CAMERA_PITCH_RAD = 0.0;        // positive tilted up
+
+    public static final String SHOT_LOG_DIR = "/sdcard/FIRST/shots";
 }

@@ -4,6 +4,8 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Constants;
 import org.firstinspires.ftc.vision.VisionPortal;
@@ -28,6 +30,7 @@ public class VisionSubsystem extends SubsystemBase {
         try {
             processor = new AprilTagProcessor.Builder()
                     .setTagLibrary(AprilTagGameDatabase.getCurrentGameTagLibrary())
+                    .setOutputUnits(DistanceUnit.METER, AngleUnit.DEGREES)
                     .build();
             portal = new VisionPortal.Builder()
                     .setCamera(hardwareMap.get(WebcamName.class, Constants.WEBCAM))
@@ -73,6 +76,26 @@ public class VisionSubsystem extends SubsystemBase {
     /** Horizontal angle to the cell opening, degrees, positive to the left. Only valid when hasTarget(). */
     public double getBearingDeg() {
         return target.ftcPose.bearing;
+    }
+
+    /** Cell centre right of the lens, metres. Only valid when hasTarget(). */
+    public double getTargetX() {
+        return target.ftcPose.x;
+    }
+
+    /** Cell centre forward along the lens axis, metres. Only valid when hasTarget(). */
+    public double getTargetY() {
+        return target.ftcPose.y;
+    }
+
+    /** Cell centre above the lens axis, metres. Only valid when hasTarget(). */
+    public double getTargetZ() {
+        return target.ftcPose.z;
+    }
+
+    /** System.nanoTime() when the frame holding this detection was captured. */
+    public long getTargetFrameNanos() {
+        return target.frameAcquisitionNanoTime;
     }
 
     public String getTargetName() {

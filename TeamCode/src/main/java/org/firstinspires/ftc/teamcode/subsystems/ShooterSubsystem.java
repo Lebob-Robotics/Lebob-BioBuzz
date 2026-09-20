@@ -15,6 +15,8 @@ public class ShooterSubsystem extends SubsystemBase {
     private boolean running;
     private double leftRpm;
     private double rightRpm;
+    private double targetRpm = Constants.SHOOTER_SETPOINT_RPM;
+    private double trimRpm = 0;
 
     public ShooterSubsystem(HardwareMap hardwareMap) {
         left = hardwareMap.get(DcMotorEx.class, Constants.SHOOTER_LEFT);
@@ -31,12 +33,34 @@ public class ShooterSubsystem extends SubsystemBase {
     /** Back into RUN_USING_ENCODER so the hub PID holds the setpoint. */
     public void spinUp() {
         running = true;
-        double tps = ShooterMath.rpmToTicksPerSecond(Constants.SHOOTER_SETPOINT_RPM, Constants.SHOOTER_TICKS_PER_REV);
+        double tps = ShooterMath.rpmToTicksPerSecond(getTargetRpm(), Constants.SHOOTER_TICKS_PER_REV);
         for (DcMotorEx m : new DcMotorEx[]{left, right}) {
             m.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
         left.setVelocity(tps);
         right.setVelocity(tps);
+    }
+
+    /** Changes the target. Re-sends the velocity command only if the target moved and the wheels are running. */
+    public void setTargetRpm(double rpm) {
+        if (rpm == targetRpm) return;
+        targetRpm = rpm;
+        if (running) spinUp();
+    }
+
+    /** Target plus the driver's trim. */
+    public double getTargetRpm() {
+        return targetRpm + trimRpm;
+    }
+
+    /** Driver adjustment applied to every target for the rest of the run. */
+    public void trim(double deltaRpm) {
+        trimRpm += deltaRpm;
+        if (running) spinUp();
+    }
+
+    public double getTrimRpm() {
+        return trimRpm;
     }
 
     /**
@@ -67,11 +91,12 @@ public class ShooterSubsystem extends SubsystemBase {
         rightRpm = ShooterMath.ticksPerSecondToRpm(right.getVelocity(), Constants.SHOOTER_TICKS_PER_REV);
     }
 
-    /** True when both wheels are within tolerance of the setpoint. */
+    /** True when both wheels are within tolerance of the current target. */
     public boolean atSpeed() {
+        double target = getTargetRpm();
         return running
-                && Math.abs(leftRpm - Constants.SHOOTER_SETPOINT_RPM) < Constants.SHOOTER_TOLERANCE_RPM
-                && Math.abs(rightRpm - Constants.SHOOTER_SETPOINT_RPM) < Constants.SHOOTER_TOLERANCE_RPM;
+                && Math.abs(leftRpm - target) < Constants.SHOOTER_TOLERANCE_RPM
+                && Math.abs(rightRpm - target) < Constants.SHOOTER_TOLERANCE_RPM;
     }
 
     public double getLeftRpm() {

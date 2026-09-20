@@ -41,6 +41,11 @@ public class OdometrySubsystem extends SubsystemBase {
         return pinpoint.getPosition();
     }
 
+    /** Field-frame velocity from the Pinpoint, metres per second, as {x, y}. */
+    public double[] getVelocity() {
+        return new double[]{pinpoint.getVelX(DistanceUnit.METER), pinpoint.getVelY(DistanceUnit.METER)};
+    }
+
     /** Zeroes the reported heading in place, keeping the current position. */
     public void resetHeading() {
         Pose2D current = pinpoint.getPosition();
