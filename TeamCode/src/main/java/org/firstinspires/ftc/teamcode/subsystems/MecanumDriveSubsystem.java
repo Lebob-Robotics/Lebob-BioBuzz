@@ -4,7 +4,7 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.MecanumKinematics;
 
 /**
  * Drivetrain subsystem for a four-motor mecanum base, with optional field-centric
@@ -45,29 +45,14 @@ public class MecanumDriveSubsystem extends SubsystemBase {
      */
     public void drive(double forward, double right, double rotate, boolean fieldCentric, double headingRadians) {
         if (fieldCentric) {
-            double theta = Math.atan2(forward, right);
-            double r = Math.hypot(right, forward);
-
-            theta = AngleUnit.normalizeRadians(theta - headingRadians);
-
-            forward = r * Math.sin(theta);
-            right = r * Math.cos(theta);
+            double[] rr = MecanumKinematics.toRobotRelative(forward, right, headingRadians);
+            forward = rr[0];
+            right = rr[1];
         }
-
-        double frontLeftPower = forward + right + rotate;
-        double frontRightPower = forward - right - rotate;
-        double backLeftPower = forward - right + rotate;
-        double backRightPower = forward + right - rotate;
-
-        double maxPower = 1.0;
-        maxPower = Math.max(maxPower, Math.abs(frontLeftPower));
-        maxPower = Math.max(maxPower, Math.abs(frontRightPower));
-        maxPower = Math.max(maxPower, Math.abs(backLeftPower));
-        maxPower = Math.max(maxPower, Math.abs(backRightPower));
-
-        frontLeftDrive.setPower(frontLeftPower / maxPower);
-        frontRightDrive.setPower(frontRightPower / maxPower);
-        backLeftDrive.setPower(backLeftPower / maxPower);
-        backRightDrive.setPower(backRightPower / maxPower);
+        double[] p = MecanumKinematics.mix(forward, right, rotate);
+        frontLeftDrive.setPower(p[0]);
+        frontRightDrive.setPower(p[1]);
+        backLeftDrive.setPower(p[2]);
+        backRightDrive.setPower(p[3]);
     }
 }
