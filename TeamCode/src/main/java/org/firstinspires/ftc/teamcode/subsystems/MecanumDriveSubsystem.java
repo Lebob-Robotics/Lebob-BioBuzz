@@ -4,7 +4,8 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.Constants;
+import org.firstinspires.ftc.teamcode.MecanumKinematics;
 
 /**
  * Drivetrain subsystem for a four-motor mecanum base, with optional field-centric
@@ -17,16 +18,15 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     private final DcMotor backRightDrive;
 
     public MecanumDriveSubsystem(HardwareMap hardwareMap) {
-        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
-        frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-        backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
-        backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
+        frontLeftDrive = hardwareMap.get(DcMotor.class, Constants.FRONT_LEFT_DRIVE);
+        frontRightDrive = hardwareMap.get(DcMotor.class, Constants.FRONT_RIGHT_DRIVE);
+        backLeftDrive = hardwareMap.get(DcMotor.class, Constants.BACK_LEFT_DRIVE);
+        backRightDrive = hardwareMap.get(DcMotor.class, Constants.BACK_RIGHT_DRIVE);
 
-        // Left motors are flipped so that a positive power on every motor drives straight.
-        frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-        frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
-        backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-        backRightDrive.setDirection(DcMotor.Direction.FORWARD);
+        frontLeftDrive.setDirection(Constants.FRONT_LEFT_DIRECTION);
+        frontRightDrive.setDirection(Constants.FRONT_RIGHT_DIRECTION);
+        backLeftDrive.setDirection(Constants.BACK_LEFT_DIRECTION);
+        backRightDrive.setDirection(Constants.BACK_RIGHT_DIRECTION);
 
         frontLeftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         frontRightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -45,29 +45,14 @@ public class MecanumDriveSubsystem extends SubsystemBase {
      */
     public void drive(double forward, double right, double rotate, boolean fieldCentric, double headingRadians) {
         if (fieldCentric) {
-            double theta = Math.atan2(forward, right);
-            double r = Math.hypot(right, forward);
-
-            theta = AngleUnit.normalizeRadians(theta - headingRadians);
-
-            forward = r * Math.sin(theta);
-            right = r * Math.cos(theta);
+            double[] rr = MecanumKinematics.toRobotRelative(forward, right, headingRadians);
+            forward = rr[0];
+            right = rr[1];
         }
-
-        double frontLeftPower = forward + right + rotate;
-        double frontRightPower = forward - right - rotate;
-        double backLeftPower = forward - right + rotate;
-        double backRightPower = forward + right - rotate;
-
-        double maxPower = 1.0;
-        maxPower = Math.max(maxPower, Math.abs(frontLeftPower));
-        maxPower = Math.max(maxPower, Math.abs(frontRightPower));
-        maxPower = Math.max(maxPower, Math.abs(backLeftPower));
-        maxPower = Math.max(maxPower, Math.abs(backRightPower));
-
-        frontLeftDrive.setPower(frontLeftPower / maxPower);
-        frontRightDrive.setPower(frontRightPower / maxPower);
-        backLeftDrive.setPower(backLeftPower / maxPower);
-        backRightDrive.setPower(backRightPower / maxPower);
+        double[] p = MecanumKinematics.mix(forward, right, rotate);
+        frontLeftDrive.setPower(p[0]);
+        frontRightDrive.setPower(p[1]);
+        backLeftDrive.setPower(p[2]);
+        backRightDrive.setPower(p[3]);
     }
 }

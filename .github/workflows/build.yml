@@ -52,3 +52,6 @@ jobs:
 
       - name: Assemble the TeamCode debug APK
         run: ./gradlew :TeamCode:assembleDebug --no-daemon --stacktrace
+
+      - name: Run the TeamCode JVM unit tests
+        run: ./gradlew :TeamCode:testDebugUnitTest --no-daemon --stacktrace

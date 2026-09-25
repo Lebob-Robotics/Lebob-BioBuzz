@@ -1,6 +1,6 @@
 # Shoot on the move, design
 
-Lebob Robotics, FTC 29550 · BIOBUZZ 2026/27 · v1.0, 20 Sep 2026
+Lebob Robotics, FTC 29550 · BIOBUZZ 2026/27 · v1.1, 20 Sep 2026
 
 ## Purpose
 
@@ -67,7 +67,10 @@ Three parts, kept apart so each can be checked on its own.
 
 `tools/shots/index.html`, vanilla JavaScript with Plotly from its CDN for the
 plots (so it needs internet the first time; the browser caches it after).
-Opened straight from the file system, no server, no build step. A
+Opened straight from the file system, no server, no build step. The physics
+lives in `tools/shots/shots.js`, loaded by the page and by a node script
+`tools/shots/export.js` that regenerates the Java table from
+`tools/shots/inputs.json`, so the table can be rebuilt without a browser. A
 solver in the browser is chosen over Python because the page needs the physics
 anyway to draw trajectories, and one copy of the maths is better than two that
 drift.
@@ -82,12 +85,12 @@ characterisation session (below) as defaults:
   (linear, one constant), shooter offset forward of the robot centre, flywheel
   speed tolerance.
 - Cell: near lip height (53.5 in from the teleop spec), opening 20 in wide by
-  14 in tall, opening tilt 30° from horizontal with the far edge higher than
+  14 in tall, opening tilt 60° from horizontal with the far edge higher than
   the near lip, ball clearance margin at each edge. These are read from
   Competition Manual Figure 9-10 and the field CAD before the first table is
   exported, and the page shows them on the plot so an error is visible.
-- Sweep ranges: distance 0.6 to 3.0 m in 0.1 m steps, radial velocity −1.0 to
-  +1.0 m/s in 0.1 m/s steps (positive is closing), RPM 1500 to 5500 in 25 RPM
+- Sweep ranges: distance 0.1 to 1.5 m in 0.075 m steps, radial velocity −2.3 to
+  +2.3 m/s in 0.1 m/s steps (positive is closing), RPM 1500 to 5500 in 25 RPM
   steps.
 
 **Physics**: two-dimensional flight in the vertical plane through the Cell
@@ -102,16 +105,17 @@ bounce out of the Cell are not modelled.
 The table stores the band centre, the band width, and time of flight at the
 centre. A cell is marked invalid when the band is narrower than twice the
 flywheel tolerance. This is 4414's "most robust to errors" rule with speed as
-the only knob. No polynomial fit: the grid is 25 by 21 and the hub interpolates
+the only knob. No polynomial fit: the grid is 19 by 47 and the hub interpolates
 it directly.
 
-Running the sweep with the placeholder inputs shows the band is 125 to 175 RPM
-at every distance, for any launch angle from 45° to 75°: the near lip sets the
-floor and the far edge of the 14 in opening sets the ceiling. Radial velocity
-shifts the band rather than closing it, which is the point of putting it in
-the table. The consequence is that the flywheel tolerance has to be 50 RPM,
-not the teleop spec's 100, and holding that is a shooter tuning requirement
-before any moving shot is attempted.
+Running the sweep with the placeholder inputs shows the band is 150 to 225 RPM
+at every distance the table keeps (80° launch, 60° opening tilt; it was 125 to
+175 RPM for launch angles from 45° to 75° at a 30° tilt): the
+near lip sets the floor and the far edge of the 14 in opening sets the
+ceiling. Radial velocity shifts the band rather than closing it, which is the
+point of putting it in the table. The consequence is that the flywheel
+tolerance has to be 50 RPM, not the teleop spec's 100, and holding that is a
+shooter tuning requirement before any moving shot is attempted.
 
 **Visualiser**, three panels matching the 4414 binder image:
 
@@ -123,15 +127,16 @@ before any moving shot is attempted.
   chosen centre line. This is where the fixed-hood limit shows: the band
   closes at some closing speed and that is the speed the driver cannot exceed.
 - Heatmap of chosen RPM over distance and radial velocity, invalid cells grey,
-  with a toggle to show band width instead.
+  with a selector for band width or time of flight instead.
 
 Two sliders (distance, radial velocity), a ball toggle, and a readout of RPM,
 band width, time of flight and lateral tolerance at that distance.
 
 **Export**: a button downloads `ShotTable.java` with the grid as `double[][]`
 arrays plus the axis values, and the input form as a comment block at the top.
-A second button downloads a CSV of the same for spreadsheets. The Java file is
-committed; the page is the source of truth for regenerating it.
+A second button downloads the input form as `inputs.json`, which `export.js`
+reads. The Java file is committed; the page is the source of truth for
+regenerating it.
 
 **Self-check on load**: with drag set to zero the integrator is compared with
 the closed-form parabola at three points and must agree within 1 mm, and the
@@ -143,8 +148,10 @@ shows a red banner and disables export.
 A plain class with no static state, constructed with the table and the shooter
 constants.
 One method, `solve(pose, velocity, target)`, returns a small result object:
-`rpm`, `headingRad`, `valid`, and for telemetry `distance`, `radialVel`,
-`tangentialVel`, `timeOfFlight`, `bandWidth`.
+`rpm`, `headingRad`, `headingToleranceRad` (atan of the half opening, less
+ball clearance, over the distance to the opening centre), `valid`, and for
+telemetry `distance`, `radialVel`, `tangentialVel`, `timeOfFlight`,
+`bandWidth`.
 
 Steps:
 
@@ -167,7 +174,9 @@ Steps:
 
 ### `TargetTracker` (robot)
 
-Holds the up-facing Cell's opening centre in field coordinates. On each cluster
+Holds the up-facing Cell's opening centre in field coordinates. The table's
+distances are to the near lip, so `ShotSolver` subtracts
+`ShotTable.LIP_TO_CENTRE_M` before the lookup. On each cluster
 detection from `VisionSubsystem` it takes the robot pose at the frame's
 timestamp from a ring buffer of the last 50 Pinpoint poses, adds the cluster's
 robot-relative position, and stores the result with the time. Between
@@ -184,18 +193,21 @@ is in the CAD.
 - `ShooterSubsystem`: `setTargetRpm(double)` replaces the single setpoint.
   `atSpeed()` compares against the current target. A D-pad up/down trim adds
   or subtracts 50 RPM to every target for the rest of the run, shown on
-  telemetry, for when the table is slightly off on the day.
+  telemetry, for when the table is slightly off on the day. Changes under
+  10 RPM are ignored and a retarget does not re-assert the run mode, to keep
+  hub writes down.
 - `OdometrySubsystem`: exposes field velocity from the Pinpoint and keeps the
   timestamped pose ring buffer.
 - `MecanumDriveSubsystem`: no change. `Robot` supplies the rotation input.
-- `Robot`: while Y is held the rotation input comes from a proportional
-  heading controller on the solver's heading, the left stick still translates,
-  and the shooter runs at the solver's RPM. Fire (X) feeds only when the solver
-  is valid, the shooter is at speed, heading error is inside the tolerance
-  set by the Cell width at that distance, and the target is not expired. When
-  the solver is invalid the shooter idles at the stationary RPM for the current
-  distance and the Driver Station shows "NO SHOT: closing too fast" or
-  "NO SHOT: out of range".
+- `Robot`: the shooter follows the table whenever the Cell position is known,
+  aiming or not, and holds the stationary RPM for that distance when no shot
+  exists; with no known Cell it returns to the fixed setpoint. Holding Y
+  steers the robot to the solver's heading (the left stick still translates),
+  gates Fire (X) on a valid shot, the shooter at speed, heading error inside
+  the tolerance set by the Cell width, and a target that has not expired, and
+  turns the log on. Pressing A to zero the heading also clears the tracked
+  target, because the field frame has moved. The Driver Station shows one of
+  `CLOSING TOO FAST`, `BACKING TOO FAST`, `OUT OF RANGE` or `NO SHOT`.
 - `Constants`: feed delay, shooter offset, launch angle, exit speed constant,
   heading gains, target expiry, camera transform.
 
@@ -209,7 +221,7 @@ dashboards are banned at events.
 
 ## Measurements needed before the first table
 
-Done once on the robot, recorded in `tools/shots/measurements.md`:
+Done once on the robot, recorded in `tools/shots/README.md`:
 
 1. Launch angle, from CAD and checked with a protractor.
 2. Exit height above the tiles.
@@ -223,7 +235,7 @@ Done once on the robot, recorded in `tools/shots/measurements.md`:
 
 ## Testing
 
-**JVM unit tests** (`ShotSolverTest`, `ShotTableTest`):
+**JVM unit tests** (`ShotSolverTest`, `TargetTrackerTest`):
 
 - Interpolation returns grid values at grid points and the midpoint between
   neighbours.

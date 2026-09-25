@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.Constants;
 
 /**
  * Wraps a goBILDA Pinpoint Odometry Computer reading two dead-wheel pods, and
@@ -16,12 +17,12 @@ public class OdometrySubsystem extends SubsystemBase {
     private final GoBildaPinpointDriver pinpoint;
 
     public OdometrySubsystem(HardwareMap hardwareMap) {
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.PINPOINT);
     }
 
     /** Called once from the OpMode's init(). Configures the Pinpoint and zeroes its pose. */
     public void init() {
-        pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
+        pinpoint.setOffsets(Constants.PINPOINT_X_OFFSET_MM, Constants.PINPOINT_Y_OFFSET_MM, DistanceUnit.MM);
         pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         pinpoint.setEncoderDirections(
                 GoBildaPinpointDriver.EncoderDirection.FORWARD,
@@ -38,6 +39,11 @@ public class OdometrySubsystem extends SubsystemBase {
 
     public Pose2D getPose() {
         return pinpoint.getPosition();
+    }
+
+    /** Velocity from the Pinpoint, metres per second, as {x, y}. Assumed field-frame; confirm with README rung 0 before any moving shot. */
+    public double[] getVelocity() {
+        return new double[]{pinpoint.getVelX(DistanceUnit.METER), pinpoint.getVelY(DistanceUnit.METER)};
     }
 
     /** Zeroes the reported heading in place, keeping the current position. */
