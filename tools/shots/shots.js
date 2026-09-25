@@ -59,31 +59,52 @@
     return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ? u : null;
   }
 
-  // Fly one ball from the shooter (x = 0, y = exit height) toward a Cell whose near lip is at x = distM.
-  // The robot's radial velocity adds to the ball's horizontal velocity. Quadratic drag, trapezoidal
-  // velocity step so the no-drag case reproduces the exact parabola.
-  function simulate(rpm, radialVelMps, distM, p) {
+  // Fly one ball from the shooter (x = 0, y = exit height) with nothing to hit, until it reaches the
+  // tiles, 5 s, or x past maxXM (when every target of interest is behind). The robot's radial velocity adds to the ball's horizontal velocity. Quadratic drag,
+  // trapezoidal velocity step so the no-drag case reproduces the exact parabola. Each point is
+  // [x, y, vy]. The flight does not depend on the Cell's distance, so one flight serves every distance.
+  function fly(rpm, radialVelMps, p, maxXM) {
+    if (maxXM === undefined) maxXM = Infinity;
     const r = p.ballDiameterM / 2;
     const k = 0.5 * RHO * p.dragCd * Math.PI * r * r / p.ballMassKg;
     const a = p.launchAngleDeg * Math.PI / 180, v0 = rpm * p.exitSpeedPerRpm;
-    const o = opening(distM, p);
-    const clear = (r + p.marginM) / p.openingLengthM;  // edge clearance as a fraction of the opening
     let x = 0, y = p.exitHeightM, vx = v0 * Math.cos(a) + radialVelMps, vy = v0 * Math.sin(a), t = 0;
-    const pts = [[x, y]];
-    let result = 'short';
-    while (t < 5) {
+    const pts = [[x, y, vy]];
+    while (t < 5 && y >= 0 && x <= maxXM) {
       const v = Math.hypot(vx, vy);
       const vx1 = vx - k * v * vx * p.dtS, vy1 = vy - (G + k * v * vy) * p.dtS;
-      const nx = x + (vx + vx1) / 2 * p.dtS, ny = y + (vy + vy1) / 2 * p.dtS;
+      x += (vx + vx1) / 2 * p.dtS; y += (vy + vy1) / 2 * p.dtS;
       vx = vx1; vy = vy1; t += p.dtS;
-      const u = crossing(x, y, nx, ny, o);
-      x = nx; y = ny; pts.push([x, y]);
-      if (u !== null && vy < 0) { result = u < clear ? 'lip' : u > 1 - clear ? 'far' : 'score'; break; }
-      if (x >= o.x0 && y < o.y0) { result = 'short'; break; }   // into the front face below the lip
-      if (x > o.x1 && y >= o.y1) { result = 'long'; break; }     // over the far edge
-      if (y < 0) { result = x > o.x1 ? 'long' : 'short'; break; }
+      pts.push([x, y, vy]);
     }
-    return { points: pts, result: result, tof: t };
+    return pts;
+  }
+
+  // Where a flight ends against a Cell whose near lip is at x = distM: 'score', or why it missed.
+  // Returns the point index where it ended. Nothing can happen before x reaches the lip, and x is
+  // monotonic, so the walk starts at the first segment that gets there.
+  function land(pts, distM, p) {
+    const r = p.ballDiameterM / 2;
+    const o = opening(distM, p);
+    const clear = (r + p.marginM) / p.openingLengthM;  // edge clearance as a fraction of the opening
+    if (pts[pts.length - 1][0] < o.x0) return { result: 'short', end: pts.length - 1 };
+    let lo = 1, hi = pts.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (pts[mid][0] < o.x0) lo = mid + 1; else hi = mid; }
+    for (let i = lo; i < pts.length; i++) {
+      const [x, y] = pts[i - 1], [nx, ny, vy] = pts[i];
+      const u = crossing(x, y, nx, ny, o);
+      if (u !== null && vy < 0) return { result: u < clear ? 'lip' : u > 1 - clear ? 'far' : 'score', end: i };
+      if (nx >= o.x0 && ny < o.y0) return { result: 'short', end: i };   // into the front face below the lip
+      if (nx > o.x1 && ny >= o.y1) return { result: 'long', end: i };     // over the far edge
+      if (ny < 0) return { result: nx > o.x1 ? 'long' : 'short', end: i };
+    }
+    return { result: pts[pts.length - 1][0] > o.x1 ? 'long' : 'short', end: pts.length - 1 };  // flight cut off past the far edge
+  }
+
+  // Fly one ball at a Cell whose near lip is at x = distM. Points stop where the flight ended.
+  function simulate(rpm, radialVelMps, distM, p) {
+    const pts = fly(rpm, radialVelMps, p), l = land(pts, distM, p);
+    return { points: pts.slice(0, l.end + 1), result: l.result, tof: l.end * p.dtS };
   }
 
   // The contiguous band of RPMs that score, its centre and the time of flight at the centre.
@@ -180,5 +201,5 @@
     return fails;
   }
 
-  return { DEFAULTS: DEFAULTS, BALLS: BALLS, axis: axis, opening: opening, simulate: simulate, band: band, solveGrid: solveGrid, toJava: toJava, selfCheck: selfCheck };
+  return { DEFAULTS: DEFAULTS, BALLS: BALLS, axis: axis, opening: opening, fly: fly, land: land, simulate: simulate, band: band, solveGrid: solveGrid, toJava: toJava, selfCheck: selfCheck };
 });

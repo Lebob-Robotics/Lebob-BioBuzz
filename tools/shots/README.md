@@ -17,6 +17,12 @@ These tools work that out on a laptop and give the robot a table.
   `inputs.json` and commit both files together.
 - `inputs.json`: the measured constants behind the committed table.
 
+- `hood.js`: sizes an adjustable hood. Sweeps hood angle and RPM at every
+  distance and radial velocity in the envelope, keeps the shots that survive
+  the hood and flywheel tolerances, and searches for the narrowest hood travel
+  that still covers every cell. `node tools/shots/hood.js` prints it.
+- `hood.html`: the same, with plots. Open it, press Compute, move the sliders.
+
 ## What the three panels show
 
 1. Trajectory fan. Every flywheel speed at the chosen distance and radial
@@ -26,6 +32,44 @@ These tools work that out on a laptop and give the robot a table.
    set of speeds that score. Where it pinches shut is the closing speed the
    driver cannot exceed.
 3. Heatmap of the table. Grey cells have no shot.
+
+## Sizing the hood
+
+`hood.html` answers one question: how far does the hood have to travel? A
+shot is kept only when every angle within the hood tolerance and every speed
+within the flywheel tolerance still scores, which is 4414's inscribed
+tolerance region drawn as a rectangle. Each shot's margin is its distance from
+the nearest miss, in tolerances, so larger is safer. The recommended window is
+the narrowest one where every cell that can be covered at all has such a shot,
+ties going to the higher mean margin.
+
+- Valid region. Hood angle against RPM at the slider's cell. Dark cannot
+  score, pale scores but not with the tolerances, colour is the margin. The
+  star is the chosen shot, the white box its tolerance rectangle, the dashed
+  lines the recommended window.
+- Chosen angle against distance, one line per radial velocity. This is what
+  the runtime table would hold.
+- Cells covered against hood travel. Where it meets the dotted line is the
+  recommended travel; the slope before it is what each extra degree buys.
+
+- Side view. The hood's recommended wedge at the exit point, the chosen
+  angle through it, the chosen arc in blue, and the four corners of its
+  tolerance rectangle faintly, green where they score.
+- Field map. Top-down, coloured by margin, hood angle or RPM of the shot from
+  each robot position at the slider's radial velocity. The Cell's field
+  position and facing are placeholders on the form until read from the
+  manual. Grey means behind the Cell, outside the swept distances, or no
+  robust shot. The map assumes a head-on shot at every bearing; a robot 60
+  degrees off the Cell's axis is coloured the same as one dead ahead, which
+  the sim does not model.
+
+Cells listed as uncoverable have no robust shot at any swept angle. With the
+placeholder inputs those are the very close shots and fast approaches at short
+range; extending the sweep to 89 degrees reaches some of them.
+
+Self-check: with the sweep pinned to the fixed launch angle and no hood error,
+the coverable stationary cells must be exactly the usable cells of the RPM
+table. The page shows a red banner if not; the node script refuses to run.
 
 ## Measurements
 
