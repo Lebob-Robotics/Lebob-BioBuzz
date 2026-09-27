@@ -14,6 +14,11 @@ public class Main extends OpMode {
     }
 
     @Override
+    public void init_loop() {
+        robot.initLoop();
+    }
+
+    @Override
     public void loop() {
         robot.periodic();
     }

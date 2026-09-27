@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.Constants;
 
 /**
  * Drivetrain subsystem for a four-motor mecanum base, with optional field-centric
@@ -17,16 +18,16 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     private final DcMotor backRightDrive;
 
     public MecanumDriveSubsystem(HardwareMap hardwareMap) {
-        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
-        frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-        backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
-        backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
+        frontLeftDrive = hardwareMap.get(DcMotor.class, Constants.FRONT_LEFT_DRIVE);
+        frontRightDrive = hardwareMap.get(DcMotor.class, Constants.FRONT_RIGHT_DRIVE);
+        backLeftDrive = hardwareMap.get(DcMotor.class, Constants.BACK_LEFT_DRIVE);
+        backRightDrive = hardwareMap.get(DcMotor.class, Constants.BACK_RIGHT_DRIVE);
 
         // Left motors are flipped so that a positive power on every motor drives straight.
-        frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-        frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
-        backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-        backRightDrive.setDirection(DcMotor.Direction.FORWARD);
+        frontLeftDrive.setDirection(Constants.FRONT_LEFT_DIRECTION);
+        frontRightDrive.setDirection(Constants.FRONT_RIGHT_DIRECTION);
+        backLeftDrive.setDirection(Constants.BACK_LEFT_DIRECTION);
+        backRightDrive.setDirection(Constants.BACK_RIGHT_DIRECTION);
 
         frontLeftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         frontRightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -69,5 +70,13 @@ public class MecanumDriveSubsystem extends SubsystemBase {
         frontRightDrive.setPower(frontRightPower / maxPower);
         backLeftDrive.setPower(backLeftPower / maxPower);
         backRightDrive.setPower(backRightPower / maxPower);
+    }
+
+    /** Stops all drive motors when the OpMode ends. */
+    public void stop() {
+        frontLeftDrive.setPower(0);
+        frontRightDrive.setPower(0);
+        backLeftDrive.setPower(0);
+        backRightDrive.setPower(0);
     }
 }
