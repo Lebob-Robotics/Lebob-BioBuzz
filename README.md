@@ -114,3 +114,32 @@ run the `TeamCode` configuration. Android Studio does the same `adb install` and
 launch shown above. If the Hub does not appear in the device dropdown, run
 `adb connect 192.168.43.1:5555` in a terminal first; Android Studio picks up
 devices from the same adb server.
+
+## TeleOp hardware and controls
+
+Before selecting **BioBuzz TeleOp**, configure the Control Hub with these exact
+names: `front_left_drive`, `front_right_drive`, `back_left_drive`,
+`back_right_drive`, `pinpoint`, `intake`, `indexer`, `shooter_left`, and
+`shooter_right`. The intake and shooter motors must support `DcMotorEx` encoder
+control. Motor directions, shooter speed and PIDF, and Pinpoint offsets are in
+`TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Constants.java`; confirm
+them on the robot before a match.
+
+During INIT, D-pad left selects red and D-pad right selects blue. The selected
+alliance appears in telemetry. The current code does not use it for camera
+aiming yet.
+
+| Gamepad 1 input | Action |
+| --- | --- |
+| Left stick | Field-relative translation |
+| Right stick X | Rotation |
+| Left bumper (hold) | Robot-relative translation |
+| A | Zero heading |
+| Right trigger (hold) | Run intake and indexer |
+| Left trigger (hold) | Reverse intake and indexer |
+| Right bumper | Toggle shooter spin-up |
+| X (hold) | Feed with the indexer when both flywheels are at speed |
+
+Left trigger takes priority over right trigger, and either trigger takes
+priority over X. Test motor directions, Pinpoint heading, and shooter RPM on
+the robot before firing.
