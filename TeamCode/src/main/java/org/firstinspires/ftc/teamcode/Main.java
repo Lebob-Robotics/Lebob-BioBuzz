@@ -20,6 +20,9 @@ public class Main extends OpMode {
 
     @Override
     public void stop() {
-        robot.stop();
+        // robot is null if init() threw (e.g. a device name missing from the config).
+        if (robot != null) {
+            robot.stop();
+        }
     }
 }
