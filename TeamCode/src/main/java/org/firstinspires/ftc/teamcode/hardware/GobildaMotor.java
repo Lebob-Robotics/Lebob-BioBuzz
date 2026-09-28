@@ -9,15 +9,9 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
  * Thin wrapper around a {@link DcMotorEx}, shared by every subsystem that
  * drives a motor (drivetrain, intake, shooter, indexer, ...).
  *
- * <p>
- * Configuration methods return {@code this} so a motor can be set up in one
- * expression:
- *
  * <pre>{@code
- * GobildaMotor shooter = new GobildaMotor(hardwareMap, "shooter")
- *     .setReversed(true)
- *     .setRunMode(DcMotor.RunMode.RUN_USING_ENCODER)
- *     .setBrakeOnZeroPower(false);
+ * GobildaMotor shooter = new GobildaMotor(
+ *     hardwareMap, "shooter", true, DcMotor.RunMode.RUN_USING_ENCODER, false);
  * }</pre>
  */
 public class GobildaMotor {
@@ -31,13 +25,16 @@ public class GobildaMotor {
   /**
    * @param hardwareMap the OpMode's hardware map
    * @param name        the device name in the robot configuration
+   * @param reversed    true to flip the motor's positive direction
+   * @param mode        run mode to configure the motor with
+   * @param brake       true to brake at zero power, false to float
    */
   public GobildaMotor(HardwareMap hardwareMap, String name, boolean reversed, DcMotor.RunMode mode, boolean brake) {
     this.name = name;
     this.motor = hardwareMap.get(DcMotorEx.class, name);
-    this.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
-    this.setMode(mode);
-    this.setZeroPowerBehavior(brake ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+    motor.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
+    motor.setMode(mode);
+    motor.setZeroPowerBehavior(brake ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
   }
 
   /** Zeroes the encoder, then restores the previous run mode. */
@@ -48,12 +45,12 @@ public class GobildaMotor {
     return this;
   }
 
-  /*
+  /**
    * Sets motor power, clamped to [-1, 1]. Skips the hardware write if unchanged.
    */
   public void setPower(double power) {
     power = Math.max(-1.0, Math.min(1.0, power));
-    if (!Double.isNaN(lastPower) && Math.abs(power - lastPower) < POWER_EPSILON) {
+    if (!Double.isNaN(lastPower) && Math.abs(power - lastPower) < POWER_MIN) {
       return;
     }
     lastPower = power;
