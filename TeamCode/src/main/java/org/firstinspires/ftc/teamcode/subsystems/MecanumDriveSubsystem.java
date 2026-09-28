@@ -5,35 +5,29 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 
 /**
  * Drivetrain subsystem for a four-motor mecanum base, with optional
- * field-centric
- * driving using the Pinpoint's heading.
+ * field-centric driving using the Pinpoint's heading.
  */
 public class MecanumDriveSubsystem extends SubsystemBase {
-  private final DcMotor frontLeftDrive;
-  private final DcMotor frontRightDrive;
-  private final DcMotor backLeftDrive;
-  private final DcMotor backRightDrive;
+  private final GobildaMotor frontLeft;
+  private final GobildaMotor frontRight;
+  private final GobildaMotor backLeft;
+  private final GobildaMotor backRight;
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
-    frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left_drive");
-    frontRightDrive = hardwareMap.get(DcMotor.class, "front_right_drive");
-    backLeftDrive = hardwareMap.get(DcMotor.class, "back_left_drive");
-    backRightDrive = hardwareMap.get(DcMotor.class, "back_right_drive");
-
     // Left motors are flipped so that a positive power on every motor drives
     // straight.
-    frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-    frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
-    backLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-    backRightDrive.setDirection(DcMotor.Direction.FORWARD);
+    frontLeft = createDriveMotor(hardwareMap, "DriveFL", true);
+    frontRight = createDriveMotor(hardwareMap, "DriveFR", false);
+    backLeft = createDriveMotor(hardwareMap, "DriveBL", true);
+    backRight = createDriveMotor(hardwareMap, "DriveBR", false);
+  }
 
-    frontLeftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-    frontRightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-    backLeftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-    backRightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+  private static GobildaMotor createDriveMotor(HardwareMap hardwareMap, String name, boolean reversed) {
+    return new GobildaMotor(hardwareMap, name, reversed, DcMotor.RunMode.RUN_USING_ENCODER, false);
   }
 
   /**
@@ -63,15 +57,23 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     double backLeftPower = forward + right + rotate;
     double backRightPower = forward + right - rotate;
 
-    double maxPower = 1.0;
-    maxPower = Math.max(maxPower, Math.abs(frontLeftPower));
-    maxPower = Math.max(maxPower, Math.abs(frontRightPower));
-    maxPower = Math.max(maxPower, Math.abs(backLeftPower));
-    maxPower = Math.max(maxPower, Math.abs(backRightPower));
+    // Scale all wheels down together so no power exceeds 1 and the direction
+    // of travel is preserved.
+    double maxPower = Math.max(1.0,
+        Math.max(Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
+            Math.max(Math.abs(backLeftPower), Math.abs(backRightPower))));
 
-    frontLeftDrive.setPower(frontLeftPower / maxPower);
-    frontRightDrive.setPower(frontRightPower / maxPower);
-    backLeftDrive.setPower(backLeftPower / maxPower);
-    backRightDrive.setPower(backRightPower / maxPower);
+    frontLeft.setPower(frontLeftPower / maxPower);
+    frontRight.setPower(frontRightPower / maxPower);
+    backLeft.setPower(backLeftPower / maxPower);
+    backRight.setPower(backRightPower / maxPower);
+  }
+
+  /** Cuts power to all four wheels. */
+  public void stop() {
+    frontLeft.stop();
+    frontRight.stop();
+    backLeft.stop();
+    backRight.stop();
   }
 }
