@@ -60,9 +60,9 @@ public class Robot {
     } else if (driver.b) {
       shooter.setShooterState(ShooterState.EJECT);
     } else if (driver.x) {
-      shooter.setshooterstate(ShooterState.STOP);
+      shooter.setShooterState(ShooterState.STOP);
     } else {
-      shooter.setshooterstate(ShooterState.IDLE);
+      shooter.setShooterState(ShooterState.IDLE);
     }
 
     if (driver.b) {
