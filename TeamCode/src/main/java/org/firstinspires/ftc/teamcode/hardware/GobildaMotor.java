@@ -5,6 +5,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+
 /**
  * Thin wrapper around a {@link DcMotorEx}, shared by every subsystem that
  * drives a motor (drivetrain, intake, shooter, indexer, ...).
@@ -81,6 +83,11 @@ public class GobildaMotor {
   /** Velocity in ticks/second. */
   public double getVelocity() {
     return motor.getVelocity();
+  }
+
+  /** Current draw in amps. Each call is a separate hub read. */
+  public double getCurrentAmps() {
+    return motor.getCurrent(CurrentUnit.AMPS);
   }
 
   public String getName() {

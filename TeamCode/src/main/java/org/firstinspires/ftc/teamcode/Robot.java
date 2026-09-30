@@ -66,10 +66,12 @@ public class Robot {
     }
 
     // The intake also runs while shooting: the indexer can't pull in balls waiting
-    // where the intake meets it, so with the intake stopped they sit there.
+    // where the intake meets it, so with the intake stopped they sit there. It
+    // pauses while the indexer backs off a jam, so it doesn't pack the jam tighter.
+    boolean feeding = driver.right_trigger > triggerLimit && shooter.isIndexerFeeding();
     if (driver.b) {
       intake.setIntakeState(IntakeState.EJECT);
-    } else if (driver.left_trigger > triggerLimit || driver.right_trigger > triggerLimit) {
+    } else if (driver.left_trigger > triggerLimit || feeding) {
       intake.setIntakeState(IntakeState.INTAKE);
     } else {
       intake.setIntakeState(IntakeState.STOP);
@@ -80,6 +82,10 @@ public class Robot {
         !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
     telemetry.addData("Pose", odometry.getPose());
+    telemetry.addData("Indexer", shooter.getIndexerStatus());
+    if (shooter.isIndexerJammed()) {
+      telemetry.addLine("INDEXER JAMMED: release the right trigger and clear the balls");
+    }
     telemetry.update();
   }
 
