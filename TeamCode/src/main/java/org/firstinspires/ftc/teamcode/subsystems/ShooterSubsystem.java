@@ -73,15 +73,20 @@ public class ShooterSubsystem extends SubsystemBase {
         break;
       case IDLE:
         indexerMotor.stop();
+        setShooterMode(DcMotor.RunMode.RUN_USING_ENCODER);
         setShooterPower(1.0);
         break;
       case SHOOT:
         indexerStallGuard.start(clock.seconds());
         indexerMotor.setPower(indexerStallGuard.getPower());
+        // RUN_USING_ENCODER holds power 1.0 to 85% of the motor's rated speed
+        // (about 5100 RPM on the 6000 RPM motors); open loop gives full voltage.
+        setShooterMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         setShooterPower(1.0);
         break;
       case EJECT:
         indexerMotor.setPower(-1.0);
+        setShooterMode(DcMotor.RunMode.RUN_USING_ENCODER);
         setShooterPower(-1.0);
         break;
     }
@@ -143,6 +148,11 @@ public class ShooterSubsystem extends SubsystemBase {
     double minSpeed = SHOOTER_VELOCITY;
     return Math.abs(shooterFrontMotor.getVelocity()) >= minSpeed
         && Math.abs(shooterBackMotor.getVelocity()) >= minSpeed;
+  }
+
+  private void setShooterMode(DcMotor.RunMode mode) {
+    shooterFrontMotor.setMode(mode);
+    shooterBackMotor.setMode(mode);
   }
 
   private void setShooterPower(double ticksPerSecond) {

@@ -59,6 +59,18 @@ public class GobildaMotor {
     motor.setPower(power);
   }
 
+  /**
+   * Changes the run mode if it differs, and forgets the cached power so the
+   * next setPower reaches the motor in the new mode.
+   */
+  public void setMode(DcMotor.RunMode mode) {
+    if (motor.getMode() == mode) {
+      return;
+    }
+    motor.setMode(mode);
+    lastPower = Double.NaN;
+  }
+
   /** Sets a target velocity in ticks/second (requires RUN_USING_ENCODER). */
   public void setVelocity(double ticksPerSecond) {
     lastPower = Double.NaN; // power cache is no longer meaningful
