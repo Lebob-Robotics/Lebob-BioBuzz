@@ -87,3 +87,5 @@ lint/tmp/
 # lint/reports/
 # Linked git worktrees for parallel sessions
 .worktrees/
+# Local Android SDK install
+/android-sdk/

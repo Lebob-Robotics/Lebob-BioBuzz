@@ -5,21 +5,24 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 @TeleOp(name = "BioBuzz TeleOp", group = "Robot")
 public class Main extends OpMode {
-    private Robot robot;
+  private Robot robot;
 
-    @Override
-    public void init() {
-        robot = new Robot(hardwareMap, telemetry, gamepad1);
-        robot.init();
-    }
+  @Override
+  public void init() {
+    robot = new Robot(hardwareMap, telemetry, gamepad1);
+    robot.init();
+  }
 
-    @Override
-    public void loop() {
-        robot.periodic();
-    }
+  @Override
+  public void loop() {
+    robot.periodic();
+  }
 
-    @Override
-    public void stop() {
-        robot.stop();
+  @Override
+  public void stop() {
+    // robot is null if init() threw (e.g. a device name missing from the config).
+    if (robot != null) {
+      robot.stop();
     }
+  }
 }

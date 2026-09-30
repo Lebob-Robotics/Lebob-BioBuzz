@@ -4,7 +4,7 @@ Robot code for Lebob Robotics, team 29550, competing in FIRST Tech Challenge
 BIOBUZZ 2026/27 at the Western Australia Qualifier.
 
 This repository is an unmodified import of the FIRST Tech Challenge SDK with
-our own code in `TeamCode`. 
+our own code in `TeamCode`.
 
 ## Requirements
 
@@ -14,11 +14,11 @@ our own code in `TeamCode`.
 
 The required SDK packages:
 
-| Package | Why |
-| --- | --- |
+| Package                | Why                                               |
+| ---------------------- | ------------------------------------------------- |
 | `platforms;android-30` | `build.common.gradle` sets `compileSdkVersion 30` |
-| `build-tools;35.0.0` | the revision AGP 8.13.2 resolves to |
-| `platform-tools` | provides `adb`, used to deploy to the Control Hub |
+| `build-tools;35.0.0`   | the revision AGP 8.13.2 resolves to               |
+| `platform-tools`       | provides `adb`, used to deploy to the Control Hub |
 
 ### Getting the SDK without Android Studio
 
@@ -98,14 +98,12 @@ above restarts it; `adb reboot` also works and takes longer.
 A one-line version of build-and-deploy, once the connection is up:
 
 ```
-./gradlew :TeamCode:assembleDebug && \
-  adb install -r TeamCode/build/outputs/apk/debug/TeamCode-debug.apk && \
-  adb shell am start -n com.qualcomm.ftcrobotcontroller/org.firstinspires.ftc.robotcontroller.internal.PermissionValidatorWrapper
+./gradlew :TeamCode:assembleDebug && adb install -r TeamCode/build/outputs/apk/debug/TeamCode-debug.apk && adb shell am start -n com.qualcomm.ftcrobotcontroller/org.firstinspires.ftc.robotcontroller.internal.PermissionValidatorWrapper
 ```
 
 ### Using Android Studio instead
 
-Android Studio download: 
+Android Studio download:
 
 <https://developer.android.com/studio>
 

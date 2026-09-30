@@ -6,57 +6,92 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.IntakeState;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 
 public class Robot {
-    private final Telemetry telemetry;
-    private final Gamepad driver;
+  private final Telemetry telemetry;
+  private final Gamepad driver;
 
-    public final MecanumDriveSubsystem drive;
-    public final OdometrySubsystem odometry;
+  public final IntakeSubsystem intake;
+  public final MecanumDriveSubsystem drive;
+  public final OdometrySubsystem odometry;
+  public final ShooterSubsystem shooter;
 
-    public Robot(
-            HardwareMap hardwareMap,
-            Telemetry telemetry,
-            Gamepad driver
-    ) {
-        this.telemetry = telemetry;
-        this.driver = driver;
+  public static final double triggerLimit = 0.5;
 
-        CommandScheduler.getInstance().reset();
+  public Robot(
+      HardwareMap hardwareMap,
+      Telemetry telemetry,
+      Gamepad driver) {
+    this.telemetry = telemetry;
+    this.driver = driver;
 
-        // Construct subsystems.
-        drive = new MecanumDriveSubsystem(hardwareMap);
-        odometry = new OdometrySubsystem(hardwareMap);
-        // intake = new IntakeSubsystem(hardwareMap);
-        // outtake = new OuttakeSubsystem(hardwareMap);
+    CommandScheduler.getInstance().reset();
+
+    // Construct subsystems.
+    intake = new IntakeSubsystem(hardwareMap);
+    drive = new MecanumDriveSubsystem(hardwareMap);
+    odometry = new OdometrySubsystem(hardwareMap);
+    shooter = new ShooterSubsystem(hardwareMap);
+
+  }
+
+  /** Called once when the OpMode enters INIT. */
+  public void init() {
+    odometry.init();
+    shooter.setShooterState(ShooterState.IDLE);
+  }
+
+  /** Called repeatedly while the OpMode is running. */
+  public void periodic() {
+    CommandScheduler.getInstance().run();
+
+    if (driver.a) {
+      odometry.resetHeading();
     }
 
-    /** Called once when the OpMode enters INIT. */
-    public void init() {
-        odometry.init();
+    if (driver.right_trigger > triggerLimit) {
+      shooter.setShooterState(ShooterState.SHOOT);
+    } else if (driver.b) {
+      shooter.setShooterState(ShooterState.EJECT);
+    } else if (driver.x) {
+      shooter.setShooterState(ShooterState.STOP);
+    } else {
+      shooter.setShooterState(ShooterState.IDLE);
     }
 
-    /** Called repeatedly while the OpMode is running. */
-    public void periodic() {
-        CommandScheduler.getInstance().run();
-
-        if (driver.a) {
-            odometry.resetHeading();
-        }
-
-        // Hold left bumper to drive robot-relative; otherwise drive field-relative.
-        drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
-                !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
-
-        telemetry.addData("Pose", odometry.getPose());
-        telemetry.update();
+    // The intake also runs while shooting: the indexer can't pull in balls waiting
+    // where the intake meets it, so with the intake stopped they sit there. It
+    // pauses while the indexer backs off a jam, so it doesn't pack the jam tighter.
+    boolean feeding = driver.right_trigger > triggerLimit && shooter.isIndexerFeeding();
+    if (driver.b) {
+      intake.setIntakeState(IntakeState.EJECT);
+    } else if (driver.left_trigger > triggerLimit || feeding) {
+      intake.setIntakeState(IntakeState.INTAKE);
+    } else {
+      intake.setIntakeState(IntakeState.STOP);
     }
 
-    /** Called once when the OpMode stops. */
-    public void stop() {
-        CommandScheduler.getInstance().cancelAll();
-        CommandScheduler.getInstance().reset();
+    // Hold left bumper to drive robot-relative; otherwise drive field-relative.
+    drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
+        !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
+
+    telemetry.addData("Pose", odometry.getPose());
+    telemetry.addData("Indexer", shooter.getIndexerStatus());
+    if (shooter.isIndexerJammed()) {
+      telemetry.addLine("INDEXER JAMMED: release the right trigger and clear the balls");
     }
+    telemetry.update();
+  }
+
+  /** Called once when the OpMode stops. */
+  public void stop() {
+    CommandScheduler.getInstance().cancelAll();
+    CommandScheduler.getInstance().reset();
+  }
 }
