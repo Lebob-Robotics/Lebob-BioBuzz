@@ -65,9 +65,11 @@ public class Robot {
       shooter.setShooterState(ShooterState.IDLE);
     }
 
+    // The intake also runs while shooting: the indexer can't pull in balls waiting
+    // where the intake meets it, so with the intake stopped they sit there.
     if (driver.b) {
       intake.setIntakeState(IntakeState.EJECT);
-    } else if (driver.left_trigger > triggerLimit) {
+    } else if (driver.left_trigger > triggerLimit || driver.right_trigger > triggerLimit) {
       intake.setIntakeState(IntakeState.INTAKE);
     } else {
       intake.setIntakeState(IntakeState.STOP);
