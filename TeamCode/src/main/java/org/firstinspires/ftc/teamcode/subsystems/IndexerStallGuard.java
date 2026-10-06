@@ -1,19 +1,5 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-/**
- * Stall protection for the indexer while it feeds the shooter. Pure logic with
- * no hardware, so it can be unit tested.
- *
- * <p>
- * Measured on the prototype on 30 Sep: jammed on two balls, the indexer drew
- * 8.4 to 11.2 A at 0 ticks/s, while heavily loaded but still moving it turned
- * at 460 ticks/s or more. So high current at near-zero speed for
- * {@link #STALL_TIME_S} means jammed. Each jam backs the indexer off for
- * {@link #UNJAM_TIME_S} and then feeding resumes. After
- * {@link #MAX_UNJAM_ATTEMPTS} back-offs in one feed, the next jam leaves the
- * indexer off until the next feed starts, so a hard jam does not cook the
- * motor.
- */
 public class IndexerStallGuard {
   public static final double STALL_CURRENT_AMPS = 7.0;
   /** Ticks per second. */
