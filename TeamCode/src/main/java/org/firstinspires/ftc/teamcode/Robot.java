@@ -50,42 +50,38 @@ public class Robot {
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {
     CommandScheduler.getInstance().run();
+    drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
+      !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
     if (driver.a) {
       odometry.resetHeading();
     }
 
-    if (driver.right_trigger > triggerLimit) {
-      shooter.setShooterState(ShooterState.SHOOT);
+    boolean rightTriggerPressed = driver.right_trigger > triggerLimit;
+    boolean leftTriggerPressed = driver.left_trigger > triggerLimit;
+    boolean feeding = rightTriggerPressed && shooter.isIndexerFeeding();
+
+    ShooterState newShooterState = ShooterState.IDLE;
+    if (rightTriggerPressed) {
+      newShooterState = ShooterState.SHOOT;
     } else if (driver.b) {
-      shooter.setShooterState(ShooterState.EJECT);
+      newShooterState = ShooterState.EJECT;
     } else if (driver.x) {
-      shooter.setShooterState(ShooterState.STOP);
-    } else {
-      shooter.setShooterState(ShooterState.IDLE);
+      newShooterState = ShooterState.STOP;
     }
+    shooter.setShooterState(newShooterState);
 
-    // The intake also runs while shooting: the indexer can't pull in balls waiting
-    // where the intake meets it, so with the intake stopped they sit there. It
-    // pauses while the indexer backs off a jam, so it doesn't pack the jam tighter.
-    boolean feeding = driver.right_trigger > triggerLimit && shooter.isIndexerFeeding();
+    IntakeState newIntakeState = IntakeState.STOP;
     if (driver.b) {
-      intake.setIntakeState(IntakeState.EJECT);
-    } else if (driver.left_trigger > triggerLimit || feeding) {
-      intake.setIntakeState(IntakeState.INTAKE);
-    } else {
-      intake.setIntakeState(IntakeState.STOP);
+      newIntakeState = IntakeState.EJECT;
+    } else if (leftTriggerPressed || feeding) {
+      newIntakeState = IntakeState.INTAKE;
     }
-
-    // Hold left bumper to drive robot-relative; otherwise drive field-relative.
-    drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
-        !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
     telemetry.addData("Pose", odometry.getPose());
     telemetry.addData("Indexer", shooter.getIndexerStatus());
-    if (shooter.isIndexerJammed()) {
-      telemetry.addLine("INDEXER JAMMED: release the right trigger and clear the balls");
-    }
+    telemetry.addData("Indexer/Jammed", shooter.isIndexerJammed());
+
     telemetry.update();
   }
 
