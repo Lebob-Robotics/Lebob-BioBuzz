@@ -80,7 +80,7 @@ public class Robot {
 
     telemetry.addData("Pose", odometry.getPose());
     telemetry.addData("Indexer", shooter.getIndexerStatus());
-    telemetry.addData("Indexer/Jammed", shooter.isIndexerJammed())
+    telemetry.addData("Indexer/Jammed", shooter.isIndexerJammed());
 
     telemetry.update();
   }
