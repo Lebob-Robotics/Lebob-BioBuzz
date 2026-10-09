@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
+import org.firstinspires.ftc.teamcode.util.GobildaMotor;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerStallGuard.Phase;
 
 /**

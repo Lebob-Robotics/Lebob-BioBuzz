@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.hardware;
+package org.firstinspires.ftc.teamcode.util;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -7,15 +7,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
-/**
- * Thin wrapper around a {@link DcMotorEx}, shared by every subsystem that
- * drives a motor (drivetrain, intake, shooter, indexer, ...).
- *
- * <pre>{@code
- * GobildaMotor shooter = new GobildaMotor(
- *     hardwareMap, "shooter", true, DcMotor.RunMode.RUN_USING_ENCODER, false);
- * }</pre>
- */
 public class GobildaMotor {
   /** Power changes smaller than this are not re-sent to the hub. */
   private static final double POWER_MIN = 1e-3;
@@ -81,8 +72,6 @@ public class GobildaMotor {
     setPower(0.0);
   }
 
-  // ---------------------------------------------------------------- state
-
   public double getPower() {
     return motor.getPower();
   }
@@ -97,7 +86,6 @@ public class GobildaMotor {
     return motor.getVelocity();
   }
 
-  /** Current draw in amps. Each call is a separate hub read. */
   public double getCurrentAmps() {
     return motor.getCurrent(CurrentUnit.AMPS);
   }
@@ -106,7 +94,6 @@ public class GobildaMotor {
     return name;
   }
 
-  /** Escape hatch for anything not wrapped here. */
   public DcMotorEx getRaw() {
     return motor;
   }
