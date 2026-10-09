@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
+import org.firstinspires.ftc.teamcode.util.GobildaMotor;
 
 /**
  * Drivetrain subsystem for a four-motor mecanum base, with optional
