@@ -2,16 +2,19 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.util.GobildaMotor;
 
 /**
- * Subsystem to control intake and indexer
+ * Subsystem to control the intake motor and read the two intake beam breaks.
+ * The beam breaks are telemetry only for now.
  */
 public class IntakeSubsystem extends SubsystemBase {
   private final GobildaMotor intakeMotor;
+  private final DigitalChannel beamBreakTop;
+  private final DigitalChannel beamBreakBottom;
 
   public enum IntakeState {
     STOP, INTAKE, EJECT
@@ -21,7 +24,12 @@ public class IntakeSubsystem extends SubsystemBase {
   private IntakeState previousIntakeState = IntakeState.STOP;
 
   public IntakeSubsystem(HardwareMap hardwareMap) {
-    intakeMotor = new GobildaMotor(hardwareMap, "Intake", true, DcMotor.RunMode.RUN_USING_ENCODER, false);
+    intakeMotor = new GobildaMotor(hardwareMap, "IntakeMotor", true, DcMotor.RunMode.RUN_USING_ENCODER, false);
+    beamBreakTop = hardwareMap.get(DigitalChannel.class, "BeamBreakT");
+    beamBreakBottom = hardwareMap.get(DigitalChannel.class, "BeamBreakB");
+    beamBreakTop.setMode(DigitalChannel.Mode.INPUT);
+    beamBreakBottom.setMode(DigitalChannel.Mode.INPUT);
+    setIntakeState(IntakeState.STOP);
   }
 
   private void doIntakeState() {
@@ -48,4 +56,17 @@ public class IntakeSubsystem extends SubsystemBase {
     doIntakeState();
   }
 
+  public IntakeState getIntakeState() {
+    return intakeState;
+  }
+
+  /** True when a ball blocks the top beam. The receiver output goes low when broken. */
+  public boolean isTopBroken() {
+    return !beamBreakTop.getState();
+  }
+
+  /** True when a ball blocks the bottom beam. The receiver output goes low when broken. */
+  public boolean isBottomBroken() {
+    return !beamBreakBottom.getState();
+  }
 }
