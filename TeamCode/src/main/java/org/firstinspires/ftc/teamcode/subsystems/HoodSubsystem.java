@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.util.GobildaMotor;
+import org.psilynx.psikit.core.Logger;
 
 /**
  * Subsystem to control the shooter hood.
@@ -52,6 +53,12 @@ public class HoodSubsystem extends SubsystemBase {
 
   private HoodPreset preset = HoodPreset.STOW;
 
+  // What the last P loop step saw, kept for logging.
+  private int lastPosition;
+  private int lastError;
+  private boolean lastAtTarget;
+  private boolean lastAtSoftLimit;
+
   public HoodSubsystem(HardwareMap hardwareMap) {
     // reversed=false is a guess: verify on robot that positive power raises the hood.
     hoodMotor = new GobildaMotor(hardwareMap, "HoodMotor", false, DcMotor.RunMode.RUN_WITHOUT_ENCODER, true);
@@ -67,10 +74,27 @@ public class HoodSubsystem extends SubsystemBase {
 
   @Override
   public void periodic() {
+    runPositionLoop();
+
+    Logger.recordOutput("Hood/Preset", preset);
+    Logger.recordOutput("Hood/TargetTicks", getTarget());
+    Logger.recordOutput("Hood/PositionTicks", lastPosition);
+    Logger.recordOutput("Hood/ErrorTicks", lastError);
+    Logger.recordOutput("Hood/CommandedPower", hoodMotor.getCommandedPower());
+    Logger.recordOutput("Hood/AtTarget", lastAtTarget);
+    Logger.recordOutput("Hood/AtSoftLimit", lastAtSoftLimit);
+  }
+
+  /** One step of the P loop. Also stores what it saw so periodic() can log it. */
+  private void runPositionLoop() {
     int position = hoodMotor.getPosition();
     int error = getTarget() - position;
+    lastPosition = position;
+    lastError = error;
+    lastAtTarget = Math.abs(error) < DEADBAND_TICKS;
+    lastAtSoftLimit = false;
 
-    if (Math.abs(error) < DEADBAND_TICKS) {
+    if (lastAtTarget) {
       hoodMotor.stop();
       return;
     }
@@ -79,6 +103,7 @@ public class HoodSubsystem extends SubsystemBase {
 
     // Soft limits: never drive further down below MIN_TICKS or up above MAX_TICKS.
     if ((power < 0 && position <= MIN_TICKS) || (power > 0 && position >= MAX_TICKS)) {
+      lastAtSoftLimit = true;
       hoodMotor.stop();
       return;
     }

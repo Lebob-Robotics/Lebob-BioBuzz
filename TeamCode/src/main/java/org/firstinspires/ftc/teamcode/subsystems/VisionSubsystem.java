@@ -7,13 +7,9 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
-
-import java.util.ArrayList;
-import java.util.List;
+import org.psilynx.psikit.core.Logger;
 
 /**
  * Wraps two webcams, each running an AprilTag processor, and reports their
@@ -29,8 +25,14 @@ public class VisionSubsystem extends SubsystemBase {
 
   private final AprilTagProcessor[] processors = new AprilTagProcessor[2];
   private final VisionPortal[] portals = new VisionPortal[2];
+  private final VisionInputs[] inputs = {new VisionInputs(), new VisionInputs()};
 
   public VisionSubsystem(HardwareMap hardwareMap) {
+    // Replay has no cameras: the detections come from the log instead.
+    if (Logger.isReplay()) {
+      return;
+    }
+
     int[] viewIds = null;
     try {
       viewIds = VisionPortal.makeMultiPortalView(2, VisionPortal.MultiPortalLayout.HORIZONTAL);
@@ -64,45 +66,33 @@ public class VisionSubsystem extends SubsystemBase {
     }
   }
 
-  public boolean isAvailable(Side side) {
-    return processors[side.ordinal()] != null;
+  /**
+   * Reads each camera (live only) and logs it. Everything else in this class
+   * reads from the logged inputs, so replay sees what the robot saw.
+   */
+  @Override
+  public void periodic() {
+    for (Side side : Side.values()) {
+      VisionInputs in = inputs[side.ordinal()];
+      if (!Logger.isReplay()) {
+        in.capture(processors[side.ordinal()], portals[side.ordinal()]);
+      }
+      Logger.processInputs(side == Side.LEFT ? "Vision/Left" : "Vision/Right", in);
+    }
   }
 
-  /** Current AprilTag detections for one camera, empty if it is unavailable. */
-  public List<AprilTagDetection> getDetections(Side side) {
-    AprilTagProcessor processor = processors[side.ordinal()];
-    if (processor == null) {
-      return new ArrayList<>();
-    }
-    return processor.getDetections();
+  public boolean isAvailable(Side side) {
+    return inputs[side.ordinal()].available;
+  }
+
+  /** The latest logged inputs for one camera. */
+  public VisionInputs getInputs(Side side) {
+    return inputs[side.ordinal()];
   }
 
   /** Short telemetry string, e.g. "id 20 @ 42.1 in, id 24 @ 60.0 in". */
   public String describe(Side side) {
-    if (!isAvailable(side)) {
-      return "unavailable";
-    }
-
-    List<AprilTagDetection> detections = getDetections(side);
-    if (detections.isEmpty()) {
-      return "none";
-    }
-
-    StringBuilder sb = new StringBuilder();
-    for (AprilTagDetection detection : detections) {
-      if (sb.length() > 0) {
-        sb.append(", ");
-      }
-      if (detection instanceof AprilTagSingleDetection) {
-        sb.append("id ").append(((AprilTagSingleDetection) detection).id);
-      } else {
-        sb.append("cluster");
-      }
-      if (detection.ftcPose != null) {
-        sb.append(String.format(" @ %.1f in", detection.ftcPose.range));
-      }
-    }
-    return sb.toString();
+    return inputs[side.ordinal()].describe();
   }
 
   /** Closes both portals. Call from the OpMode's stop(). */

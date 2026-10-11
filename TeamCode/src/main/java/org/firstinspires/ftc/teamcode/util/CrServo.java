@@ -11,6 +11,7 @@ public class CrServo {
   private final String name;
   private final CRServo servo;
   private double lastPower = Double.NaN;
+  private double commandedPower = 0.0;
 
   /**
    * @param hardwareMap the OpMode's hardware map
@@ -28,6 +29,7 @@ public class CrServo {
    */
   public void setPower(double power) {
     power = Math.max(-1.0, Math.min(1.0, power));
+    commandedPower = power;
     if (!Double.isNaN(lastPower) && Math.abs(power - lastPower) < POWER_MIN) {
       return;
     }
@@ -41,6 +43,11 @@ public class CrServo {
 
   public double getPower() {
     return servo.getPower();
+  }
+
+  /** Last power requested via setPower. Kept in software so it logs and replays identically. */
+  public double getCommandedPower() {
+    return commandedPower;
   }
 
   public String getName() {

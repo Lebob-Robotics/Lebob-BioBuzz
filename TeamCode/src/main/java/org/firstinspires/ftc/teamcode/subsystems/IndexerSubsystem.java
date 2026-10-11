@@ -4,6 +4,7 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.util.CrServo;
+import org.psilynx.psikit.core.Logger;
 
 /**
  * Controls the indexer, a single Melonbotics Super Servo in continuous mode
@@ -56,5 +57,11 @@ public class IndexerSubsystem extends SubsystemBase {
 
   public IndexerState getIndexerState() {
     return indexerState;
+  }
+
+  @Override
+  public void periodic() {
+    Logger.recordOutput("Indexer/State", indexerState);
+    Logger.recordOutput("Indexer/CommandedPower", indexerServo.getCommandedPower());
   }
 }

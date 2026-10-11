@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.util.GobildaMotor;
+import org.psilynx.psikit.core.Logger;
 
 /**
  * Controls the two side-by-side shooter flywheels. Feeding balls into them is
@@ -31,6 +32,8 @@ public class ShooterSubsystem extends SubsystemBase {
 
   private ShooterState shooterState;
   private ShooterState previousShooterState = ShooterState.STOP;
+  // Tracked here (not read back from the motors) so the logged mode replays identically.
+  private DcMotor.RunMode shooterMode = DcMotor.RunMode.RUN_USING_ENCODER;
 
   public ShooterSubsystem(HardwareMap hardwareMap) {
     shooterRight = new GobildaMotor(hardwareMap, "ShooterR", false, DcMotor.RunMode.RUN_USING_ENCODER, false);
@@ -83,7 +86,19 @@ public class ShooterSubsystem extends SubsystemBase {
         && Math.abs(shooterLeft.getVelocity()) >= minSpeed;
   }
 
+  @Override
+  public void periodic() {
+    Logger.recordOutput("Shooter/State", shooterState);
+    Logger.recordOutput("Shooter/VelocityLeft", shooterLeft.getVelocity());
+    Logger.recordOutput("Shooter/VelocityRight", shooterRight.getVelocity());
+    Logger.recordOutput("Shooter/AtSpeed", isAtSpeed());
+    Logger.recordOutput("Shooter/AtSpeedThreshold", SHOOTER_VELOCITY);
+    Logger.recordOutput("Shooter/Mode", shooterMode);
+    Logger.recordOutput("Shooter/CommandedPower", shooterRight.getCommandedPower());
+  }
+
   private void setShooterMode(DcMotor.RunMode mode) {
+    shooterMode = mode;
     shooterRight.setMode(mode);
     shooterLeft.setMode(mode);
   }

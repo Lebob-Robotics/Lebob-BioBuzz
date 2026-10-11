@@ -14,6 +14,7 @@ public class GobildaMotor {
   private final String name;
   private final DcMotorEx motor;
   private double lastPower = Double.NaN;
+  private double commandedPower = 0.0;
 
   /**
    * @param hardwareMap the OpMode's hardware map
@@ -43,6 +44,7 @@ public class GobildaMotor {
    */
   public void setPower(double power) {
     power = Math.max(-1.0, Math.min(1.0, power));
+    commandedPower = power;
     if (!Double.isNaN(lastPower) && Math.abs(power - lastPower) < POWER_MIN) {
       return;
     }
@@ -74,6 +76,11 @@ public class GobildaMotor {
 
   public double getPower() {
     return motor.getPower();
+  }
+
+  /** Last power requested via setPower. Kept in software so it logs and replays identically. */
+  public double getCommandedPower() {
+    return commandedPower;
   }
 
   /** Encoder position in ticks. */

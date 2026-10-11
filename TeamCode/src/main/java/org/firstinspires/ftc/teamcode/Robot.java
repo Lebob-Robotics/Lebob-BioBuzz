@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
+import org.psilynx.psikit.core.Logger;
 
 public class Robot {
   private final Telemetry telemetry;
@@ -64,9 +65,13 @@ public class Robot {
 
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {
-    CommandScheduler.getInstance().run();
+    // The Pinpoint is already updated for this loop: PsiKit does it before
+    // user code runs, so the pose read below is the one that gets logged.
+
+    // Driver input: set every subsystem's state for this loop.
+    boolean fieldCentric = !driver.left_bumper;
     drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
-      !driver.left_bumper, odometry.getPose().getHeading(AngleUnit.RADIANS));
+      fieldCentric, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
     if (driver.a) {
       odometry.resetHeading();
@@ -75,6 +80,13 @@ public class Robot {
     boolean rightTriggerPressed = driver.right_trigger > triggerLimit;
     boolean leftTriggerPressed = driver.left_trigger > triggerLimit;
     boolean eject = driver.b;
+
+    Logger.recordOutput("Robot/Driver/Shoot", rightTriggerPressed);
+    Logger.recordOutput("Robot/Driver/Intake", leftTriggerPressed || rightTriggerPressed);
+    Logger.recordOutput("Robot/Driver/Eject", eject);
+    Logger.recordOutput("Robot/Driver/StopShooter", driver.x);
+    Logger.recordOutput("Robot/Driver/FieldCentric", fieldCentric);
+    Logger.recordOutput("Robot/Driver/ResetHeading", driver.a);
 
     ShooterState newShooterState = ShooterState.IDLE;
     if (rightTriggerPressed) {
@@ -120,6 +132,10 @@ public class Robot {
     } else if (driver.dpad_left) {
       hood.setPreset(HoodPreset.STOW);
     }
+
+    // Run after the states above are set, so the hood P loop and every
+    // subsystem's logging see this loop's commands rather than last loop's.
+    CommandScheduler.getInstance().run();
 
     telemetry.addData("Pose", odometry.getPose());
     telemetry.addData("Shooter", shooter.getShooterState()

@@ -6,6 +6,9 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.util.GobildaMotor;
+import org.psilynx.psikit.core.Logger;
+
+import java.util.Arrays;
 
 /**
  * Drivetrain subsystem for a four-motor mecanum base, with optional
@@ -16,6 +19,14 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   private final GobildaMotor frontRight;
   private final GobildaMotor backLeft;
   private final GobildaMotor backRight;
+
+  // Last drive() call, kept for logging. Wheel powers are {FL, FR, BL, BR}.
+  private double cmdForward;
+  private double cmdRight;
+  private double cmdRotate;
+  private boolean fieldCentric;
+  private double headingRadians;
+  private final double[] wheelPowers = new double[4];
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
     // Left motors are flipped so that a positive power on every motor drives
@@ -42,6 +53,12 @@ public class MecanumDriveSubsystem extends SubsystemBase {
    *                       fieldCentric is true
    */
   public void drive(double forward, double right, double rotate, boolean fieldCentric, double headingRadians) {
+    cmdForward = forward;
+    cmdRight = right;
+    cmdRotate = rotate;
+    this.fieldCentric = fieldCentric;
+    this.headingRadians = headingRadians;
+
     if (fieldCentric) {
       double theta = Math.atan2(forward, right);
       double r = Math.hypot(right, forward);
@@ -63,14 +80,30 @@ public class MecanumDriveSubsystem extends SubsystemBase {
         Math.max(Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
             Math.max(Math.abs(backLeftPower), Math.abs(backRightPower))));
 
-    frontLeft.setPower(frontLeftPower / maxPower);
-    frontRight.setPower(frontRightPower / maxPower);
-    backLeft.setPower(backLeftPower / maxPower);
-    backRight.setPower(backRightPower / maxPower);
+    wheelPowers[0] = frontLeftPower / maxPower;
+    wheelPowers[1] = frontRightPower / maxPower;
+    wheelPowers[2] = backLeftPower / maxPower;
+    wheelPowers[3] = backRightPower / maxPower;
+
+    frontLeft.setPower(wheelPowers[0]);
+    frontRight.setPower(wheelPowers[1]);
+    backLeft.setPower(wheelPowers[2]);
+    backRight.setPower(wheelPowers[3]);
+  }
+
+  @Override
+  public void periodic() {
+    Logger.recordOutput("Drive/Cmd/Forward", cmdForward);
+    Logger.recordOutput("Drive/Cmd/Right", cmdRight);
+    Logger.recordOutput("Drive/Cmd/Rotate", cmdRotate);
+    Logger.recordOutput("Drive/FieldCentric", fieldCentric);
+    Logger.recordOutput("Drive/HeadingRad", headingRadians);
+    Logger.recordOutput("Drive/WheelPowers", wheelPowers.clone());
   }
 
   /** Cuts power to all four wheels. */
   public void stop() {
+    Arrays.fill(wheelPowers, 0.0);
     frontLeft.stop();
     frontRight.stop();
     backLeft.stop();

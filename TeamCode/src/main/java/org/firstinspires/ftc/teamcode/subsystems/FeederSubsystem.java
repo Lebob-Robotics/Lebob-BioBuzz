@@ -4,6 +4,7 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.util.CrServo;
+import org.psilynx.psikit.core.Logger;
 
 /**
  * Controls the feeder tunnel, which holds all the balls. It is driven by two
@@ -60,6 +61,12 @@ public class FeederSubsystem extends SubsystemBase {
 
   public FeederState getFeederState() {
     return feederState;
+  }
+
+  @Override
+  public void periodic() {
+    Logger.recordOutput("Feeder/State", feederState);
+    Logger.recordOutput("Feeder/CommandedPower", feederServoL.getCommandedPower());
   }
 
   private void setFeederPower(double power) {

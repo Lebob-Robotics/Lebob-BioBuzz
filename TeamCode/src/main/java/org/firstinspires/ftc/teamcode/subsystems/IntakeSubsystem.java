@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.util.GobildaMotor;
+import org.psilynx.psikit.core.Logger;
 
 /**
  * Subsystem to control the intake motor and read the two intake beam breaks.
@@ -68,5 +69,14 @@ public class IntakeSubsystem extends SubsystemBase {
   /** True when a ball blocks the bottom beam. The receiver output goes low when broken. */
   public boolean isBottomBroken() {
     return !beamBreakBottom.getState();
+  }
+
+  @Override
+  public void periodic() {
+    Logger.recordOutput("Intake/State", intakeState);
+    Logger.recordOutput("Intake/BeamBreakTop", isTopBroken());
+    Logger.recordOutput("Intake/BeamBreakBottom", isBottomBroken());
+    Logger.recordOutput("Intake/Velocity", intakeMotor.getVelocity());
+    Logger.recordOutput("Intake/CommandedPower", intakeMotor.getCommandedPower());
   }
 }

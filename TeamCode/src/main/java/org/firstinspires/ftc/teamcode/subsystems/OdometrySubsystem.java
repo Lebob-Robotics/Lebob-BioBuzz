@@ -7,6 +7,10 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
+import org.psilynx.psikit.core.Logger;
+import org.psilynx.psikit.core.wpi.math.Pose2d;
+import org.psilynx.psikit.core.wpi.math.Rotation2d;
 
 /**
  * Wraps a goBILDA Pinpoint Odometry Computer reading two dead-wheel pods, and
@@ -34,9 +38,35 @@ public class OdometrySubsystem extends SubsystemBase {
     pinpoint.resetPosAndIMU();
   }
 
+  /**
+   * Logs the pose. When PsiKit is running, its Pinpoint logger calls
+   * pinpoint.update() once at the start of every loop (see
+   * Main#onPsiKitConfigureLogging), so getPosition() is already fresh and is
+   * exactly what gets logged and replayed. Without PsiKit we update here.
+   */
   @Override
   public void periodic() {
-    pinpoint.update();
+    if (!Logger.isRunning()) {
+      pinpoint.update();
+    }
+
+    Pose2D pose = pinpoint.getPosition();
+    double headingRad = pose.getHeading(AngleUnit.RADIANS);
+
+    // Meters and radians, as AdvantageScope expects.
+    Logger.recordOutput("Odometry/Pose", new Pose2d(
+        pose.getX(DistanceUnit.METER), pose.getY(DistanceUnit.METER), new Rotation2d(headingRad)));
+
+    // Same pose in the units we read it in on the field.
+    Logger.recordOutput("Odometry/XInches", pose.getX(DistanceUnit.INCH));
+    Logger.recordOutput("Odometry/YInches", pose.getY(DistanceUnit.INCH));
+    Logger.recordOutput("Odometry/HeadingDegrees", pose.getHeading(AngleUnit.DEGREES));
+
+    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", pinpoint.getVelX(DistanceUnit.INCH));
+    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", pinpoint.getVelY(DistanceUnit.INCH));
+    Logger.recordOutput("Odometry/Velocity/HeadingDegreesPerSec",
+        pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
+    Logger.recordOutput("Odometry/DeviceStatus", String.valueOf(pinpoint.getDeviceStatus()));
   }
 
   public Pose2D getPose() {
