@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -14,12 +15,13 @@ import java.util.Arrays;
  * Drivetrain subsystem for a four-motor mecanum base, with optional
  * field-centric driving using the Pinpoint's heading.
  */
+@Configurable
 public class MecanumDriveSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   // Heading lock gains. The rotate sign is to be verified on the robot.
-  private static final double HEADING_KP = 1.0; // TODO tune on robot
-  private static final double HEADING_KD = 0.05; // TODO tune on robot
-  private static final double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
+  public static double HEADING_KP = 1.0; // TODO tune on robot
+  public static double HEADING_KD = 0.05; // TODO tune on robot
+  public static double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
 
   private final GobildaMotor frontLeft;
   private final GobildaMotor frontRight;

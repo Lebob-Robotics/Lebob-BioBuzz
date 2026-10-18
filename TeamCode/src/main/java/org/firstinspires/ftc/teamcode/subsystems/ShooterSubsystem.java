@@ -1,11 +1,15 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 import org.firstinspires.ftc.teamcode.util.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
+
+import java.util.Arrays;
 
 /**
  * Controls the two side-by-side shooter flywheels. Feeding balls into them is
@@ -19,8 +23,15 @@ import org.psilynx.psikit.core.Logger;
  * <li>{@link ShooterState#STOP} stops them.</li>
  * </ul>
  */
+@Configurable
 public class ShooterSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
+  // Flywheel velocity PIDF for AIM, in SDK units. NaN takes the SDK default at startup, so Panels
+  // shows the values actually in use. Edits apply on the next loop.
+  public static double VELOCITY_P = Double.NaN;
+  public static double VELOCITY_I = Double.NaN;
+  public static double VELOCITY_D = Double.NaN;
+  public static double VELOCITY_F = Double.NaN;
   private static final double SHOOTER_VELOCITY = 4000;
   /** Motor encoder ticks per motor revolution (goBILDA 5203 6000 RPM). */
   private static final double MOTOR_TICKS_PER_REV = 28.0; // TODO verify
@@ -45,12 +56,29 @@ public class ShooterSubsystem extends SubsystemBase {
   private ShooterState previousShooterState = ShooterState.STOP;
   // Tracked here (not read back from the motors) so the logged mode replays identically.
   private DcMotor.RunMode shooterMode = DcMotor.RunMode.RUN_USING_ENCODER;
+  // Last PIDF sent to the motors, {p, i, d, f}.
+  private final double[] sentPidf = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
 
   public ShooterSubsystem(HardwareMap hardwareMap) {
     shooterRight = new GobildaMotor(hardwareMap, "ShooterR", false, DcMotor.RunMode.RUN_USING_ENCODER, false);
     // Side-by-side wheels spin opposite ways, so one is reversed. Direction is
     // to be verified on the robot.
     shooterLeft = new GobildaMotor(hardwareMap, "ShooterL", true, DcMotor.RunMode.RUN_USING_ENCODER, false);
+
+    PIDFCoefficients sdk = shooterRight.getVelocityPidf();
+    if (Double.isNaN(VELOCITY_P)) {
+      VELOCITY_P = sdk.p;
+    }
+    if (Double.isNaN(VELOCITY_I)) {
+      VELOCITY_I = sdk.i;
+    }
+    if (Double.isNaN(VELOCITY_D)) {
+      VELOCITY_D = sdk.d;
+    }
+    if (Double.isNaN(VELOCITY_F)) {
+      VELOCITY_F = sdk.f;
+    }
+    applyVelocityPidf();
 
     setShooterState(ShooterState.IDLE);
   }
@@ -154,8 +182,21 @@ public class ShooterSubsystem extends SubsystemBase {
         && Math.abs(shooterLeft.getVelocity()) >= minSpeed;
   }
 
+  /** Sends the PIDF to both motors if Panels changed it. */
+  private void applyVelocityPidf() {
+    double[] pidf = {VELOCITY_P, VELOCITY_I, VELOCITY_D, VELOCITY_F};
+    if (Arrays.equals(pidf, sentPidf)) {
+      return;
+    }
+    shooterRight.setVelocityPidf(pidf[0], pidf[1], pidf[2], pidf[3]);
+    shooterLeft.setVelocityPidf(pidf[0], pidf[1], pidf[2], pidf[3]);
+    System.arraycopy(pidf, 0, sentPidf, 0, 4);
+  }
+
   @Override
   public void periodic() {
+    applyVelocityPidf();
+
     Logger.recordOutput("Shooter/State", shooterState);
     Logger.recordOutput("Shooter/VelocityLeft", shooterLeft.getVelocity());
     Logger.recordOutput("Shooter/VelocityRight", shooterRight.getVelocity());
@@ -167,6 +208,7 @@ public class ShooterSubsystem extends SubsystemBase {
     Logger.recordOutput("Shooter/RpmRight", getRpmRight());
     Logger.recordOutput("Shooter/Mode", shooterMode);
     Logger.recordOutput("Shooter/CommandedPower", shooterRight.getCommandedPower());
+    Logger.recordOutput("Shooter/VelocityPidf", sentPidf.clone());
   }
 
   private void setShooterMode(DcMotor.RunMode mode) {
