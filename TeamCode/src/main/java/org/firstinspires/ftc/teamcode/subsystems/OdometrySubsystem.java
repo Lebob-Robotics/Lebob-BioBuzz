@@ -17,6 +17,10 @@ import org.psilynx.psikit.core.wpi.math.Rotation2d;
  * reports the robot's field pose.
  */
 public class OdometrySubsystem extends SubsystemBase {
+  // ---- Tuning ----------------------------------------------------------
+  // The SDK javadoc only says "X (forward) velocity", so the frame is unconfirmed.
+  private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // TODO verify
+
   private final GoBildaPinpointDriver pinpoint;
 
   public OdometrySubsystem(HardwareMap hardwareMap) {
@@ -66,11 +70,49 @@ public class OdometrySubsystem extends SubsystemBase {
     Logger.recordOutput("Odometry/Velocity/YInchesPerSec", pinpoint.getVelY(DistanceUnit.INCH));
     Logger.recordOutput("Odometry/Velocity/HeadingDegreesPerSec",
         pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
+    double[] velocity = getVelocityMetersPerSec();
+    Logger.recordOutput("Odometry/VelocityField", new double[] { velocity[0], velocity[1] });
     Logger.recordOutput("Odometry/DeviceStatus", String.valueOf(pinpoint.getDeviceStatus()));
   }
 
   public Pose2D getPose() {
     return pinpoint.getPosition();
+  }
+
+  /**
+   * Velocity in the field frame.
+   *
+   * @return {vx m/s, vy m/s, omega rad/s}
+   */
+  public double[] getVelocityMetersPerSec() {
+    double vx = pinpoint.getVelX(DistanceUnit.METER);
+    double vy = pinpoint.getVelY(DistanceUnit.METER);
+    double omega = pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS);
+
+    if (!PINPOINT_VELOCITY_IS_FIELD_FRAME) {
+      double heading = pinpoint.getPosition().getHeading(AngleUnit.RADIANS);
+      double cos = Math.cos(heading);
+      double sin = Math.sin(heading);
+      double fieldVx = vx * cos - vy * sin;
+      double fieldVy = vx * sin + vy * cos;
+      vx = fieldVx;
+      vy = fieldVy;
+    }
+    return new double[] { vx, vy, omega };
+  }
+
+  /** Overwrites the tracked pose, e.g. to start from a known field position. */
+  public void setPose(double xMeters, double yMeters, double headingRad) {
+    pinpoint.setPosition(new Pose2D(
+        DistanceUnit.METER, xMeters, yMeters, AngleUnit.RADIANS, headingRad));
+  }
+
+  /** Sets the reported heading in place, keeping the current position. */
+  public void setHeading(double headingRad) {
+    Pose2D current = pinpoint.getPosition();
+    pinpoint.setPosition(new Pose2D(
+        DistanceUnit.MM, current.getX(DistanceUnit.MM), current.getY(DistanceUnit.MM),
+        AngleUnit.RADIANS, headingRad));
   }
 
   /** Zeroes the reported heading in place, keeping the current position. */
