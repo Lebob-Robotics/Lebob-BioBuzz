@@ -35,9 +35,11 @@ import org.psilynx.psikit.core.Logger;
  * <p>Controls (gamepad 1):
  * <ul>
  *   <li>Left stick: drive (field centric). Right stick X: turn. Left bumper held: robot centric.</li>
- *   <li>Right bumper held: auto aim. The robot turns to the shot heading and sets the hood and
- *       flywheels from the shot table. The left stick still drives.</li>
- *   <li>Right trigger: shoot. While aiming, each ball waits until the shot is ready.</li>
+ *   <li>Right trigger held: aim and shoot. The robot turns to the shot heading and sets the hood and
+ *       flywheels from the shot table, then feeds each ball once the shot is ready. The left stick
+ *       still drives.</li>
+ *   <li>Right bumper held: manual shot at full power, without aiming or waiting. A fallback for
+ *       when the camera can't see the Cell.</li>
  *   <li>Left trigger: intake (stops at 4 balls). B: eject. X: stop the shooter.</li>
  *   <li>A: reset heading. D-pad: hood presets, or while aiming, up and down trim the RPM.</li>
  *   <li>During INIT, X picks blue and B picks red.</li>
@@ -60,7 +62,7 @@ public class Robot {
 
   /** Where shoot on the move is up to. Shown to the driver and logged. */
   public enum AimState {
-    OFF, // Right bumper not held
+    OFF, // Right trigger not held
     CELL_NOT_SEEN,
     NO_SAFE_SHOT,
     LINING_UP, // Valid shot, waiting for the flywheels, hood or heading
@@ -135,7 +137,7 @@ public class Robot {
     }
 
     Aim aim = aimAtCell(pose, velocity, nowNanos);
-    boolean aiming = driver.right_bumper;
+    boolean aiming = driver.right_trigger > TRIGGER_PRESSED;
     boolean ready = aim != null && ShootOnTheMove.readyToFire(aim,
         shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE),
         hood.atTarget(hoodToleranceTicks()),
@@ -220,7 +222,7 @@ public class Robot {
       }
       shooter.setShooterState(ShooterState.AIM);
       shooter.setTargetRpm(aimRpm + rpmTrim);
-    } else if (driver.right_trigger > TRIGGER_PRESSED) {
+    } else if (driver.right_bumper) {
       shooter.setShooterState(ShooterState.SHOOT);
     } else if (driver.b) {
       shooter.setShooterState(ShooterState.EJECT);
@@ -246,7 +248,7 @@ public class Robot {
   }
 
   private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
-    boolean shooting = driver.right_trigger > TRIGGER_PRESSED;
+    boolean shooting = aiming || driver.right_bumper; // Aimed shots wait for READY at the indexer
     boolean intaking = driver.left_trigger > TRIGGER_PRESSED;
     boolean ejecting = driver.b;
     boolean full = intake.isFull();
