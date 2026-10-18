@@ -2,6 +2,10 @@
 
 Lebob Robotics, FTC 29550 · BIOBUZZ 2026/27 · v1.0, 20 Sep 2026
 
+Note (18 Oct 2026): mark 3 has a hood, so the robot now uses the hood table
+from `table.js`. The text below about a fixed launch angle describes the
+original tool.
+
 The robot cannot change its launch angle, so whether a shot lands while
 driving depends on distance and on how fast the robot is closing on the Cell.
 These tools work that out on a laptop and give the robot a table.
@@ -13,8 +17,11 @@ These tools work that out on a laptop and give the robot a table.
   the internet the first time). Change inputs, press Compute, move the
   sliders, export.
 - `export.js`: `node tools/shots/export.js` regenerates
-  `TeamCode/.../ShotTable.java` from `inputs.json`. Run it after changing
-  `inputs.json` and commit both files together.
+  `TeamCode/.../utils/ShotTable.java` (hood angle and RPM for every distance
+  and radial speed) from `inputs.json`, using `table.js`. Run it after
+  changing `inputs.json` and commit both files together.
+- `table.js`: picks one shot per cell from the hood sweep, with a small
+  penalty for hood angle jumps between neighbouring cells, and writes the Java.
 - `inputs.json`: the measured constants behind the committed table.
 
 - `hood.js`: sizes an adjustable hood. Sweeps hood angle and RPM at every
