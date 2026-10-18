@@ -33,10 +33,13 @@ public final class ShootOnTheMoveConstants {
    * 1 / (0.01885 m * 2pi / 60).
    */
   public static double RPM_PER_MPS = 506.6; // TODO tune on robot
-  /** Exit speeds (m/s, ascending) for the optional RPM correction. Empty = none. */
-  public static double[] RPM_CORRECTION_SPEEDS_MPS = {};
-  /** RPM multiplier at each speed; linear between, held at the ends. */
-  public static double[] RPM_CORRECTION_FACTORS = {};
+  /**
+   * Exit speeds (m/s, ascending) for the RPM correction. Pre-sized because Panels can't add array
+   * entries; edit the values, not the length.
+   */
+  public static double[] RPM_CORRECTION_SPEEDS_MPS = {3.0, 4.0, 5.0, 6.0, 7.0};
+  /** RPM multiplier at each speed; linear between, held at the ends. 1.0 = no correction. */
+  public static double[] RPM_CORRECTION_FACTORS = {1.0, 1.0, 1.0, 1.0, 1.0};
 
   // ---- Hood limits -----------------------------------------------------
   public static double LAUNCH_MIN_DEG = 51;
