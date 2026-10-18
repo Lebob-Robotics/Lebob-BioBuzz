@@ -25,6 +25,7 @@ import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Solution;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils;
 import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.Pose;
 import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.PoseHistory;
@@ -61,7 +62,8 @@ public class Robot {
 
   // Vision pose correction. The history holds the odometry pose of each loop,
   // stamped with that loop's vision capture time, so a frame's pose can be looked up.
-  private final PoseHistory poseHistory = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+  private final PoseHistory poseHistory =
+      new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
   private final ShootOnTheMove.VisionCorrector visionCorrector =
       new ShootOnTheMove.VisionCorrector();
   private long lastHistoryNanos = Long.MIN_VALUE;
@@ -115,9 +117,10 @@ public class Robot {
     if (handoff != null) {
       odometry.setPose(handoff.x, handoff.y, handoff.heading);
       ShootOnTheMove.poseValid = true;
-    } else if (ShootOnTheMove.USE_DEFAULT_START_POSE) {
+    } else if (ShootOnTheMoveConstants.USE_DEFAULT_START_POSE) {
       double[] start = alliance == Alliance.RED
-          ? ShootOnTheMove.DEFAULT_START_POSE_RED : ShootOnTheMove.DEFAULT_START_POSE_BLUE;
+          ? ShootOnTheMoveConstants.DEFAULT_START_POSE_RED
+          : ShootOnTheMoveConstants.DEFAULT_START_POSE_BLUE;
       odometry.setPose(start[0], start[1], start[2]);
       ShootOnTheMove.poseValid = true;
     } else {
@@ -266,7 +269,8 @@ public class Robot {
       if (sol.valid) {
         lastAimRpm = sol.targetRpm;
       }
-      shooter.setTargetRpm(Double.isNaN(lastAimRpm) ? ShootOnTheMove.IDLE_AIM_RPM : lastAimRpm);
+      shooter.setTargetRpm(
+          Double.isNaN(lastAimRpm) ? ShootOnTheMoveConstants.IDLE_AIM_RPM : lastAimRpm);
     }
 
     IntakeState newIntakeState = IntakeState.STOP;
