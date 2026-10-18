@@ -16,9 +16,14 @@ already on the shaft.
   minute) and feeds its worst shot in as a case.
   `node tools/flywheel/flywheel.js gear` sweeps the second wheel's gear ratio
   across every case first.
-- `inputs.json`: the shooter, motor and ball numbers. Most are estimates or
-  guesses, see the table below.
-- `test.js`: the reference results from the handoff as assertions. The CLI
+- `inputs.json`: the shooter, motor and ball numbers for mark 3 (3 in and
+  1 in wheels, 0.7 belt, the same wheels as mark 2). Most are estimates or
+  guesses, see the table below. The design exit speed (7.49 m/s) is the
+  hardest shot in the hood table, 3300 RPM.
+- `reference-inputs.json`: the original 2 in and 1 in wheel numbers. Only
+  `test.js` uses them, to check the physics against the 2 Oct handoff.
+- `test.js`: the reference results from the handoff as assertions, run on
+  `reference-inputs.json`. The CLI
   refuses to print if any fail.
 - `flywheel.html`: the same, with plots. Open it, press Compute, move the
   mass slider.
