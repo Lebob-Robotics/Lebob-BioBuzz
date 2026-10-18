@@ -7,14 +7,15 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Cell;
-import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Compensation;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.GateResult;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Goal;
-import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Pose;
-import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.PoseHistory;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Reason;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.TagObservation;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Solution;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.Compensation;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.Pose;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.PoseHistory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -122,7 +123,7 @@ public class ShootOnTheMoveTest {
   }
 
   private static double angleDiff(double a, double b) {
-    return ShootOnTheMove.wrapAngle(a - b);
+    return ShootOnTheMoveUtils.wrapAngle(a - b);
   }
 
   // ---- Polynomials and domain -----------------------------------------
@@ -134,13 +135,13 @@ public class ShootOnTheMoveTest {
     double d = 2;
     double vr = 3;
     double expected = 1 + 2 * vr + 3 * vr * vr + 4 * d + 5 * d * vr + 6 * d * d;
-    assertEquals(expected, ShootOnTheMove.evalPoly(c, 2, d, vr), EPS);
+    assertEquals(expected, ShootOnTheMoveUtils.evalPoly(c, 2, d, vr), EPS);
   }
 
   @Test
   public void evalPolyDegree1() {
-    assertEquals(60 - 2 * 3.0, ShootOnTheMove.evalPoly(ShootOnTheMove.HOOD_ANGLE_COEFFS, 1, 3, 7), EPS);
-    assertEquals(4 + 3 - 0.5 * 2, ShootOnTheMove.evalPoly(ShootOnTheMove.EXIT_SPEED_COEFFS, 1, 3, 2), EPS);
+    assertEquals(60 - 2 * 3.0, ShootOnTheMoveUtils.evalPoly(ShootOnTheMove.HOOD_ANGLE_COEFFS, 1, 3, 7), EPS);
+    assertEquals(4 + 3 - 0.5 * 2, ShootOnTheMoveUtils.evalPoly(ShootOnTheMove.EXIT_SPEED_COEFFS, 1, 3, 2), EPS);
   }
 
   @Test
@@ -266,7 +267,7 @@ public class ShootOnTheMoveTest {
       double speed = 6.3;
       double vr = v[0];
       double vt = v[1];
-      Compensation c = ShootOnTheMove.compensate(launch, speed, vt);
+      Compensation c = ShootOnTheMoveUtils.compensate(launch, speed, vt);
       double hMag = c.speedMps * Math.cos(Math.toRadians(c.launchDeg));
       // Frame with u along +x and t along +y; shooter yaw offset is c.headingOffsetRad.
       double rx = hMag * Math.cos(c.headingOffsetRad);
@@ -294,7 +295,7 @@ public class ShootOnTheMoveTest {
     double th = 60 - 4;
     assertEquals(sp, s.rawExitSpeedMps, EPS);
     assertEquals(th, s.rawLaunchDeg, EPS);
-    Compensation c = ShootOnTheMove.compensate(th, sp, 0.6);
+    Compensation c = ShootOnTheMoveUtils.compensate(th, sp, 0.6);
     assertEquals(c.launchDeg, s.launchDeg, EPS);
     assertEquals(c.speedMps, s.exitSpeedMps, EPS);
     assertEquals(0, angleDiff(s.headingTargetRad, c.headingOffsetRad - Math.PI), EPS);
@@ -479,7 +480,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyInterpolates() {
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     h.add(1000, new Pose(0, 0, 0));
     h.add(2000, new Pose(2, 4, 1));
     Pose p = h.sample(1500);
@@ -494,7 +495,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyHeadingWrapsAcrossPi() {
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     h.add(0, new Pose(0, 0, Math.PI - 0.1));
     h.add(100, new Pose(0, 0, -Math.PI + 0.1));
     Pose p = h.sample(50);
@@ -506,7 +507,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyOutOfRange() {
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     assertNull(h.sample(0));
     for (int i = 0; i < 5; i++) {
       h.add(1000 + i * 100L, new Pose(i, 0, 0));
@@ -522,7 +523,7 @@ public class ShootOnTheMoveTest {
   @Test
   public void historyRingOverwritesOldest() {
     ShootOnTheMove.POSE_HISTORY_SIZE = 3;
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     for (int i = 0; i < 5; i++) {
       h.add(i * 10L, new Pose(i, 0, 0));
     }
@@ -535,7 +536,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyShiftAndClear() {
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     h.add(0, new Pose(0, 0, 0));
     h.add(10, new Pose(1, 1, 0));
     h.shift(0.5, -0.25);
@@ -645,7 +646,7 @@ public class ShootOnTheMoveTest {
 
   /** Odometry sat still at the given pose from T0 to T0 + 100 ms. */
   private static PoseHistory stillHistory(Pose odom) {
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     h.add(T0, odom);
     h.add(T0 + 100 * MS, odom);
     return h;
@@ -939,7 +940,7 @@ public class ShootOnTheMoveTest {
     assertFalse(r.accepted);
     // No history at all.
     ShootOnTheMove.VisionResult none = corrector.process(
-        list(observe(31, Cell.AUDIENCE, TRUE_POSE)), new PoseHistory(), TRUE_POSE,
+        list(observe(31, Cell.AUDIENCE, TRUE_POSE)), new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE), TRUE_POSE,
         0, 0, 0, true, T0 + 100 * MS);
     assertEquals(ShootOnTheMove.TagReject.NO_HISTORY, none.firstTagReject);
   }
@@ -994,7 +995,7 @@ public class ShootOnTheMoveTest {
     // Odometry went from x=0 to x=1 (heading -pi/2 to -pi/2+0.2) over one second.
     Pose start = new Pose(0.0, -0.9, -Math.PI / 2);
     Pose end = new Pose(1.0, -0.9, -Math.PI / 2 + 0.2);
-    PoseHistory h = new PoseHistory();
+    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
     h.add(T0, start);
     h.add(T0 + 1000 * MS, end);
     // At the frame (0.5 s) the odometry said (0.5, -0.9, -pi/2+0.1); the real robot was

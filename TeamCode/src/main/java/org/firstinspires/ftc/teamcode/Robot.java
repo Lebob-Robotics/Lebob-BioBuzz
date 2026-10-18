@@ -25,6 +25,9 @@ import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Solution;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.Pose;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.PoseHistory;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.List;
@@ -58,7 +61,7 @@ public class Robot {
 
   // Vision pose correction. The history holds the odometry pose of each loop,
   // stamped with that loop's vision capture time, so a frame's pose can be looked up.
-  private final ShootOnTheMove.PoseHistory poseHistory = new ShootOnTheMove.PoseHistory();
+  private final PoseHistory poseHistory = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
   private final ShootOnTheMove.VisionCorrector visionCorrector =
       new ShootOnTheMove.VisionCorrector();
   private long lastHistoryNanos = Long.MIN_VALUE;
@@ -107,7 +110,7 @@ public class Robot {
 
     // Statics outlive the OpMode, so start untrusted and consume the handoff.
     ShootOnTheMove.poseValid = false;
-    ShootOnTheMove.Pose handoff = ShootOnTheMove.handoffPose;
+    Pose handoff = ShootOnTheMove.handoffPose;
     ShootOnTheMove.handoffPose = null;
     if (handoff != null) {
       odometry.setPose(handoff.x, handoff.y, handoff.heading);
@@ -156,7 +159,7 @@ public class Robot {
     List<ShootOnTheMove.TagObservation> observations = vision.takeNewObservations();
     long visionNanos = vision.getCaptureNanos();
     ShootOnTheMove.VisionResult vr = visionCorrector.process(
-        observations, poseHistory, new ShootOnTheMove.Pose(posX, posY, heading),
+        observations, poseHistory, new Pose(posX, posY, heading),
         vel[0], vel[1], omega, ShootOnTheMove.poseValid, visionNanos);
     if (vr.accepted) {
       odometry.setPose(vr.newPose.x, vr.newPose.y, heading);
@@ -206,7 +209,7 @@ public class Robot {
     GateResult gate = null;
     if (poseValid) {
       sol = ShootOnTheMove.solve(
-          new ShootOnTheMove.Pose(posX, posY, heading),
+          new Pose(posX, posY, heading),
           vel[0], vel[1], omega, ShootOnTheMove.currentGoal(alliance));
       gate = ShootOnTheMove.gate(sol, shooter.getRpm(),
           HoodSubsystem.ticksToAngle(hood.getPosition()), heading, omega);
@@ -316,7 +319,7 @@ public class Robot {
     // few ms from the pose read). Skipped until the first capture, and for repeats.
     long stamp = vision.getCaptureNanos();
     if (stamp > lastHistoryNanos && stamp > 0) {
-      poseHistory.add(stamp, new ShootOnTheMove.Pose(posX, posY, heading));
+      poseHistory.add(stamp, new Pose(posX, posY, heading));
       lastHistoryNanos = stamp;
     }
 
@@ -382,7 +385,7 @@ public class Robot {
     telemetry.addData("Mode", mode);
     if (sol != null) {
       double headingErrDeg = Math.toDegrees(
-          ShootOnTheMove.wrapAngle(heading - sol.headingTargetRad));
+          ShootOnTheMoveUtils.wrapAngle(heading - sol.headingTargetRad));
       telemetry.addData("Dist", String.format("%.2f m  vr %.2f  vt %.2f",
           sol.distanceM, sol.radialVelMps, sol.tangentialVelMps));
       telemetry.addData("RPM", String.format("%.0f target / %.0f actual",
