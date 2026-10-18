@@ -4,7 +4,7 @@
 'use strict';
 const assert = require('assert');
 const Fly = require('./flywheel.js');
-const inputs = require('./inputs.json');
+const inputs = require('./reference-inputs.json');
 
 function near(got, want, tol, what) {
   assert(Math.abs(got - want) <= tol, what + ': got ' + got + ', want ' + want + ' +-' + tol);

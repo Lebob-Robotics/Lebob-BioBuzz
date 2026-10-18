@@ -21,11 +21,11 @@
   // Mirrors inputs.json so the browser page has something to start from. Values marked estimate or
   // guess in the README must be measured before the result is trusted.
   const DEFAULTS = {
-    flywheelMassKg: 0.200, wheelDiameterM: 0.0508, wheel2DiameterM: 0.0245, massDistributionK: 0.6, layout: 'dualhood',
+    flywheelMassKg: 0.200, wheelDiameterM: 0.0762, wheel2DiameterM: 0.0254, massDistributionK: 0.6, layout: 'dualhood',
     ballMassKg: 0.0249, ballDiameterM: 0.0711, ballShell: 'hollow', energySpreadPct: 20,
-    exitSpeedPerRpm: 0.00168, transferEfficiency: 0.55, exitSpeedMps: 7.06, toleranceRpm: 50,
-    motorFreeRpm: 6000, motorStallNm: 0.144, motorCount: 2, gearRatio: 1, batteryV: 12.0, drivetrainEfficiency: 0.90,
-    wheel2Gear: 1, wheel2MaxRpm: 9000, shotIntervalS: 0.12, controller: 'full', controllerDelayS: 0.05, maxSpinupS: 1.5, existingWheelMassKg: 0.120, addRadiusM: 0.020,
+    exitSpeedPerRpm: 0.00227, transferEfficiency: 0.55, exitSpeedMps: 7.49, toleranceRpm: 50,
+    motorFreeRpm: 6000, motorStallNm: 0.144, motorCount: 2, gearRatio: 0.7, batteryV: 12.0, drivetrainEfficiency: 0.90,
+    wheel2Gear: 1, wheel2MaxRpm: 9000, shotIntervalS: 0.12, controller: 'full', controllerDelayS: 0.05, maxSpinupS: 1.5, existingWheelMassKg: 0, addRadiusM: 0.020,
   };
 
   // Motor presets at the motor shaft (free rpm, stall N m).
