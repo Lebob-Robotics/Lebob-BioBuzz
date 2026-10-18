@@ -33,7 +33,7 @@ public class OdometrySubsystem extends SubsystemBase {
    */
   public void init() {
     // From CAD, relative to the robot centre the shooter and camera offsets in
-    // ShootOnTheMove assume (173.2 mm from the left side, 228.6 mm from the
+    // ShootOnTheMoveConstants assume (173.2 mm from the left side, 228.6 mm from the
     // front): the X pod is 81.8 mm right, the Y pod 27.4 mm behind.
     // TODO replace with the Odometry Calibration OpMode result.
     pinpoint.setOffsets(-81.8, -27.4, DistanceUnit.MM);

@@ -12,6 +12,7 @@ import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Goal;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Reason;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.TagObservation;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Solution;
+import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils;
 import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.Compensation;
 import org.firstinspires.ftc.teamcode.util.ShootOnTheMoveUtils.Pose;
@@ -35,82 +36,82 @@ public class ShootOnTheMoveTest {
 
   @Before
   public void setUp() {
-    delay = ShootOnTheMove.MECHANISM_DELAY_S;
-    mount = ShootOnTheMove.SHOOTER_MOUNT_YAW_RAD;
-    offF = ShootOnTheMove.SHOOTER_OFFSET_FORWARD_M;
-    offL = ShootOnTheMove.SHOOTER_OFFSET_LEFT_M;
-    hoodOff = ShootOnTheMove.HOOD_ANGLE_OFFSET_DEG;
-    rpmPer = ShootOnTheMove.RPM_PER_MPS;
-    lmin = ShootOnTheMove.LAUNCH_MIN_DEG;
-    lmax = ShootOnTheMove.LAUNCH_MAX_DEG;
-    degree = ShootOnTheMove.POLY_DEGREE;
-    histSize = ShootOnTheMove.POSE_HISTORY_SIZE;
-    hoodC = ShootOnTheMove.HOOD_ANGLE_COEFFS;
-    speedC = ShootOnTheMove.EXIT_SPEED_COEFFS;
-    tofC = ShootOnTheMove.TOF_COEFFS;
-    grid = ShootOnTheMove.D_GRID_M;
-    vrMin = ShootOnTheMove.VR_MIN_MPS;
-    vrMax = ShootOnTheMove.VR_MAX_MPS;
-    corrX = ShootOnTheMove.RPM_CORRECTION_SPEEDS_MPS;
-    corrY = ShootOnTheMove.RPM_CORRECTION_FACTORS;
-    rpmTol = ShootOnTheMove.RPM_TOLERANCE;
-    hoodTol = ShootOnTheMove.HOOD_TOLERANCE_DEG;
-    hdgCap = ShootOnTheMove.HEADING_TOLERANCE_MAX_RAD;
-    halfW = ShootOnTheMove.GOAL_HALF_WIDTH_M;
-    ballR = ShootOnTheMove.BALL_RADIUS_M;
-    margin = ShootOnTheMove.AIM_MARGIN_M;
-    maxTurn = ShootOnTheMove.MAX_FIRE_TURN_RATE_RAD_S;
-    maxApproach = ShootOnTheMove.MAX_APPROACH_ANGLE_DEG;
+    delay = ShootOnTheMoveConstants.MECHANISM_DELAY_S;
+    mount = ShootOnTheMoveConstants.SHOOTER_MOUNT_YAW_RAD;
+    offF = ShootOnTheMoveConstants.SHOOTER_OFFSET_FORWARD_M;
+    offL = ShootOnTheMoveConstants.SHOOTER_OFFSET_LEFT_M;
+    hoodOff = ShootOnTheMoveConstants.HOOD_ANGLE_OFFSET_DEG;
+    rpmPer = ShootOnTheMoveConstants.RPM_PER_MPS;
+    lmin = ShootOnTheMoveConstants.LAUNCH_MIN_DEG;
+    lmax = ShootOnTheMoveConstants.LAUNCH_MAX_DEG;
+    degree = ShootOnTheMoveConstants.POLY_DEGREE;
+    histSize = ShootOnTheMoveConstants.POSE_HISTORY_SIZE;
+    hoodC = ShootOnTheMoveConstants.HOOD_ANGLE_COEFFS;
+    speedC = ShootOnTheMoveConstants.EXIT_SPEED_COEFFS;
+    tofC = ShootOnTheMoveConstants.TOF_COEFFS;
+    grid = ShootOnTheMoveConstants.D_GRID_M;
+    vrMin = ShootOnTheMoveConstants.VR_MIN_MPS;
+    vrMax = ShootOnTheMoveConstants.VR_MAX_MPS;
+    corrX = ShootOnTheMoveConstants.RPM_CORRECTION_SPEEDS_MPS;
+    corrY = ShootOnTheMoveConstants.RPM_CORRECTION_FACTORS;
+    rpmTol = ShootOnTheMoveConstants.RPM_TOLERANCE;
+    hoodTol = ShootOnTheMoveConstants.HOOD_TOLERANCE_DEG;
+    hdgCap = ShootOnTheMoveConstants.HEADING_TOLERANCE_MAX_RAD;
+    halfW = ShootOnTheMoveConstants.GOAL_HALF_WIDTH_M;
+    ballR = ShootOnTheMoveConstants.BALL_RADIUS_M;
+    margin = ShootOnTheMoveConstants.AIM_MARGIN_M;
+    maxTurn = ShootOnTheMoveConstants.MAX_FIRE_TURN_RATE_RAD_S;
+    maxApproach = ShootOnTheMoveConstants.MAX_APPROACH_ANGLE_DEG;
 
     // Simple analytic setup. Degree 1 terms are ordered 1, vr, d.
     // theta = 60 - 2d, s = 4 + d - 0.5 vr, tof = 0.5 + 0.1 d.
-    ShootOnTheMove.MECHANISM_DELAY_S = 0;
-    ShootOnTheMove.SHOOTER_MOUNT_YAW_RAD = Math.PI;
-    ShootOnTheMove.SHOOTER_OFFSET_FORWARD_M = 0;
-    ShootOnTheMove.SHOOTER_OFFSET_LEFT_M = 0;
-    ShootOnTheMove.HOOD_ANGLE_OFFSET_DEG = 0;
-    ShootOnTheMove.RPM_PER_MPS = 500;
-    ShootOnTheMove.LAUNCH_MIN_DEG = 51;
-    ShootOnTheMove.LAUNCH_MAX_DEG = 89;
-    ShootOnTheMove.POLY_DEGREE = 1;
-    ShootOnTheMove.HOOD_ANGLE_COEFFS = new double[] {60, 0, -2};
-    ShootOnTheMove.EXIT_SPEED_COEFFS = new double[] {4, -0.5, 1};
-    ShootOnTheMove.TOF_COEFFS = new double[] {0.5, 0, 0.1};
-    ShootOnTheMove.D_GRID_M = new double[] {0, 10};
-    ShootOnTheMove.VR_MIN_MPS = new double[] {-10, -10};
-    ShootOnTheMove.VR_MAX_MPS = new double[] {10, 10};
-    ShootOnTheMove.RPM_CORRECTION_SPEEDS_MPS = new double[] {};
-    ShootOnTheMove.RPM_CORRECTION_FACTORS = new double[] {};
+    ShootOnTheMoveConstants.MECHANISM_DELAY_S = 0;
+    ShootOnTheMoveConstants.SHOOTER_MOUNT_YAW_RAD = Math.PI;
+    ShootOnTheMoveConstants.SHOOTER_OFFSET_FORWARD_M = 0;
+    ShootOnTheMoveConstants.SHOOTER_OFFSET_LEFT_M = 0;
+    ShootOnTheMoveConstants.HOOD_ANGLE_OFFSET_DEG = 0;
+    ShootOnTheMoveConstants.RPM_PER_MPS = 500;
+    ShootOnTheMoveConstants.LAUNCH_MIN_DEG = 51;
+    ShootOnTheMoveConstants.LAUNCH_MAX_DEG = 89;
+    ShootOnTheMoveConstants.POLY_DEGREE = 1;
+    ShootOnTheMoveConstants.HOOD_ANGLE_COEFFS = new double[] {60, 0, -2};
+    ShootOnTheMoveConstants.EXIT_SPEED_COEFFS = new double[] {4, -0.5, 1};
+    ShootOnTheMoveConstants.TOF_COEFFS = new double[] {0.5, 0, 0.1};
+    ShootOnTheMoveConstants.D_GRID_M = new double[] {0, 10};
+    ShootOnTheMoveConstants.VR_MIN_MPS = new double[] {-10, -10};
+    ShootOnTheMoveConstants.VR_MAX_MPS = new double[] {10, 10};
+    ShootOnTheMoveConstants.RPM_CORRECTION_SPEEDS_MPS = new double[] {};
+    ShootOnTheMoveConstants.RPM_CORRECTION_FACTORS = new double[] {};
   }
 
   @After
   public void tearDown() {
-    ShootOnTheMove.MECHANISM_DELAY_S = delay;
-    ShootOnTheMove.SHOOTER_MOUNT_YAW_RAD = mount;
-    ShootOnTheMove.SHOOTER_OFFSET_FORWARD_M = offF;
-    ShootOnTheMove.SHOOTER_OFFSET_LEFT_M = offL;
-    ShootOnTheMove.HOOD_ANGLE_OFFSET_DEG = hoodOff;
-    ShootOnTheMove.RPM_PER_MPS = rpmPer;
-    ShootOnTheMove.LAUNCH_MIN_DEG = lmin;
-    ShootOnTheMove.LAUNCH_MAX_DEG = lmax;
-    ShootOnTheMove.POLY_DEGREE = degree;
-    ShootOnTheMove.POSE_HISTORY_SIZE = histSize;
-    ShootOnTheMove.HOOD_ANGLE_COEFFS = hoodC;
-    ShootOnTheMove.EXIT_SPEED_COEFFS = speedC;
-    ShootOnTheMove.TOF_COEFFS = tofC;
-    ShootOnTheMove.D_GRID_M = grid;
-    ShootOnTheMove.VR_MIN_MPS = vrMin;
-    ShootOnTheMove.VR_MAX_MPS = vrMax;
-    ShootOnTheMove.RPM_CORRECTION_SPEEDS_MPS = corrX;
-    ShootOnTheMove.RPM_CORRECTION_FACTORS = corrY;
-    ShootOnTheMove.RPM_TOLERANCE = rpmTol;
-    ShootOnTheMove.HOOD_TOLERANCE_DEG = hoodTol;
-    ShootOnTheMove.HEADING_TOLERANCE_MAX_RAD = hdgCap;
-    ShootOnTheMove.GOAL_HALF_WIDTH_M = halfW;
-    ShootOnTheMove.BALL_RADIUS_M = ballR;
-    ShootOnTheMove.AIM_MARGIN_M = margin;
-    ShootOnTheMove.MAX_FIRE_TURN_RATE_RAD_S = maxTurn;
-    ShootOnTheMove.MAX_APPROACH_ANGLE_DEG = maxApproach;
+    ShootOnTheMoveConstants.MECHANISM_DELAY_S = delay;
+    ShootOnTheMoveConstants.SHOOTER_MOUNT_YAW_RAD = mount;
+    ShootOnTheMoveConstants.SHOOTER_OFFSET_FORWARD_M = offF;
+    ShootOnTheMoveConstants.SHOOTER_OFFSET_LEFT_M = offL;
+    ShootOnTheMoveConstants.HOOD_ANGLE_OFFSET_DEG = hoodOff;
+    ShootOnTheMoveConstants.RPM_PER_MPS = rpmPer;
+    ShootOnTheMoveConstants.LAUNCH_MIN_DEG = lmin;
+    ShootOnTheMoveConstants.LAUNCH_MAX_DEG = lmax;
+    ShootOnTheMoveConstants.POLY_DEGREE = degree;
+    ShootOnTheMoveConstants.POSE_HISTORY_SIZE = histSize;
+    ShootOnTheMoveConstants.HOOD_ANGLE_COEFFS = hoodC;
+    ShootOnTheMoveConstants.EXIT_SPEED_COEFFS = speedC;
+    ShootOnTheMoveConstants.TOF_COEFFS = tofC;
+    ShootOnTheMoveConstants.D_GRID_M = grid;
+    ShootOnTheMoveConstants.VR_MIN_MPS = vrMin;
+    ShootOnTheMoveConstants.VR_MAX_MPS = vrMax;
+    ShootOnTheMoveConstants.RPM_CORRECTION_SPEEDS_MPS = corrX;
+    ShootOnTheMoveConstants.RPM_CORRECTION_FACTORS = corrY;
+    ShootOnTheMoveConstants.RPM_TOLERANCE = rpmTol;
+    ShootOnTheMoveConstants.HOOD_TOLERANCE_DEG = hoodTol;
+    ShootOnTheMoveConstants.HEADING_TOLERANCE_MAX_RAD = hdgCap;
+    ShootOnTheMoveConstants.GOAL_HALF_WIDTH_M = halfW;
+    ShootOnTheMoveConstants.BALL_RADIUS_M = ballR;
+    ShootOnTheMoveConstants.AIM_MARGIN_M = margin;
+    ShootOnTheMoveConstants.MAX_FIRE_TURN_RATE_RAD_S = maxTurn;
+    ShootOnTheMoveConstants.MAX_APPROACH_ANGLE_DEG = maxApproach;
   }
 
   // Goal 2 m ahead (+x) of the origin, facing back toward -x (toward the shooter).
@@ -140,15 +141,15 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void evalPolyDegree1() {
-    assertEquals(60 - 2 * 3.0, ShootOnTheMoveUtils.evalPoly(ShootOnTheMove.HOOD_ANGLE_COEFFS, 1, 3, 7), EPS);
-    assertEquals(4 + 3 - 0.5 * 2, ShootOnTheMoveUtils.evalPoly(ShootOnTheMove.EXIT_SPEED_COEFFS, 1, 3, 2), EPS);
+    assertEquals(60 - 2 * 3.0, ShootOnTheMoveUtils.evalPoly(ShootOnTheMoveConstants.HOOD_ANGLE_COEFFS, 1, 3, 7), EPS);
+    assertEquals(4 + 3 - 0.5 * 2, ShootOnTheMoveUtils.evalPoly(ShootOnTheMoveConstants.EXIT_SPEED_COEFFS, 1, 3, 2), EPS);
   }
 
   @Test
   public void inDomainEdgesAndNaN() {
-    ShootOnTheMove.D_GRID_M = new double[] {1, 2, 3};
-    ShootOnTheMove.VR_MIN_MPS = new double[] {-1, -2, Double.NaN};
-    ShootOnTheMove.VR_MAX_MPS = new double[] {1, 2, Double.NaN};
+    ShootOnTheMoveConstants.D_GRID_M = new double[] {1, 2, 3};
+    ShootOnTheMoveConstants.VR_MIN_MPS = new double[] {-1, -2, Double.NaN};
+    ShootOnTheMoveConstants.VR_MAX_MPS = new double[] {1, 2, Double.NaN};
     assertTrue(ShootOnTheMove.inDomain(1, 0));
     assertTrue(ShootOnTheMove.inDomain(1, 1));
     assertTrue(ShootOnTheMove.inDomain(1, -1));
@@ -171,9 +172,9 @@ public class ShootOnTheMoveTest {
   @Test
   public void defaultPlaceholderGridHasNaNAtFirstPoint() {
     // Restore the shipped defaults for this check only.
-    ShootOnTheMove.D_GRID_M = grid;
-    ShootOnTheMove.VR_MIN_MPS = vrMin;
-    ShootOnTheMove.VR_MAX_MPS = vrMax;
+    ShootOnTheMoveConstants.D_GRID_M = grid;
+    ShootOnTheMoveConstants.VR_MIN_MPS = vrMin;
+    ShootOnTheMoveConstants.VR_MAX_MPS = vrMax;
     assertEquals(31, grid.length);
     assertEquals(0.5, grid[0], EPS);
     assertEquals(3.5, grid[30], EPS);
@@ -191,8 +192,8 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void rpmCorrectionMapInterpolatesAndClamps() {
-    ShootOnTheMove.RPM_CORRECTION_SPEEDS_MPS = new double[] {4, 8};
-    ShootOnTheMove.RPM_CORRECTION_FACTORS = new double[] {1.0, 1.2};
+    ShootOnTheMoveConstants.RPM_CORRECTION_SPEEDS_MPS = new double[] {4, 8};
+    ShootOnTheMoveConstants.RPM_CORRECTION_FACTORS = new double[] {1.0, 1.2};
     assertEquals(2 * 500 * 1.0, ShootOnTheMove.rpmForSpeed(2), EPS); // clamped low
     assertEquals(4 * 500 * 1.0, ShootOnTheMove.rpmForSpeed(4), EPS);
     assertEquals(6 * 500 * 1.1, ShootOnTheMove.rpmForSpeed(6), EPS); // midpoint
@@ -315,21 +316,21 @@ public class ShootOnTheMoveTest {
   public void mountYawPiVsZero() {
     Solution back = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(0, angleDiff(back.headingTargetRad, -Math.PI), EPS);
-    ShootOnTheMove.SHOOTER_MOUNT_YAW_RAD = 0;
+    ShootOnTheMoveConstants.SHOOTER_MOUNT_YAW_RAD = 0;
     Solution front = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(0, angleDiff(front.headingTargetRad, 0), EPS);
   }
 
   @Test
   public void shooterOffsetChangesDistance() {
-    ShootOnTheMove.SHOOTER_OFFSET_FORWARD_M = 0.1;
+    ShootOnTheMoveConstants.SHOOTER_OFFSET_FORWARD_M = 0.1;
     // Fires from the back, so the robot faces away from the goal and the shooter
     // (0.1 m forward of centre) sits 0.1 m farther from the goal.
     Solution back = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(2.1, back.distanceM, EPS);
     assertEquals(-0.1, back.shooterX, EPS);
     // Fires from the front: shooter is 0.1 m closer.
-    ShootOnTheMove.SHOOTER_MOUNT_YAW_RAD = 0;
+    ShootOnTheMoveConstants.SHOOTER_MOUNT_YAW_RAD = 0;
     Solution front = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(1.9, front.distanceM, EPS);
     assertEquals(0.1, front.shooterX, EPS);
@@ -337,8 +338,8 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void shooterLeftOffsetRotatesWithHeading() {
-    ShootOnTheMove.SHOOTER_OFFSET_LEFT_M = 0.1;
-    ShootOnTheMove.SHOOTER_MOUNT_YAW_RAD = 0;
+    ShootOnTheMoveConstants.SHOOTER_OFFSET_LEFT_M = 0.1;
+    ShootOnTheMoveConstants.SHOOTER_MOUNT_YAW_RAD = 0;
     // Heading ends up near 0 (aim shifts slightly with the offset), so left is ~+y.
     Solution s = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(0.1, s.shooterY, 1e-3);
@@ -346,7 +347,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void mechanismDelayMovesPredictedPose() {
-    ShootOnTheMove.MECHANISM_DELAY_S = 0.2;
+    ShootOnTheMoveConstants.MECHANISM_DELAY_S = 0.2;
     Solution s = ShootOnTheMove.solve(new Pose(0, 0, 0.1), 1, -0.5, 2, goal());
     assertEquals(0.2, s.predictedPose.x, EPS);
     assertEquals(-0.1, s.predictedPose.y, EPS);
@@ -403,7 +404,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void hoodAngleOffsetShiftsCommand() {
-    ShootOnTheMove.HOOD_ANGLE_OFFSET_DEG = 2;
+    ShootOnTheMoveConstants.HOOD_ANGLE_OFFSET_DEG = 2;
     Solution s = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(56, s.launchDeg, EPS);
     assertEquals(54, s.hoodCommandDeg, EPS);
@@ -462,7 +463,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void headingToleranceFormula() {
-    ShootOnTheMove.HEADING_TOLERANCE_MAX_RAD = Math.toRadians(3);
+    ShootOnTheMoveConstants.HEADING_TOLERANCE_MAX_RAD = Math.toRadians(3);
     // Far away the window geometry limits it.
     Solution far = ShootOnTheMove.solve(new Pose(-8, 0, 0), 0, 0, 0, goal());
     double expected = Math.atan((0.254 - 0.03556 - 0.03) / far.distanceM);
@@ -472,7 +473,7 @@ public class ShootOnTheMoveTest {
     Solution near = ShootOnTheMove.solve(origin(), 0, 0, 0, goal());
     assertEquals(Math.toRadians(3), gateOn(near, 0, 0, 0, 0).headingToleranceRad, EPS);
     // Never negative.
-    ShootOnTheMove.AIM_MARGIN_M = 1.0;
+    ShootOnTheMoveConstants.AIM_MARGIN_M = 1.0;
     assertEquals(0.0, gateOn(far, 0, 0, 0, 0).headingToleranceRad, EPS);
   }
 
@@ -480,7 +481,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyInterpolates() {
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     h.add(1000, new Pose(0, 0, 0));
     h.add(2000, new Pose(2, 4, 1));
     Pose p = h.sample(1500);
@@ -495,7 +496,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyHeadingWrapsAcrossPi() {
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     h.add(0, new Pose(0, 0, Math.PI - 0.1));
     h.add(100, new Pose(0, 0, -Math.PI + 0.1));
     Pose p = h.sample(50);
@@ -507,7 +508,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyOutOfRange() {
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     assertNull(h.sample(0));
     for (int i = 0; i < 5; i++) {
       h.add(1000 + i * 100L, new Pose(i, 0, 0));
@@ -522,8 +523,8 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyRingOverwritesOldest() {
-    ShootOnTheMove.POSE_HISTORY_SIZE = 3;
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    ShootOnTheMoveConstants.POSE_HISTORY_SIZE = 3;
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     for (int i = 0; i < 5; i++) {
       h.add(i * 10L, new Pose(i, 0, 0));
     }
@@ -536,7 +537,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void historyShiftAndClear() {
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     h.add(0, new Pose(0, 0, 0));
     h.add(10, new Pose(1, 1, 0));
     h.shift(0.5, -0.25);
@@ -570,15 +571,15 @@ public class ShootOnTheMoveTest {
     savedRed = ShootOnTheMove.upCellRed;
     savedBlue = ShootOnTheMove.upCellBlue;
     savedPoseValid = ShootOnTheMove.poseValid;
-    savedUseDefault = ShootOnTheMove.USE_DEFAULT_START_POSE;
+    savedUseDefault = ShootOnTheMoveConstants.USE_DEFAULT_START_POSE;
     savedHandoff = ShootOnTheMove.handoffPose;
-    savedConfirm = ShootOnTheMove.TIP_CONFIRM_FRAMES;
+    savedConfirm = ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES;
     savedVision = new double[] {
-      ShootOnTheMove.MIN_DECISION_MARGIN, ShootOnTheMove.MAX_TAG_RANGE_M,
-      ShootOnTheMove.MAX_SPEED_FOR_VISION_MPS, ShootOnTheMove.MAX_OMEGA_FOR_VISION_RAD_S,
-      ShootOnTheMove.MAX_FRAME_AGE_S, ShootOnTheMove.MAX_SPREAD_M, ShootOnTheMove.MAX_JUMP_M,
-      ShootOnTheMove.CORRECTION_GAIN, ShootOnTheMove.Z_TOL_M, ShootOnTheMove.FIELD_HALF_SIZE_M,
-      ShootOnTheMove.ROBOT_HALF_SIZE_M
+      ShootOnTheMoveConstants.MIN_DECISION_MARGIN, ShootOnTheMoveConstants.MAX_TAG_RANGE_M,
+      ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS, ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S,
+      ShootOnTheMoveConstants.MAX_FRAME_AGE_S, ShootOnTheMoveConstants.MAX_SPREAD_M, ShootOnTheMoveConstants.MAX_JUMP_M,
+      ShootOnTheMoveConstants.CORRECTION_GAIN, ShootOnTheMoveConstants.Z_TOL_M, ShootOnTheMoveConstants.FIELD_HALF_SIZE_M,
+      ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M
     };
     ShootOnTheMove.upCellRed = Cell.AUDIENCE;
     ShootOnTheMove.upCellBlue = Cell.SCORING;
@@ -591,20 +592,20 @@ public class ShootOnTheMoveTest {
     ShootOnTheMove.upCellRed = savedRed;
     ShootOnTheMove.upCellBlue = savedBlue;
     ShootOnTheMove.poseValid = savedPoseValid;
-    ShootOnTheMove.USE_DEFAULT_START_POSE = savedUseDefault;
+    ShootOnTheMoveConstants.USE_DEFAULT_START_POSE = savedUseDefault;
     ShootOnTheMove.handoffPose = savedHandoff;
-    ShootOnTheMove.TIP_CONFIRM_FRAMES = savedConfirm;
-    ShootOnTheMove.MIN_DECISION_MARGIN = savedVision[0];
-    ShootOnTheMove.MAX_TAG_RANGE_M = savedVision[1];
-    ShootOnTheMove.MAX_SPEED_FOR_VISION_MPS = savedVision[2];
-    ShootOnTheMove.MAX_OMEGA_FOR_VISION_RAD_S = savedVision[3];
-    ShootOnTheMove.MAX_FRAME_AGE_S = savedVision[4];
-    ShootOnTheMove.MAX_SPREAD_M = savedVision[5];
-    ShootOnTheMove.MAX_JUMP_M = savedVision[6];
-    ShootOnTheMove.CORRECTION_GAIN = savedVision[7];
-    ShootOnTheMove.Z_TOL_M = savedVision[8];
-    ShootOnTheMove.FIELD_HALF_SIZE_M = savedVision[9];
-    ShootOnTheMove.ROBOT_HALF_SIZE_M = savedVision[10];
+    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = savedConfirm;
+    ShootOnTheMoveConstants.MIN_DECISION_MARGIN = savedVision[0];
+    ShootOnTheMoveConstants.MAX_TAG_RANGE_M = savedVision[1];
+    ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS = savedVision[2];
+    ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S = savedVision[3];
+    ShootOnTheMoveConstants.MAX_FRAME_AGE_S = savedVision[4];
+    ShootOnTheMoveConstants.MAX_SPREAD_M = savedVision[5];
+    ShootOnTheMoveConstants.MAX_JUMP_M = savedVision[6];
+    ShootOnTheMoveConstants.CORRECTION_GAIN = savedVision[7];
+    ShootOnTheMoveConstants.Z_TOL_M = savedVision[8];
+    ShootOnTheMoveConstants.FIELD_HALF_SIZE_M = savedVision[9];
+    ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M = savedVision[10];
   }
 
   /**
@@ -622,10 +623,10 @@ public class ShootOnTheMoveTest {
     double c = Math.cos(robot.heading);
     double s = Math.sin(robot.heading);
     double[] p = cam == ShootOnTheMove.Camera.LEFT
-        ? ShootOnTheMove.CAM_POS_LEFT_M : ShootOnTheMove.CAM_POS_RIGHT_M;
+        ? ShootOnTheMoveConstants.CAM_POS_LEFT_M : ShootOnTheMoveConstants.CAM_POS_RIGHT_M;
     double psi = cam == ShootOnTheMove.Camera.LEFT
-        ? ShootOnTheMove.CAM_YAW_LEFT_RAD : ShootOnTheMove.CAM_YAW_RIGHT_RAD;
-    double phi = ShootOnTheMove.CAM_PITCH_RAD;
+        ? ShootOnTheMoveConstants.CAM_YAW_LEFT_RAD : ShootOnTheMoveConstants.CAM_YAW_RIGHT_RAD;
+    double phi = ShootOnTheMoveConstants.CAM_PITCH_RAD;
     double[] v = {c * dx + s * dy - p[0], -s * dx + c * dy - p[1], tz - p[2]};
     double[] f = {Math.cos(phi) * Math.cos(psi), Math.cos(phi) * Math.sin(psi), Math.sin(phi)};
     double[] r = {Math.sin(psi), -Math.cos(psi), 0};
@@ -646,7 +647,7 @@ public class ShootOnTheMoveTest {
 
   /** Odometry sat still at the given pose from T0 to T0 + 100 ms. */
   private static PoseHistory stillHistory(Pose odom) {
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     h.add(T0, odom);
     h.add(T0 + 100 * MS, odom);
     return h;
@@ -706,19 +707,19 @@ public class ShootOnTheMoveTest {
   @Test
   public void cameraAxesPointTheRightWay() {
     // CameraL looks backward and to the left; its image-right points forward-left.
-    double[] p = ShootOnTheMove.CAM_POS_LEFT_M;
+    double[] p = ShootOnTheMoveConstants.CAM_POS_LEFT_M;
     double[] ahead = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.LEFT, 0, 1, 0);
     assertTrue(ahead[0] < p[0] && ahead[1] > p[1] && ahead[2] > p[2]);
     double[] right = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.LEFT, 1, 0, 0);
     assertTrue(right[0] > p[0] && right[1] > p[1]);
     assertEquals(p[2], right[2], EPS);
     // CameraR is the mirror image.
-    double[] q = ShootOnTheMove.CAM_POS_RIGHT_M;
+    double[] q = ShootOnTheMoveConstants.CAM_POS_RIGHT_M;
     double[] aheadR = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.RIGHT, 0, 1, 0);
     assertTrue(aheadR[0] < q[0] && aheadR[1] < q[1] && aheadR[2] > q[2]);
     // Image-up raises the point by cos(pitch) per metre.
     double[] up = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.LEFT, 0, 0, 1);
-    assertEquals(p[2] + Math.cos(ShootOnTheMove.CAM_PITCH_RAD), up[2], EPS);
+    assertEquals(p[2] + Math.cos(ShootOnTheMoveConstants.CAM_PITCH_RAD), up[2], EPS);
   }
 
   @Test
@@ -778,7 +779,7 @@ public class ShootOnTheMoveTest {
       }
     }
     // The goal follows the up Cell.
-    assertEquals(ShootOnTheMove.RED_SCORING_GOAL,
+    assertEquals(ShootOnTheMoveConstants.RED_SCORING_GOAL,
         ShootOnTheMove.currentGoal(ShootOnTheMove.Alliance.RED));
     assertEquals(Cell.SCORING, ShootOnTheMove.upCellBlue); // untouched
   }
@@ -800,7 +801,7 @@ public class ShootOnTheMoveTest {
   @Test
   public void tipDetectionReadsDownHeightAsOtherCellUp() {
     // Blue says SCORING up. A BLUE SCORING tag (42) at the down height means AUDIENCE is up.
-    ShootOnTheMove.TIP_CONFIRM_FRAMES = 1;
+    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = 1;
     ShootOnTheMove.VisionResult r =
         run(list(observe(42, Cell.AUDIENCE, TRUE_POSE)), TRUE_POSE, true);
     assertTrue(r.blueFlipped);
@@ -811,7 +812,7 @@ public class ShootOnTheMoveTest {
   @Test
   public void tipConfirmedStateKeepsRunning() {
     // Flipped once, then the tag keeps agreeing: nothing changes back.
-    ShootOnTheMove.TIP_CONFIRM_FRAMES = 1;
+    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = 1;
     run(list(observe(31, Cell.SCORING, TRUE_POSE)), TRUE_POSE, true);
     assertEquals(Cell.SCORING, ShootOnTheMove.upCellRed);
     ShootOnTheMove.VisionResult r =
@@ -862,7 +863,7 @@ public class ShootOnTheMoveTest {
     assertTagRejected(
         new TagObservation(31, g.camera, 0, 3.5, 0, 100, g.frameNanos),
         ShootOnTheMove.TagReject.TOO_FAR);
-    ShootOnTheMove.MAX_TAG_RANGE_M = 0.1;
+    ShootOnTheMoveConstants.MAX_TAG_RANGE_M = 0.1;
     assertTagRejected(g, ShootOnTheMove.TagReject.TOO_FAR);
   }
 
@@ -884,7 +885,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void badZObservationCastsNoTipVote() {
-    ShootOnTheMove.TIP_CONFIRM_FRAMES = 1;
+    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = 1;
     run(list(observe(ShootOnTheMove.Camera.LEFT, TRUE_POSE, 31, Cell.SCORING, 0.5,
         T0 + 50 * MS)), TRUE_POSE, true);
     assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellRed);
@@ -940,7 +941,7 @@ public class ShootOnTheMoveTest {
     assertFalse(r.accepted);
     // No history at all.
     ShootOnTheMove.VisionResult none = corrector.process(
-        list(observe(31, Cell.AUDIENCE, TRUE_POSE)), new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE), TRUE_POSE,
+        list(observe(31, Cell.AUDIENCE, TRUE_POSE)), new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE), TRUE_POSE,
         0, 0, 0, true, T0 + 100 * MS);
     assertEquals(ShootOnTheMove.TagReject.NO_HISTORY, none.firstTagReject);
   }
@@ -981,7 +982,7 @@ public class ShootOnTheMoveTest {
     assertEquals(0.30, r.spread, 1e-3);
     assertNull(r.newPose);
     // Loosening the limit lets the same data through, at the median.
-    ShootOnTheMove.MAX_SPREAD_M = 0.35;
+    ShootOnTheMoveConstants.MAX_SPREAD_M = 0.35;
     ShootOnTheMove.VisionResult ok = run(list(
         observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
         observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
@@ -995,7 +996,7 @@ public class ShootOnTheMoveTest {
     // Odometry went from x=0 to x=1 (heading -pi/2 to -pi/2+0.2) over one second.
     Pose start = new Pose(0.0, -0.9, -Math.PI / 2);
     Pose end = new Pose(1.0, -0.9, -Math.PI / 2 + 0.2);
-    PoseHistory h = new PoseHistory(ShootOnTheMove.POSE_HISTORY_SIZE);
+    PoseHistory h = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     h.add(T0, start);
     h.add(T0 + 1000 * MS, end);
     // At the frame (0.5 s) the odometry said (0.5, -0.9, -pi/2+0.1); the real robot was
@@ -1062,7 +1063,7 @@ public class ShootOnTheMoveTest {
     assertEquals(odom.y + 0.05, r.newPose.y, 1e-3);
     assertEquals(odom.heading, r.newPose.heading, EPS);
 
-    ShootOnTheMove.CORRECTION_GAIN = 0.25;
+    ShootOnTheMoveConstants.CORRECTION_GAIN = 0.25;
     ShootOnTheMove.VisionResult q = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odom, true);
     assertEquals(odom.x - 0.05, q.newPose.x, 1e-3);
   }
