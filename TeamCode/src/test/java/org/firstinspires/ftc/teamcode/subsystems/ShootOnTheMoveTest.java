@@ -6,16 +6,22 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Cell;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Compensation;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.GateResult;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Goal;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Pose;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.PoseHistory;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Reason;
+import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.TagObservation;
 import org.firstinspires.ftc.teamcode.subsystems.ShootOnTheMove.Solution;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class ShootOnTheMoveTest {
   private static final double EPS = 1e-9;
@@ -540,5 +546,542 @@ public class ShootOnTheMoveTest {
     h.clear();
     assertEquals(0, h.size());
     assertNull(h.sample(0));
+  }
+
+  // ---- Vision ---------------------------------------------------------
+
+  private static final long T0 = 1_000_000_000L;
+  private static final long MS = 1_000_000L;
+
+  // Robot used for most vision tests: between the Hives, back toward the red Hive.
+  private static final Pose TRUE_POSE = new Pose(0.1, -0.9, -Math.PI / 2);
+
+  // Saved vision statics, restored in tearDownVision.
+  private Cell savedRed, savedBlue;
+  private boolean savedPoseValid, savedUseDefault;
+  private Pose savedHandoff;
+  private double[] savedVision;
+  private int savedConfirm;
+  private ShootOnTheMove.VisionCorrector corrector;
+
+  @Before
+  public void setUpVision() {
+    savedRed = ShootOnTheMove.upCellRed;
+    savedBlue = ShootOnTheMove.upCellBlue;
+    savedPoseValid = ShootOnTheMove.poseValid;
+    savedUseDefault = ShootOnTheMove.USE_DEFAULT_START_POSE;
+    savedHandoff = ShootOnTheMove.handoffPose;
+    savedConfirm = ShootOnTheMove.TIP_CONFIRM_FRAMES;
+    savedVision = new double[] {
+      ShootOnTheMove.MIN_DECISION_MARGIN, ShootOnTheMove.MAX_TAG_RANGE_M,
+      ShootOnTheMove.MAX_SPEED_FOR_VISION_MPS, ShootOnTheMove.MAX_OMEGA_FOR_VISION_RAD_S,
+      ShootOnTheMove.MAX_FRAME_AGE_S, ShootOnTheMove.MAX_SPREAD_M, ShootOnTheMove.MAX_JUMP_M,
+      ShootOnTheMove.CORRECTION_GAIN, ShootOnTheMove.Z_TOL_M, ShootOnTheMove.FIELD_HALF_SIZE_M,
+      ShootOnTheMove.ROBOT_HALF_SIZE_M
+    };
+    ShootOnTheMove.upCellRed = Cell.AUDIENCE;
+    ShootOnTheMove.upCellBlue = Cell.SCORING;
+    ShootOnTheMove.poseValid = true;
+    corrector = new ShootOnTheMove.VisionCorrector();
+  }
+
+  @After
+  public void tearDownVision() {
+    ShootOnTheMove.upCellRed = savedRed;
+    ShootOnTheMove.upCellBlue = savedBlue;
+    ShootOnTheMove.poseValid = savedPoseValid;
+    ShootOnTheMove.USE_DEFAULT_START_POSE = savedUseDefault;
+    ShootOnTheMove.handoffPose = savedHandoff;
+    ShootOnTheMove.TIP_CONFIRM_FRAMES = savedConfirm;
+    ShootOnTheMove.MIN_DECISION_MARGIN = savedVision[0];
+    ShootOnTheMove.MAX_TAG_RANGE_M = savedVision[1];
+    ShootOnTheMove.MAX_SPEED_FOR_VISION_MPS = savedVision[2];
+    ShootOnTheMove.MAX_OMEGA_FOR_VISION_RAD_S = savedVision[3];
+    ShootOnTheMove.MAX_FRAME_AGE_S = savedVision[4];
+    ShootOnTheMove.MAX_SPREAD_M = savedVision[5];
+    ShootOnTheMove.MAX_JUMP_M = savedVision[6];
+    ShootOnTheMove.CORRECTION_GAIN = savedVision[7];
+    ShootOnTheMove.Z_TOL_M = savedVision[8];
+    ShootOnTheMove.FIELD_HALF_SIZE_M = savedVision[9];
+    ShootOnTheMove.ROBOT_HALF_SIZE_M = savedVision[10];
+  }
+
+  /**
+   * What a camera would report for a tag, from first principles: the tag's
+   * offset from the camera, projected on the camera's right, forward and up axes
+   * (up built as right x forward numerically).
+   */
+  private static TagObservation observe(
+      ShootOnTheMove.Camera cam, Pose robot, int id, Cell up,
+      double tagZOverride, long frameNanos) {
+    double[] t = ShootOnTheMove.tagFieldPosition(id, up);
+    double tz = Double.isNaN(tagZOverride) ? t[2] : tagZOverride;
+    double dx = t[0] - robot.x;
+    double dy = t[1] - robot.y;
+    double c = Math.cos(robot.heading);
+    double s = Math.sin(robot.heading);
+    double[] p = cam == ShootOnTheMove.Camera.LEFT
+        ? ShootOnTheMove.CAM_POS_LEFT_M : ShootOnTheMove.CAM_POS_RIGHT_M;
+    double psi = cam == ShootOnTheMove.Camera.LEFT
+        ? ShootOnTheMove.CAM_YAW_LEFT_RAD : ShootOnTheMove.CAM_YAW_RIGHT_RAD;
+    double phi = ShootOnTheMove.CAM_PITCH_RAD;
+    double[] v = {c * dx + s * dy - p[0], -s * dx + c * dy - p[1], tz - p[2]};
+    double[] f = {Math.cos(phi) * Math.cos(psi), Math.cos(phi) * Math.sin(psi), Math.sin(phi)};
+    double[] r = {Math.sin(psi), -Math.cos(psi), 0};
+    double[] u = {
+      r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]
+    };
+    return new TagObservation(id, cam, dot(v, r), dot(v, f), dot(v, u), 100, frameNanos);
+  }
+
+  private static double dot(double[] a, double[] b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  }
+
+  /** Seen by the left camera at T0 + 50 ms. */
+  private static TagObservation observe(int id, Cell up, Pose robot) {
+    return observe(ShootOnTheMove.Camera.LEFT, robot, id, up, Double.NaN, T0 + 50 * MS);
+  }
+
+  /** Odometry sat still at the given pose from T0 to T0 + 100 ms. */
+  private static PoseHistory stillHistory(Pose odom) {
+    PoseHistory h = new PoseHistory();
+    h.add(T0, odom);
+    h.add(T0 + 100 * MS, odom);
+    return h;
+  }
+
+  private static Pose offsetBy(Pose p, double dx, double dy) {
+    return new Pose(p.x + dx, p.y + dy, p.heading);
+  }
+
+  private ShootOnTheMove.VisionResult run(List<TagObservation> obs, Pose odom, boolean valid) {
+    return corrector.process(obs, stillHistory(odom), odom, 0, 0, 0, valid, T0 + 100 * MS);
+  }
+
+  private static List<TagObservation> list(TagObservation... o) {
+    return new ArrayList<>(Arrays.asList(o));
+  }
+
+  @Test
+  public void tagFieldPositions() {
+    Cell aud = Cell.AUDIENCE;
+    Cell sco = Cell.SCORING;
+    // RED SCORING tag 30 with AUDIENCE up: down cluster, -x side.
+    double[] a = ShootOnTheMove.tagFieldPosition(30, aud);
+    assertEquals(-0.2949, a[0], EPS);
+    assertEquals(-6.25 * 0.0254, a[1], EPS);
+    assertEquals(0.9022, a[2], EPS);
+    // Same tag with SCORING up: up cluster, -x side.
+    double[] b = ShootOnTheMove.tagFieldPosition(30, sco);
+    assertEquals(-0.3329, b[0], EPS);
+    assertEquals(1.2646, b[2], EPS);
+    // RED AUDIENCE tag 34, AUDIENCE up: up cluster on +x.
+    double[] c = ShootOnTheMove.tagFieldPosition(34, aud);
+    assertEquals(0.3329, c[0], EPS);
+    assertEquals(-19.25 * 0.0254, c[1], EPS);
+    assertEquals(1.2646, c[2], EPS);
+    // BLUE AUDIENCE tag 41, SCORING up: down cluster on +x.
+    double[] d = ShootOnTheMove.tagFieldPosition(41, sco);
+    assertEquals(0.2949, d[0], EPS);
+    assertEquals(19.25 * 0.0254, d[1], EPS);
+    assertEquals(0.9022, d[2], EPS);
+    // BLUE SCORING tag 45.
+    assertEquals(6.25 * 0.0254, ShootOnTheMove.tagFieldPosition(45, sco)[1], EPS);
+    assertNull(ShootOnTheMove.tagFieldPosition(29, aud));
+    assertNull(ShootOnTheMove.tagFieldPosition(46, aud));
+    assertNull(ShootOnTheMove.tagFieldPosition(-1, aud));
+
+    assertEquals(ShootOnTheMove.Alliance.RED, ShootOnTheMove.tagAlliance(37));
+    assertEquals(ShootOnTheMove.Alliance.BLUE, ShootOnTheMove.tagAlliance(38));
+    assertNull(ShootOnTheMove.tagAlliance(20));
+    assertEquals(Cell.SCORING, ShootOnTheMove.tagCell(33));
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.tagCell(34));
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.tagCell(41));
+    assertEquals(Cell.SCORING, ShootOnTheMove.tagCell(42));
+    assertNull(ShootOnTheMove.tagCell(0));
+  }
+
+  @Test
+  public void cameraAxesPointTheRightWay() {
+    // CameraL looks backward and to the left; its image-right points forward-left.
+    double[] p = ShootOnTheMove.CAM_POS_LEFT_M;
+    double[] ahead = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.LEFT, 0, 1, 0);
+    assertTrue(ahead[0] < p[0] && ahead[1] > p[1] && ahead[2] > p[2]);
+    double[] right = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.LEFT, 1, 0, 0);
+    assertTrue(right[0] > p[0] && right[1] > p[1]);
+    assertEquals(p[2], right[2], EPS);
+    // CameraR is the mirror image.
+    double[] q = ShootOnTheMove.CAM_POS_RIGHT_M;
+    double[] aheadR = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.RIGHT, 0, 1, 0);
+    assertTrue(aheadR[0] < q[0] && aheadR[1] < q[1] && aheadR[2] > q[2]);
+    // Image-up raises the point by cos(pitch) per metre.
+    double[] up = ShootOnTheMove.tagInRobotFrame(ShootOnTheMove.Camera.LEFT, 0, 0, 1);
+    assertEquals(p[2] + Math.cos(ShootOnTheMove.CAM_PITCH_RAD), up[2], EPS);
+  }
+
+  @Test
+  public void extrinsicsRoundTripRecoversPose() {
+    double[] headings = {-Math.PI / 2, 0.0, 2.0, -2.7};
+    Cell[] reds = {Cell.AUDIENCE, Cell.SCORING};
+    for (double h : headings) {
+      for (Cell redUp : reds) {
+        ShootOnTheMove.upCellRed = redUp;
+        ShootOnTheMove.upCellBlue = ShootOnTheMove.otherCell(redUp);
+        corrector.reset();
+        Pose truth = new Pose(0.1, -0.9, h);
+        // The odometry is wrong by (+0.04, -0.03).
+        Pose odom = offsetBy(truth, 0.04, -0.03);
+        List<TagObservation> obs = new ArrayList<>();
+        for (ShootOnTheMove.Camera cam : ShootOnTheMove.Camera.values()) {
+          for (int id = 30; id <= 45; id++) {
+            Cell up = ShootOnTheMove.tagAlliance(id) == ShootOnTheMove.Alliance.RED
+                ? ShootOnTheMove.upCellRed : ShootOnTheMove.upCellBlue;
+            obs.add(observe(cam, truth, id, up, Double.NaN, T0 + 50 * MS));
+          }
+        }
+        ShootOnTheMove.VisionResult r = run(obs, odom, true);
+        assertTrue("heading " + h + " " + r.reason + " " + r.firstTagReject, r.accepted);
+        assertEquals(32, r.tagsUsed);
+        assertEquals(-0.04, r.dx, 1e-3);
+        assertEquals(0.03, r.dy, 1e-3);
+        assertEquals(0.0, r.spread, 1e-6);
+      }
+    }
+  }
+
+  @Test
+  public void measuredZDoesNotDependOnHeadingOrPosition() {
+    for (double h : new double[] {0, 1, -2}) {
+      TagObservation o = observe(
+          ShootOnTheMove.Camera.RIGHT, new Pose(-0.3, 0.2, h), 36, Cell.AUDIENCE, Double.NaN, 0);
+      double[] robotPt = ShootOnTheMove.tagInRobotFrame(o.camera, o.x, o.y, o.z);
+      assertEquals(1.2646, robotPt[2], 1e-9);
+    }
+  }
+
+  @Test
+  public void tipDetectionNeedsThreeFrames() {
+    // Red Hive says AUDIENCE up; the tags actually show SCORING up.
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellRed);
+    for (int frame = 1; frame <= 3; frame++) {
+      ShootOnTheMove.VisionResult r =
+          run(list(observe(31, Cell.SCORING, TRUE_POSE)), TRUE_POSE, true);
+      if (frame < 3) {
+        assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellRed);
+        assertFalse(r.redFlipped);
+      } else {
+        assertEquals(Cell.SCORING, ShootOnTheMove.upCellRed);
+        assertTrue(r.redFlipped);
+        assertFalse(r.blueFlipped);
+      }
+    }
+    // The goal follows the up Cell.
+    assertEquals(ShootOnTheMove.RED_SCORING_GOAL,
+        ShootOnTheMove.currentGoal(ShootOnTheMove.Alliance.RED));
+    assertEquals(Cell.SCORING, ShootOnTheMove.upCellBlue); // untouched
+  }
+
+  @Test
+  public void tipVotesMustBeConsecutive() {
+    TagObservation flip = observe(31, Cell.SCORING, TRUE_POSE);
+    TagObservation same = observe(31, Cell.AUDIENCE, TRUE_POSE);
+    run(list(flip), TRUE_POSE, true);
+    run(list(flip), TRUE_POSE, true);
+    run(list(same), TRUE_POSE, true); // back to the current state: votes reset
+    run(list(flip), TRUE_POSE, true);
+    run(list(flip), TRUE_POSE, true);
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellRed);
+    run(list(flip), TRUE_POSE, true);
+    assertEquals(Cell.SCORING, ShootOnTheMove.upCellRed);
+  }
+
+  @Test
+  public void tipDetectionReadsDownHeightAsOtherCellUp() {
+    // Blue says SCORING up. A BLUE SCORING tag (42) at the down height means AUDIENCE is up.
+    ShootOnTheMove.TIP_CONFIRM_FRAMES = 1;
+    ShootOnTheMove.VisionResult r =
+        run(list(observe(42, Cell.AUDIENCE, TRUE_POSE)), TRUE_POSE, true);
+    assertTrue(r.blueFlipped);
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellBlue);
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellRed); // untouched
+  }
+
+  @Test
+  public void tipConfirmedStateKeepsRunning() {
+    // Flipped once, then the tag keeps agreeing: nothing changes back.
+    ShootOnTheMove.TIP_CONFIRM_FRAMES = 1;
+    run(list(observe(31, Cell.SCORING, TRUE_POSE)), TRUE_POSE, true);
+    assertEquals(Cell.SCORING, ShootOnTheMove.upCellRed);
+    ShootOnTheMove.VisionResult r =
+        run(list(observe(31, Cell.SCORING, TRUE_POSE)), TRUE_POSE, true);
+    assertFalse(r.redFlipped);
+    assertEquals(Cell.SCORING, ShootOnTheMove.upCellRed);
+  }
+
+  private void assertTagRejected(TagObservation o, ShootOnTheMove.TagReject why) {
+    ShootOnTheMove.VisionResult r = run(list(o), TRUE_POSE, true);
+    assertFalse(r.accepted);
+    assertEquals(ShootOnTheMove.VisionReason.NO_VALID_TAGS, r.reason);
+    assertEquals(why, r.firstTagReject);
+    assertEquals(1, r.tagsRejected);
+    assertEquals(0, r.tagsUsed);
+    assertNull(r.newPose);
+  }
+
+  @Test
+  public void rejectsUnknownAndClusterIds() {
+    TagObservation good = observe(31, Cell.AUDIENCE, TRUE_POSE);
+    assertTagRejected(
+        new TagObservation(20, good.camera, good.x, good.y, good.z, 100, good.frameNanos),
+        ShootOnTheMove.TagReject.NOT_HIVE_TAG);
+    assertTagRejected(
+        new TagObservation(-1, good.camera, good.x, good.y, good.z, Double.NaN, good.frameNanos),
+        ShootOnTheMove.TagReject.NOT_HIVE_TAG);
+    assertTagRejected(
+        new TagObservation(31, good.camera, Double.NaN, Double.NaN, Double.NaN, 100,
+            good.frameNanos),
+        ShootOnTheMove.TagReject.NO_POSE);
+  }
+
+  @Test
+  public void rejectsLowDecisionMargin() {
+    TagObservation g = observe(31, Cell.AUDIENCE, TRUE_POSE);
+    assertTagRejected(
+        new TagObservation(31, g.camera, g.x, g.y, g.z, 19.9, g.frameNanos),
+        ShootOnTheMove.TagReject.LOW_MARGIN);
+    assertTrue(run(list(
+        new TagObservation(31, g.camera, g.x, g.y, g.z, 20, g.frameNanos)),
+        TRUE_POSE, true).accepted);
+  }
+
+  @Test
+  public void rejectsTooFar() {
+    TagObservation g = observe(31, Cell.AUDIENCE, TRUE_POSE);
+    assertTagRejected(
+        new TagObservation(31, g.camera, 0, 3.5, 0, 100, g.frameNanos),
+        ShootOnTheMove.TagReject.TOO_FAR);
+    ShootOnTheMove.MAX_TAG_RANGE_M = 0.1;
+    assertTagRejected(g, ShootOnTheMove.TagReject.TOO_FAR);
+  }
+
+  @Test
+  public void rejectsImplausibleZ() {
+    // Tag centre 0.5 m up: neither 0.9022 nor 1.2646.
+    assertTagRejected(
+        observe(ShootOnTheMove.Camera.LEFT, TRUE_POSE, 31, Cell.AUDIENCE, 0.5, T0 + 50 * MS),
+        ShootOnTheMove.TagReject.BAD_Z);
+    // Just outside the tolerance of the up height.
+    assertTagRejected(
+        observe(ShootOnTheMove.Camera.LEFT, TRUE_POSE, 34, Cell.AUDIENCE, 1.2646 + 0.11,
+            T0 + 50 * MS),
+        ShootOnTheMove.TagReject.BAD_Z);
+    // Just inside it is fine.
+    assertEquals(1, run(list(observe(ShootOnTheMove.Camera.LEFT, TRUE_POSE, 34, Cell.AUDIENCE,
+        1.2646 + 0.05, T0 + 50 * MS)), TRUE_POSE, true).tagsUsed);
+  }
+
+  @Test
+  public void badZObservationCastsNoTipVote() {
+    ShootOnTheMove.TIP_CONFIRM_FRAMES = 1;
+    run(list(observe(ShootOnTheMove.Camera.LEFT, TRUE_POSE, 31, Cell.SCORING, 0.5,
+        T0 + 50 * MS)), TRUE_POSE, true);
+    assertEquals(Cell.AUDIENCE, ShootOnTheMove.upCellRed);
+  }
+
+  @Test
+  public void rejectsWhenMovingTooFastOrTurning() {
+    List<TagObservation> obs = list(observe(31, Cell.AUDIENCE, TRUE_POSE));
+    PoseHistory h = stillHistory(TRUE_POSE);
+    ShootOnTheMove.VisionResult fast =
+        corrector.process(obs, h, TRUE_POSE, 0.8, 0.8, 0, true, T0 + 100 * MS);
+    assertEquals(ShootOnTheMove.VisionReason.TOO_FAST, fast.reason);
+    assertFalse(fast.accepted);
+    ShootOnTheMove.VisionResult ok =
+        corrector.process(obs, h, TRUE_POSE, 1.0, 0, 0, true, T0 + 100 * MS);
+    assertTrue(ok.accepted);
+    ShootOnTheMove.VisionResult spin =
+        corrector.process(obs, h, TRUE_POSE, 0, 0, 1.1, true, T0 + 100 * MS);
+    assertEquals(ShootOnTheMove.VisionReason.TOO_FAST_TURNING, spin.reason);
+    ShootOnTheMove.VisionResult spinNeg =
+        corrector.process(obs, h, TRUE_POSE, 0, 0, -1.1, true, T0 + 100 * MS);
+    assertEquals(ShootOnTheMove.VisionReason.TOO_FAST_TURNING, spinNeg.reason);
+  }
+
+  @Test
+  public void rejectsNoObservations() {
+    ShootOnTheMove.VisionResult r = run(new ArrayList<TagObservation>(), TRUE_POSE, true);
+    assertEquals(ShootOnTheMove.VisionReason.NO_OBSERVATIONS, r.reason);
+    assertFalse(r.accepted);
+  }
+
+  @Test
+  public void rejectsStaleFrame() {
+    TagObservation o = observe(31, Cell.AUDIENCE, TRUE_POSE); // frame at T0 + 50 ms
+    // 0.35 s later than the frame.
+    ShootOnTheMove.VisionResult r = corrector.process(
+        list(o), stillHistory(TRUE_POSE), TRUE_POSE, 0, 0, 0, true, T0 + 50 * MS + 350 * MS);
+    assertEquals(ShootOnTheMove.VisionReason.NO_VALID_TAGS, r.reason);
+    assertEquals(ShootOnTheMove.TagReject.FRAME_TOO_OLD, r.firstTagReject);
+    // 0.25 s later is fine.
+    assertTrue(corrector.process(
+        list(o), stillHistory(TRUE_POSE), TRUE_POSE, 0, 0, 0, true, T0 + 50 * MS + 250 * MS)
+        .accepted);
+  }
+
+  @Test
+  public void rejectsFrameOlderThanHistory() {
+    TagObservation o = observe(
+        ShootOnTheMove.Camera.LEFT, TRUE_POSE, 31, Cell.AUDIENCE, Double.NaN, T0 - 250 * MS);
+    ShootOnTheMove.VisionResult r = corrector.process(
+        list(o), stillHistory(TRUE_POSE), TRUE_POSE, 0, 0, 0, true, T0);
+    assertEquals(ShootOnTheMove.TagReject.NO_HISTORY, r.firstTagReject);
+    assertFalse(r.accepted);
+    // No history at all.
+    ShootOnTheMove.VisionResult none = corrector.process(
+        list(observe(31, Cell.AUDIENCE, TRUE_POSE)), new PoseHistory(), TRUE_POSE,
+        0, 0, 0, true, T0 + 100 * MS);
+    assertEquals(ShootOnTheMove.TagReject.NO_HISTORY, none.firstTagReject);
+  }
+
+  @Test
+  public void medianOfOddAndEvenCounts() {
+    // Each observation is made from a robot a little off the true pose, so its own
+    // correction equals that offset. Three tags: median of {0, 0.02, 0.08} = 0.02.
+    ShootOnTheMove.VisionResult r = run(list(
+        observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.00, 0.0)),
+        observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.02, 0.01)),
+        observe(33, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.08, -0.01))), TRUE_POSE, true);
+    assertTrue(r.accepted);
+    assertEquals(0.02, r.dx, 1e-3);
+    assertEquals(0.0, r.dy, 1e-3);
+    assertEquals(3, r.tagsUsed);
+    assertEquals(Math.hypot(0.06, 0.01), r.spread, 1e-3);
+    assertEquals(3, r.usedIds.length);
+
+    // Four tags: mean of the middle two.
+    ShootOnTheMove.VisionResult e = run(list(
+        observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.00, 0.0)),
+        observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.02, 0.0)),
+        observe(33, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.04, 0.0)),
+        observe(35, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.06, 0.0))), TRUE_POSE, true);
+    assertTrue(e.accepted);
+    assertEquals(0.03, e.dx, 1e-3);
+  }
+
+  @Test
+  public void rejectsWhenTagsDisagree() {
+    ShootOnTheMove.VisionResult r = run(list(
+        observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
+        observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
+        observe(33, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.30, 0.0))), TRUE_POSE, true);
+    assertEquals(ShootOnTheMove.VisionReason.SPREAD, r.reason);
+    assertFalse(r.accepted);
+    assertEquals(0.30, r.spread, 1e-3);
+    assertNull(r.newPose);
+    // Loosening the limit lets the same data through, at the median.
+    ShootOnTheMove.MAX_SPREAD_M = 0.35;
+    ShootOnTheMove.VisionResult ok = run(list(
+        observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
+        observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
+        observe(33, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.30, 0.0))), TRUE_POSE, true);
+    assertTrue(ok.accepted);
+    assertEquals(0.0, ok.dx, 1e-3);
+  }
+
+  @Test
+  public void correctionIsMeasuredFromThePastPose() {
+    // Odometry went from x=0 to x=1 (heading -pi/2 to -pi/2+0.2) over one second.
+    Pose start = new Pose(0.0, -0.9, -Math.PI / 2);
+    Pose end = new Pose(1.0, -0.9, -Math.PI / 2 + 0.2);
+    PoseHistory h = new PoseHistory();
+    h.add(T0, start);
+    h.add(T0 + 1000 * MS, end);
+    // At the frame (0.5 s) the odometry said (0.5, -0.9, -pi/2+0.1); the real robot was
+    // 0.10 m ahead in x and 0.05 m ahead in y of that.
+    Pose truthAtFrame = new Pose(0.6, -0.85, -Math.PI / 2 + 0.1);
+    TagObservation o = observe(
+        ShootOnTheMove.Camera.RIGHT, truthAtFrame, 35, Cell.AUDIENCE, Double.NaN,
+        T0 + 500 * MS);
+    ShootOnTheMove.VisionResult r = corrector.process(
+        list(o), h, end, 0.5, 0, 0, true, T0 + 600 * MS);
+    assertTrue(r.accepted);
+    assertEquals(0.10, r.dx, 1e-3);
+    assertEquals(0.05, r.dy, 1e-3);
+    // Applied to the CURRENT pose, half of it.
+    assertEquals(1.05, r.newPose.x, 1e-3);
+    assertEquals(-0.875, r.newPose.y, 1e-3);
+    assertEquals(end.heading, r.newPose.heading, EPS);
+  }
+
+  @Test
+  public void bootstrapAcceptsLargeJumpAtFullGain() {
+    ShootOnTheMove.poseValid = false;
+    Pose odom = offsetBy(TRUE_POSE, 0.9, 0.7); // far beyond MAX_JUMP_M
+    ShootOnTheMove.VisionResult r = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odom, false);
+    assertTrue(r.accepted);
+    assertEquals(1.0, r.gain, EPS);
+    assertEquals(-0.9, r.dx, 1e-3);
+    assertEquals(-0.7, r.dy, 1e-3);
+    assertEquals(TRUE_POSE.x, r.newPose.x, 1e-3);
+    assertEquals(TRUE_POSE.y, r.newPose.y, 1e-3);
+    assertTrue(ShootOnTheMove.poseValid);
+  }
+
+  @Test
+  public void bootstrapStillNeedsAGoodFix() {
+    ShootOnTheMove.poseValid = false;
+    ShootOnTheMove.VisionResult r = run(list(
+        observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
+        observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.5, 0.0))), TRUE_POSE, false);
+    assertEquals(ShootOnTheMove.VisionReason.SPREAD, r.reason);
+    assertFalse(ShootOnTheMove.poseValid);
+  }
+
+  @Test
+  public void rejectsJumpOnceThePoseIsValid() {
+    Pose odom = offsetBy(TRUE_POSE, 0.6, 0.0);
+    ShootOnTheMove.VisionResult r = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odom, true);
+    assertEquals(ShootOnTheMove.VisionReason.JUMP, r.reason);
+    assertFalse(r.accepted);
+    // 0.4 m is fine.
+    Pose near = offsetBy(TRUE_POSE, 0.4, 0.0);
+    assertTrue(run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), near, true).accepted);
+  }
+
+  @Test
+  public void appliesTheGain() {
+    Pose odom = offsetBy(TRUE_POSE, 0.2, -0.1);
+    ShootOnTheMove.VisionResult r = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odom, true);
+    assertTrue(r.accepted);
+    assertEquals(0.5, r.gain, EPS);
+    assertEquals(-0.2, r.dx, 1e-3);
+    assertEquals(0.1, r.dy, 1e-3);
+    assertEquals(odom.x - 0.1, r.newPose.x, 1e-3);
+    assertEquals(odom.y + 0.05, r.newPose.y, 1e-3);
+    assertEquals(odom.heading, r.newPose.heading, EPS);
+
+    ShootOnTheMove.CORRECTION_GAIN = 0.25;
+    ShootOnTheMove.VisionResult q = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odom, true);
+    assertEquals(odom.x - 0.05, q.newPose.x, 1e-3);
+  }
+
+  @Test
+  public void rejectsPositionOutsideTheField() {
+    // |x| limit is 1.83 - 0.15 = 1.68.
+    Pose out = new Pose(1.75, -0.9, -Math.PI / 2);
+    ShootOnTheMove.VisionResult r = run(list(observe(31, Cell.AUDIENCE, out)), out, true);
+    assertEquals(ShootOnTheMove.VisionReason.OUT_OF_FIELD, r.reason);
+    assertFalse(r.accepted);
+    Pose outY = new Pose(0.1, 1.70, -Math.PI / 2);
+    assertEquals(ShootOnTheMove.VisionReason.OUT_OF_FIELD,
+        run(list(observe(31, Cell.AUDIENCE, outY)), outY, true).reason);
+    Pose inside = new Pose(1.6, -0.9, -Math.PI / 2);
+    assertTrue(run(list(observe(31, Cell.AUDIENCE, inside)), inside, true).accepted);
+    // Still checked while bootstrapping.
+    ShootOnTheMove.poseValid = false;
+    assertEquals(ShootOnTheMove.VisionReason.OUT_OF_FIELD,
+        run(list(observe(31, Cell.AUDIENCE, out)), out, false).reason);
+    assertFalse(ShootOnTheMove.poseValid);
   }
 }

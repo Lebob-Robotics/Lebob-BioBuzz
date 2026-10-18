@@ -27,6 +27,8 @@ import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.psilynx.psikit.core.Logger;
 
+import java.util.List;
+
 public class Robot {
   private final Telemetry telemetry;
   private final Gamepad driver;
@@ -51,6 +53,16 @@ public class Robot {
   private Alliance alliance = Alliance.RED;
   // Last valid solved RPM, held while a solution is briefly invalid. NaN = none yet.
   private double lastAimRpm = Double.NaN;
+
+  // Vision pose correction. The history holds the odometry pose of each loop,
+  // stamped with that loop's vision capture time, so a frame's pose can be looked up.
+  private final ShootOnTheMove.PoseHistory poseHistory = new ShootOnTheMove.PoseHistory();
+  private final ShootOnTheMove.VisionCorrector visionCorrector =
+      new ShootOnTheMove.VisionCorrector();
+  private long lastHistoryNanos = Long.MIN_VALUE;
+  // Last update that looked at tags (not just "no new frame"), for the Driver Station.
+  private ShootOnTheMove.VisionResult lastVision = null;
+  private long lastVisionNanos = 0;
 
   public Robot(
       HardwareMap hardwareMap,
@@ -103,8 +115,16 @@ public class Robot {
           ? ShootOnTheMove.DEFAULT_START_POSE_RED : ShootOnTheMove.DEFAULT_START_POSE_BLUE;
       odometry.setPose(start[0], start[1], start[2]);
       ShootOnTheMove.poseValid = true;
+    } else {
+      // TODO: assumes the robot is placed square to its wall, facing away from it.
+      // The driver's A button re-zeroes this at any time.
+      odometry.setHeading(ShootOnTheMove.allianceForwardRad(alliance));
     }
-    // Otherwise aim stays off until vision gives a bootstrap fix.
+    // With no handoff and no default pose, aim stays off until vision gives a bootstrap fix.
+    poseHistory.clear();
+    visionCorrector.reset();
+    lastHistoryNanos = Long.MIN_VALUE;
+    lastVision = null;
     Logger.recordOutput("SOTM/UsedHandoff", handoff != null);
   }
 
@@ -122,8 +142,37 @@ public class Robot {
     // user code runs, so the pose read below is the one that gets logged.
     Pose2D pose = odometry.getPose();
     double heading = pose.getHeading(AngleUnit.RADIANS);
+    double posX = pose.getX(DistanceUnit.METER);
+    double posY = pose.getY(DistanceUnit.METER);
     double[] vel = odometry.getVelocityMetersPerSec();
     double omega = vel[2];
+
+    // Vision first, so this loop's solve uses the corrected pose. Subsystem
+    // periodic() runs inside CommandScheduler.run() at the end of the loop, so the
+    // inputs read here are LAST loop's capture. Its time (captureNanos) is also the
+    // loop time, so frame ages are measured against it and replay gives the same result.
+    List<ShootOnTheMove.TagObservation> observations = vision.takeNewObservations();
+    long visionNanos = vision.getCaptureNanos();
+    ShootOnTheMove.VisionResult vr = visionCorrector.process(
+        observations, poseHistory, new ShootOnTheMove.Pose(posX, posY, heading),
+        vel[0], vel[1], omega, ShootOnTheMove.poseValid, visionNanos);
+    if (vr.accepted) {
+      odometry.setPose(vr.newPose.x, vr.newPose.y, heading);
+      poseHistory.shift(vr.gain * vr.dx, vr.gain * vr.dy);
+      // The Pinpoint may not report the new pose until its next update.
+      posX = vr.newPose.x;
+      posY = vr.newPose.y;
+    }
+    if (vr.reason != ShootOnTheMove.VisionReason.NO_OBSERVATIONS) {
+      lastVision = vr;
+      lastVisionNanos = visionNanos;
+    }
+    double frameAgeS = Double.NaN;
+    for (ShootOnTheMove.TagObservation o : observations) {
+      double age = (visionNanos - o.frameNanos) * 1e-9;
+      frameAgeS = Double.isNaN(frameAgeS) ? age : Math.min(frameAgeS, age);
+    }
+    logVision(vr, frameAgeS, observations.size());
 
     // Joysticks are relative to the driver's wall, not the field's +x.
     double forwardOffset = ShootOnTheMove.allianceForwardRad(alliance);
@@ -147,8 +196,7 @@ public class Robot {
     GateResult gate = null;
     if (poseValid) {
       sol = ShootOnTheMove.solve(
-          new ShootOnTheMove.Pose(
-              pose.getX(DistanceUnit.METER), pose.getY(DistanceUnit.METER), heading),
+          new ShootOnTheMove.Pose(posX, posY, heading),
           vel[0], vel[1], omega, ShootOnTheMove.currentGoal(alliance));
       gate = ShootOnTheMove.gate(sol, shooter.getRpm(),
           HoodSubsystem.ticksToAngle(hood.getPosition()), heading, omega);
@@ -172,6 +220,9 @@ public class Robot {
     if (driver.a) {
       // Driver forward becomes the current heading; keeps x/y.
       odometry.setHeading(forwardOffset);
+      // Old samples carry the old heading, so vision cannot use them any more.
+      poseHistory.clear();
+      heading = forwardOffset;
     }
 
     Logger.recordOutput("Robot/Driver/Shoot", rightTriggerPressed);
@@ -250,8 +301,37 @@ public class Robot {
     // subsystem's logging see this loop's commands rather than last loop's.
     CommandScheduler.getInstance().run();
 
+    // Stamp this loop's pose with the capture time vision just took (same loop, so a
+    // few ms from the pose read). Skipped until the first capture, and for repeats.
+    long stamp = vision.getCaptureNanos();
+    if (stamp > lastHistoryNanos && stamp > 0) {
+      poseHistory.add(stamp, new ShootOnTheMove.Pose(posX, posY, heading));
+      lastHistoryNanos = stamp;
+    }
+
     addTelemetry(mode, sol, gate, heading);
     telemetry.update();
+  }
+
+  private static void logVision(ShootOnTheMove.VisionResult r, double frameAgeS, int newTags) {
+    Logger.recordOutput("SOTM/Vision/Accepted", r.accepted);
+    Logger.recordOutput("SOTM/Vision/Reason", r.reason.name());
+    Logger.recordOutput("SOTM/Vision/TagReject", r.firstTagReject.name());
+    Logger.recordOutput("SOTM/Vision/NewTags", newTags);
+    Logger.recordOutput("SOTM/Vision/DxM", r.dx);
+    Logger.recordOutput("SOTM/Vision/DyM", r.dy);
+    Logger.recordOutput("SOTM/Vision/Gain", r.gain);
+    Logger.recordOutput("SOTM/Vision/TagsUsed", r.tagsUsed);
+    Logger.recordOutput("SOTM/Vision/TagsRejected", r.tagsRejected);
+    Logger.recordOutput("SOTM/Vision/SpreadM", r.spread);
+    Logger.recordOutput("SOTM/Vision/UsedIds", r.usedIds);
+    Logger.recordOutput("SOTM/Vision/UsedDx", r.usedDx);
+    Logger.recordOutput("SOTM/Vision/UsedDy", r.usedDy);
+    Logger.recordOutput("SOTM/Vision/FrameAgeS", frameAgeS);
+    Logger.recordOutput("SOTM/Vision/UpCellRed", ShootOnTheMove.upCellRed.name());
+    Logger.recordOutput("SOTM/Vision/UpCellBlue", ShootOnTheMove.upCellBlue.name());
+    Logger.recordOutput("SOTM/Vision/RedFlipped", r.redFlipped);
+    Logger.recordOutput("SOTM/Vision/BlueFlipped", r.blueFlipped);
   }
 
   /** Logs every Solution and GateResult field as primitives. */
@@ -315,8 +395,28 @@ public class Robot {
     telemetry.addData("Hood", String.format("%s  %d / %d",
         hood.getPreset(), hood.getPosition(), hood.getTarget()));
     telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken());
+    telemetry.addData("Vision", visionLine());
     telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
+  }
+
+  /** e.g. "✓ 6 tags Δ3cm (0.1s ago) | target AUDIENCE", or the rejection reason. */
+  private String visionLine() {
+    String target = "target " + ShootOnTheMove.upCell(alliance);
+    ShootOnTheMove.VisionResult r = lastVision;
+    if (r == null) {
+      return "no tags yet | " + target;
+    }
+    String text;
+    if (r.accepted) {
+      text = String.format("✓ %d tags Δ%.0fcm", r.tagsUsed, Math.hypot(r.dx, r.dy) * 100);
+    } else if (r.reason == ShootOnTheMove.VisionReason.NO_VALID_TAGS) {
+      text = "✗ " + r.firstTagReject;
+    } else {
+      text = "✗ " + r.reason;
+    }
+    double sinceS = (vision.getCaptureNanos() - lastVisionNanos) * 1e-9;
+    return text + String.format(" (%.1fs ago) | ", sinceS) + target;
   }
 
   private static String mark(boolean ok) {
