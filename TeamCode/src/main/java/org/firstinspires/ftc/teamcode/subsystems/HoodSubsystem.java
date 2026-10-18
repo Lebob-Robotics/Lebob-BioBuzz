@@ -11,7 +11,8 @@ import org.psilynx.psikit.core.Logger;
  * Subsystem to control the shooter hood.
  *
  * <p>The hood is driven by a goBILDA 435 RPM Yellow Jacket. A REV Through Bore
- * encoder (8192 ticks/rev) sits on the hood pinion and is plugged into the
+ * encoder (8192 ticks/rev) sits on the motor-side pinion of the 10:1 hood
+ * reduction and is plugged into the
  * HoodMotor's encoder port, so {@link GobildaMotor#getPosition()} reads the
  * hood directly.
  *
@@ -29,21 +30,29 @@ public class HoodSubsystem extends SubsystemBase {
   /** Soft limit at the lower hard stop, where the encoder is zeroed. */
   private static final int MIN_TICKS = 0;
   /** Soft limit at the top of the hood's travel. */
-  private static final int MAX_TICKS = 2000; // TODO tune on robot
+  private static final int MAX_TICKS = angleToTicks(51.0); // TODO tune on robot
+
+  // ---- Geometry --------------------------------------------------------
+  /** Launch angle at the lower hard stop, where the encoder is zeroed. */
+  public static final double ZERO_ANGLE_DEG = 99.0;
+  /** Launch angle at the top of the hood's travel. */
+  public static final double MIN_ANGLE_DEG = 51.0;
+  /** Encoder ticks per degree of launch angle: 8192 ticks/rev through the 10:1. */
+  public static final double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
 
   private final GobildaMotor hoodMotor;
 
-  /** Hood positions, each holding a target in Through Bore ticks. */
+  /** Hood positions, each given as a launch angle and held in Through Bore ticks. */
   public enum HoodPreset {
-    STOW(0), // TODO tune on robot
-    CLOSE(500), // TODO tune on robot
-    MID(1000), // TODO tune on robot
-    FAR(1500); // TODO tune on robot
+    STOW(ZERO_ANGLE_DEG),
+    CLOSE(75.0), // TODO tune on robot
+    MID(65.0), // TODO tune on robot
+    FAR(55.0); // TODO tune on robot
 
     private final int ticks;
 
-    HoodPreset(int ticks) {
-      this.ticks = ticks;
+    HoodPreset(double launchAngleDeg) {
+      this.ticks = angleToTicks(launchAngleDeg);
     }
 
     public int getTicks() {
@@ -52,6 +61,9 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   private HoodPreset preset = HoodPreset.STOW;
+  // When on, directTicks overrides the preset (used for continuous aiming).
+  private boolean directMode = false;
+  private int directTicks = 0;
 
   // What the last P loop step saw, kept for logging.
   private int lastPosition;
@@ -77,8 +89,11 @@ public class HoodSubsystem extends SubsystemBase {
     runPositionLoop();
 
     Logger.recordOutput("Hood/Preset", preset);
+    Logger.recordOutput("Hood/DirectMode", directMode);
     Logger.recordOutput("Hood/TargetTicks", getTarget());
     Logger.recordOutput("Hood/PositionTicks", lastPosition);
+    Logger.recordOutput("Hood/TargetAngleDeg", ticksToAngle(getTarget()));
+    Logger.recordOutput("Hood/AngleDeg", ticksToAngle(lastPosition));
     Logger.recordOutput("Hood/ErrorTicks", lastError);
     Logger.recordOutput("Hood/CommandedPower", hoodMotor.getCommandedPower());
     Logger.recordOutput("Hood/AtTarget", lastAtTarget);
@@ -113,10 +128,38 @@ public class HoodSubsystem extends SubsystemBase {
 
   public void setPreset(HoodPreset newPreset) {
     preset = newPreset;
+    directMode = false;
+  }
+
+  /**
+   * Targets an exact position, overriding the preset until the next
+   * {@link #setPreset(HoodPreset)}. Clamped to the soft limits.
+   */
+  public void setTargetTicks(int ticks) {
+    directTicks = Math.max(MIN_TICKS, Math.min(MAX_TICKS, ticks));
+    directMode = true;
+  }
+
+  /** True while a direct-ticks target is overriding the preset. */
+  public boolean isDirectMode() {
+    return directMode;
   }
 
   public HoodPreset getPreset() {
     return preset;
+  }
+
+  /**
+   * Converts a launch angle to encoder ticks. Ticks count up as the hood
+   * raises and the launch angle drops from {@link #ZERO_ANGLE_DEG}.
+   */
+  public static int angleToTicks(double launchAngleDeg) {
+    return (int) Math.round((ZERO_ANGLE_DEG - launchAngleDeg) * TICKS_PER_DEG);
+  }
+
+  /** Converts encoder ticks to a launch angle in degrees. */
+  public static double ticksToAngle(int ticks) {
+    return ZERO_ANGLE_DEG - ticks / TICKS_PER_DEG;
   }
 
   /** Hood position in Through Bore ticks. */
@@ -124,13 +167,18 @@ public class HoodSubsystem extends SubsystemBase {
     return hoodMotor.getPosition();
   }
 
-  /** Target position in ticks for the current preset. */
+  /** Target position in ticks: the direct override if set, else the preset's. */
   public int getTarget() {
-    return preset.getTicks();
+    return directMode ? directTicks : preset.getTicks();
   }
 
   /** True when the hood is within the deadband of its target. */
   public boolean atTarget() {
     return Math.abs(getTarget() - getPosition()) < DEADBAND_TICKS;
+  }
+
+  /** True when the hood is within toleranceTicks of its target. */
+  public boolean atTarget(int toleranceTicks) {
+    return Math.abs(getTarget() - getPosition()) <= toleranceTicks;
   }
 }
