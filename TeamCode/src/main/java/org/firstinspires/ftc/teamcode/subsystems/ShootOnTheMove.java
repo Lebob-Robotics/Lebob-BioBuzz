@@ -3,6 +3,10 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.configurables.annotations.IgnoreConfigurable;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Pure-math core of the shoot-on-the-move solver. No hardware, no FTC imports,
  * so it runs on the plain JVM and can be unit tested.
@@ -285,16 +289,16 @@ public final class ShootOnTheMove {
 
   /**
    * Which Cell is up on each alliance's Hive. Match start: red AUDIENCE, blue
-   * SCORING. Vision will flip these.
+   * SCORING. Vision flips these.
    */
   @IgnoreConfigurable public static Cell upCellRed = Cell.AUDIENCE;
   @IgnoreConfigurable public static Cell upCellBlue = Cell.SCORING;
 
   /**
    * Practice only: with no auto handoff, trust DEFAULT_START_POSE_* (robot placed
-   * there by hand). Set false once vision bootstraps the pose.
+   * there by hand). False now that vision bootstraps the pose.
    */
-  public static boolean USE_DEFAULT_START_POSE = true; // TODO false after vision
+  public static boolean USE_DEFAULT_START_POSE = false;
 
   /** Start pose {x m, y m, heading rad} when there is no auto handoff. */
   public static double[] DEFAULT_START_POSE_RED = {0.0, -1.0, Math.PI / 2}; // TODO placeholder
@@ -308,7 +312,7 @@ public final class ShootOnTheMove {
   @IgnoreConfigurable public static Pose handoffPose = null;
   /**
    * True once the pose can be trusted: after a handoff or a default start pose.
-   * Vision will also set it after a bootstrap fix.
+   * Vision also sets it after a bootstrap fix.
    */
   @IgnoreConfigurable public static boolean poseValid = false;
 
@@ -656,6 +660,442 @@ public final class ShootOnTheMove {
     private Pose at(int k) {
       int i = idx(k);
       return new Pose(x[i], y[i], h[i]);
+    }
+  }
+
+  // ---- Vision ----------------------------------------------------------
+  // Vision corrects x/y only. Heading always comes from the Pinpoint. Only each
+  // detection's ftcPose x/y/z is used (tag centre relative to the camera). The
+  // SDK's robotPose is NOT used: the tag library has placeholder field poses and
+  // the tags move when the Hive tips. Robot frame: +x forward, +y left, +z up.
+
+  /** Which camera saw a tag. */
+  public enum Camera { LEFT, RIGHT }
+
+  /** Both cameras face backward (like the shooter), turned out 35 deg, tilted up. */
+  public static double CAM_PITCH_RAD = Math.toRadians(48.907);
+  /** Robot-frame yaw of CameraL, CCW from forward: 180 - 35 deg. */
+  public static double CAM_YAW_LEFT_RAD = Math.PI - Math.toRadians(35);
+  /** Robot-frame yaw of CameraR. */
+  public static double CAM_YAW_RIGHT_RAD = -(Math.PI - Math.toRadians(35));
+  /** CameraL position from the robot centre: {forward, left, up} metres. */
+  public static double[] CAM_POS_LEFT_M = {-0.07405, 0.04313, 0.16972};
+  /** CameraR position from the robot centre: {forward, left, up} metres. */
+  public static double[] CAM_POS_RIGHT_M = {-0.07442, -0.04318, 0.17040};
+  // TODO: positions come from CAD and assume the robot centre is 228.6 mm behind the front edge
+  // and 173.2 mm from the left side.
+  /** Horizontal field of view of both cameras. Reference only, not used by the maths. */
+  public static double CAM_HFOV_DEG = 80;
+
+  /** Cluster centre of the up Cell: |x| and z. */
+  public static double CLUSTER_UP_X_M = 0.3329;
+  public static double CLUSTER_UP_Z_M = 1.2646;
+  /** Cluster centre of the down Cell: |x| and z. */
+  public static double CLUSTER_DOWN_X_M = 0.2949;
+  public static double CLUSTER_DOWN_Z_M = 0.9022;
+  // Tag y in inches by ID. Each group of four IDs is one Cell's cluster, in order
+  // RED SCORING 30-33, RED AUDIENCE 34-37, BLUE AUDIENCE 38-41, BLUE SCORING 42-45.
+  private static final double[] TAG_Y_IN = {
+    -6.25, -10.0, -15.5, -19.25,
+    -19.25, -15.5, -10.0, -6.25,
+    6.25, 10.0, 15.5, 19.25,
+    19.25, 15.5, 10.0, 6.25
+  };
+  private static final double IN_TO_M = 0.0254;
+
+  // Tip-state detection.
+  /** Measured tag Z must be within this of the up or down cluster height. */
+  public static double Z_TOL_M = 0.10;
+  /** Consecutive frames that must vote for a flip before the Hive's up Cell changes. */
+  public static int TIP_CONFIRM_FRAMES = 3;
+
+  // Rejection rules.
+  public static double MIN_DECISION_MARGIN = 20; // TODO placeholder, tune
+  public static double MAX_TAG_RANGE_M = 3.0;
+  public static double MAX_SPEED_FOR_VISION_MPS = 1.0;
+  public static double MAX_OMEGA_FOR_VISION_RAD_S = 1.0;
+  public static double MAX_FRAME_AGE_S = 0.3;
+  /** Largest distance of any tag's correction from the median correction. */
+  public static double MAX_SPREAD_M = 0.10;
+  /** Largest correction accepted, except when bootstrapping. */
+  public static double MAX_JUMP_M = 0.5;
+  public static double FIELD_HALF_SIZE_M = 1.83;
+  public static double ROBOT_HALF_SIZE_M = 0.15;
+  /** Fraction of the correction applied per accepted update (1 when bootstrapping). */
+  public static double CORRECTION_GAIN = 0.5;
+
+  /** One AprilTag sighting, in ftcPose axes (x right, y forward along the lens, z up), metres. */
+  public static final class TagObservation {
+    public final int id;
+    public final Camera camera;
+    public final double x;
+    public final double y;
+    public final double z;
+    public final double decisionMargin;
+    /** Frame acquisition time, System.nanoTime() base. */
+    public final long frameNanos;
+
+    public TagObservation(
+        int id, Camera camera, double x, double y, double z,
+        double decisionMargin, long frameNanos) {
+      this.id = id;
+      this.camera = camera;
+      this.x = x;
+      this.y = y;
+      this.z = z;
+      this.decisionMargin = decisionMargin;
+      this.frameNanos = frameNanos;
+    }
+
+    /** Straight-line distance from the camera to the tag. */
+    public double rangeM() {
+      return Math.sqrt(x * x + y * y + z * z);
+    }
+  }
+
+  /** Why a vision update was or was not applied. */
+  public enum VisionReason {
+    ACCEPTED,
+    NO_OBSERVATIONS,
+    TOO_FAST,
+    TOO_FAST_TURNING,
+    /** Every observation was dropped; see {@link VisionResult#firstTagReject}. */
+    NO_VALID_TAGS,
+    SPREAD,
+    OUT_OF_FIELD,
+    JUMP
+  }
+
+  /** Why one observation was dropped. */
+  public enum TagReject {
+    NONE,
+    NO_POSE,
+    NOT_HIVE_TAG,
+    LOW_MARGIN,
+    TOO_FAR,
+    BAD_Z,
+    FRAME_TOO_OLD,
+    NO_HISTORY
+  }
+
+  /** Result of one {@link VisionCorrector#process}. */
+  public static final class VisionResult {
+    public final boolean accepted;
+    public final VisionReason reason;
+    /** Reason the first dropped observation was dropped (NONE if none was). */
+    public final TagReject firstTagReject;
+    /** Median correction, vision minus odometry at the frame time. Zero if not accepted. */
+    public final double dx;
+    public final double dy;
+    /** Fraction of the correction that is applied. Zero if not accepted. */
+    public final double gain;
+    /** Pose to give the odometry: current pose + gain * correction. Null if not accepted. */
+    public final Pose newPose;
+    public final int tagsUsed;
+    public final int tagsRejected;
+    /** Largest distance of a used tag's correction from the median. NaN if no tag was used. */
+    public final double spread;
+    /** True if this update flipped that Hive's up Cell. */
+    public final boolean redFlipped;
+    public final boolean blueFlipped;
+    /** Per used tag: id and its own correction. */
+    public final int[] usedIds;
+    public final double[] usedDx;
+    public final double[] usedDy;
+
+    VisionResult(
+        VisionReason reason, TagReject firstTagReject, double dx, double dy, double gain,
+        Pose newPose, int tagsUsed, int tagsRejected, double spread, boolean redFlipped,
+        boolean blueFlipped, int[] usedIds, double[] usedDx, double[] usedDy) {
+      this.accepted = reason == VisionReason.ACCEPTED;
+      this.reason = reason;
+      this.firstTagReject = firstTagReject;
+      this.dx = dx;
+      this.dy = dy;
+      this.gain = gain;
+      this.newPose = newPose;
+      this.tagsUsed = tagsUsed;
+      this.tagsRejected = tagsRejected;
+      this.spread = spread;
+      this.redFlipped = redFlipped;
+      this.blueFlipped = blueFlipped;
+      this.usedIds = usedIds;
+      this.usedDx = usedDx;
+      this.usedDy = usedDy;
+    }
+  }
+
+  /** Alliance a tag belongs to, or null for an unknown ID. */
+  public static Alliance tagAlliance(int id) {
+    if (id >= 30 && id <= 37) {
+      return Alliance.RED;
+    }
+    if (id >= 38 && id <= 45) {
+      return Alliance.BLUE;
+    }
+    return null;
+  }
+
+  /** The Cell a tag sits on, or null for an unknown ID. */
+  public static Cell tagCell(int id) {
+    if ((id >= 30 && id <= 33) || (id >= 42 && id <= 45)) {
+      return Cell.SCORING;
+    }
+    if (id >= 34 && id <= 41) {
+      return Cell.AUDIENCE;
+    }
+    return null;
+  }
+
+  /** The other Cell of a Hive. */
+  public static Cell otherCell(Cell c) {
+    return c == Cell.AUDIENCE ? Cell.SCORING : Cell.AUDIENCE;
+  }
+
+  /** The up Cell of an alliance's Hive right now. */
+  public static Cell upCell(Alliance a) {
+    return a == Alliance.RED ? upCellRed : upCellBlue;
+  }
+
+  /**
+   * Field position of a tag centre.
+   *
+   * @param upCellOfThatHive which Cell of the tag's own Hive is up
+   * @return {x, y, z} metres, or null for an unknown ID
+   */
+  public static double[] tagFieldPosition(int id, Cell upCellOfThatHive) {
+    Alliance a = tagAlliance(id);
+    Cell cell = tagCell(id);
+    if (a == null || cell == null) {
+      return null;
+    }
+    double y = TAG_Y_IN[id - 30] * IN_TO_M;
+    boolean up = cell == upCellOfThatHive;
+    double ax = up ? CLUSTER_UP_X_M : CLUSTER_DOWN_X_M;
+    double z = up ? CLUSTER_UP_Z_M : CLUSTER_DOWN_Z_M;
+    return new double[] {cell == Cell.AUDIENCE ? ax : -ax, y, z};
+  }
+
+  /**
+   * Tag centre in the robot frame from an ftcPose x/y/z (metres).
+   *
+   * <p>Camera axes in the robot frame, for yaw psi and pitch phi:
+   * forward f = (cos phi cos psi, cos phi sin psi, sin phi), right r = (sin psi, -cos psi, 0),
+   * up u = r x f = (-cos psi sin phi, -sin psi sin phi, cos phi). The tag is at
+   * camPos + x r + y f + z u.
+   *
+   * @return {x forward, y left, z up}
+   */
+  public static double[] tagInRobotFrame(Camera cam, double x, double y, double z) {
+    double psi = cam == Camera.LEFT ? CAM_YAW_LEFT_RAD : CAM_YAW_RIGHT_RAD;
+    double[] p = cam == Camera.LEFT ? CAM_POS_LEFT_M : CAM_POS_RIGHT_M;
+    double cp = Math.cos(CAM_PITCH_RAD);
+    double sp = Math.sin(CAM_PITCH_RAD);
+    double cy = Math.cos(psi);
+    double sy = Math.sin(psi);
+    return new double[] {
+      p[0] + x * sy + y * cp * cy - z * cy * sp,
+      p[1] - x * cy + y * cp * sy - z * sy * sp,
+      p[2] + y * sp + z * cp
+    };
+  }
+
+  /**
+   * Turns observations into x/y corrections, tracks Hive tip state, and applies
+   * hysteresis. Holds the flip-vote counters, so keep one instance per OpMode.
+   * Writes {@link #upCellRed}, {@link #upCellBlue} and {@link #poseValid}.
+   */
+  public static final class VisionCorrector {
+    // Consecutive frames voting against the current up Cell, per Hive (0 red, 1 blue).
+    private final int[] flipVotes = new int[2];
+
+    /** Forgets any partial flip votes. */
+    public void reset() {
+      flipVotes[0] = 0;
+      flipVotes[1] = 0;
+    }
+
+    /**
+     * Processes the new observations of one loop.
+     *
+     * <p>Tip state comes from each tag's measured height and does not need the
+     * pose, so it runs whenever the robot is slow enough, even if the position
+     * update is later rejected.
+     *
+     * @param obs new observations only (a frame is never used twice)
+     * @param history odometry poses stamped by time, with every past vision shift applied
+     * @param now current odometry pose
+     * @param vx field x velocity
+     * @param vy field y velocity
+     * @param omega turn rate
+     * @param poseValid whether the pose is already trusted; false means bootstrap
+     * @param nowNanos the loop time, same base as the frame times
+     */
+    public VisionResult process(
+        List<TagObservation> obs, PoseHistory history, Pose now,
+        double vx, double vy, double omega, boolean poseValid, long nowNanos) {
+      if (obs == null || obs.isEmpty()) {
+        return fail(VisionReason.NO_OBSERVATIONS, TagReject.NONE, 0, false, false);
+      }
+      if (Math.hypot(vx, vy) > MAX_SPEED_FOR_VISION_MPS) {
+        return fail(VisionReason.TOO_FAST, TagReject.NONE, 0, false, false);
+      }
+      if (Math.abs(omega) > MAX_OMEGA_FOR_VISION_RAD_S) {
+        return fail(VisionReason.TOO_FAST_TURNING, TagReject.NONE, 0, false, false);
+      }
+
+      // votes[hive][cell]: how many observations with a plausible Z say that Cell is up.
+      int[][] votes = new int[2][2];
+      List<Double> dxs = new ArrayList<>();
+      List<Double> dys = new ArrayList<>();
+      List<Integer> ids = new ArrayList<>();
+      TagReject firstReject = TagReject.NONE;
+      int rejected = 0;
+
+      for (TagObservation o : obs) {
+        TagReject r = TagReject.NONE;
+        Cell measuredUp = null;
+        double[] robotPt = null;
+        double[] tag = null;
+        Pose atFrame = null;
+
+        if (Double.isNaN(o.x) || Double.isNaN(o.y) || Double.isNaN(o.z)) {
+          r = TagReject.NO_POSE;
+        } else if (tagAlliance(o.id) == null) {
+          r = TagReject.NOT_HIVE_TAG;
+        } else if (!(o.decisionMargin >= MIN_DECISION_MARGIN)) {
+          r = TagReject.LOW_MARGIN;
+        } else if (o.rangeM() > MAX_TAG_RANGE_M) {
+          r = TagReject.TOO_FAR;
+        } else {
+          robotPt = tagInRobotFrame(o.camera, o.x, o.y, o.z);
+          double zMeasured = robotPt[2]; // the robot is on the floor, so robot Z = field Z
+          Cell cell = tagCell(o.id);
+          if (Math.abs(zMeasured - CLUSTER_UP_Z_M) < Z_TOL_M) {
+            measuredUp = cell;
+          } else if (Math.abs(zMeasured - CLUSTER_DOWN_Z_M) < Z_TOL_M) {
+            measuredUp = otherCell(cell);
+          } else {
+            r = TagReject.BAD_Z;
+          }
+        }
+
+        if (r == TagReject.NONE) {
+          int hive = tagAlliance(o.id) == Alliance.RED ? 0 : 1;
+          votes[hive][measuredUp.ordinal()]++;
+          // Position uses the Cell state this very observation measured.
+          tag = tagFieldPosition(o.id, measuredUp);
+          double ageS = (nowNanos - o.frameNanos) * 1e-9;
+          if (ageS > MAX_FRAME_AGE_S) {
+            r = TagReject.FRAME_TOO_OLD;
+          } else {
+            atFrame = history == null ? null : history.sample(o.frameNanos);
+            if (atFrame == null) {
+              r = TagReject.NO_HISTORY;
+            }
+          }
+        }
+
+        if (r != TagReject.NONE) {
+          rejected++;
+          if (firstReject == TagReject.NONE) {
+            firstReject = r;
+          }
+          continue;
+        }
+
+        // robotXY = tagXY - R(heading at the frame) * (tag point in the robot frame).
+        double c = Math.cos(atFrame.heading);
+        double s = Math.sin(atFrame.heading);
+        double rx = tag[0] - (c * robotPt[0] - s * robotPt[1]);
+        double ry = tag[1] - (s * robotPt[0] + c * robotPt[1]);
+        dxs.add(rx - atFrame.x);
+        dys.add(ry - atFrame.y);
+        ids.add(o.id);
+      }
+
+      boolean redFlipped = applyVotes(0, votes[0], Alliance.RED);
+      boolean blueFlipped = applyVotes(1, votes[1], Alliance.BLUE);
+
+      int n = dxs.size();
+      if (n == 0) {
+        return fail(VisionReason.NO_VALID_TAGS, firstReject, rejected, redFlipped, blueFlipped);
+      }
+      double[] ax = new double[n];
+      double[] ay = new double[n];
+      int[] usedIds = new int[n];
+      for (int i = 0; i < n; i++) {
+        ax[i] = dxs.get(i);
+        ay[i] = dys.get(i);
+        usedIds[i] = ids.get(i);
+      }
+      double mx = median(ax);
+      double my = median(ay);
+      double spread = 0;
+      for (int i = 0; i < n; i++) {
+        spread = Math.max(spread, Math.hypot(ax[i] - mx, ay[i] - my));
+      }
+
+      // Field bounds are checked on where vision says the robot is now.
+      double limit = FIELD_HALF_SIZE_M - ROBOT_HALF_SIZE_M;
+      VisionReason reason = VisionReason.ACCEPTED;
+      if (spread > MAX_SPREAD_M) {
+        reason = VisionReason.SPREAD;
+      } else if (Math.abs(now.x + mx) > limit || Math.abs(now.y + my) > limit) {
+        reason = VisionReason.OUT_OF_FIELD;
+      } else if (poseValid && Math.hypot(mx, my) > MAX_JUMP_M) {
+        reason = VisionReason.JUMP;
+      }
+      if (reason != VisionReason.ACCEPTED) {
+        return new VisionResult(reason, firstReject, 0, 0, 0, null, n, rejected, spread,
+            redFlipped, blueFlipped, usedIds, ax, ay);
+      }
+
+      double k = poseValid ? CORRECTION_GAIN : 1.0;
+      ShootOnTheMove.poseValid = true;
+      Pose newPose = new Pose(now.x + k * mx, now.y + k * my, now.heading);
+      return new VisionResult(reason, firstReject, mx, my, k, newPose, n, rejected, spread,
+          redFlipped, blueFlipped, usedIds, ax, ay);
+    }
+
+    private static VisionResult fail(
+        VisionReason reason, TagReject firstReject, int rejected, boolean red, boolean blue) {
+      return new VisionResult(reason, firstReject, 0, 0, 0, null, 0, rejected, Double.NaN,
+          red, blue, new int[0], new double[0], new double[0]);
+    }
+
+    /**
+     * One frame's votes for one Hive. No votes or a tie changes nothing. Returns
+     * true if the Hive's up Cell flipped.
+     */
+    private boolean applyVotes(int hive, int[] v, Alliance alliance) {
+      int aud = v[Cell.AUDIENCE.ordinal()];
+      int sco = v[Cell.SCORING.ordinal()];
+      if (aud == sco) {
+        return false;
+      }
+      Cell winner = aud > sco ? Cell.AUDIENCE : Cell.SCORING;
+      if (winner == upCell(alliance)) {
+        flipVotes[hive] = 0;
+        return false;
+      }
+      if (++flipVotes[hive] < Math.max(1, TIP_CONFIRM_FRAMES)) {
+        return false;
+      }
+      flipVotes[hive] = 0;
+      if (alliance == Alliance.RED) {
+        upCellRed = winner;
+      } else {
+        upCellBlue = winner;
+      }
+      return true;
+    }
+
+    private static double median(double[] a) {
+      double[] c = Arrays.copyOf(a, a.length);
+      Arrays.sort(c);
+      int n = c.length;
+      return n % 2 == 1 ? c[n / 2] : 0.5 * (c[n / 2 - 1] + c[n / 2]);
     }
   }
 }
