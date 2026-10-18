@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
@@ -68,6 +69,16 @@ public class GobildaMotor {
   public void setVelocity(double ticksPerSecond) {
     lastPower = Double.NaN; // power cache is no longer meaningful
     motor.setVelocity(ticksPerSecond);
+  }
+
+  /** Velocity PIDF used in RUN_USING_ENCODER. */
+  public PIDFCoefficients getVelocityPidf() {
+    return motor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+  }
+
+  /** Sets the velocity PIDF used in RUN_USING_ENCODER. */
+  public void setVelocityPidf(double p, double i, double d, double f) {
+    motor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(p, i, d, f));
   }
 
   public void stop() {
