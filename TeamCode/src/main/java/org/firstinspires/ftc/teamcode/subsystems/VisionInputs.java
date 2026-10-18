@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
@@ -25,6 +26,7 @@ public class VisionInputs implements LoggableInputs {
   public double fps = 0.0;
 
   public int[] tagIds = new int[0];
+  public String[] clusterNames = new String[0]; // For example "RED SCORING". "" for a single tag
   public double[] range = new double[0];
   public double[] bearing = new double[0];
   public double[] elevation = new double[0];
@@ -49,6 +51,7 @@ public class VisionInputs implements LoggableInputs {
         : processor.getDetections();
     int n = detections.size();
     tagIds = new int[n];
+    clusterNames = new String[n];
     range = new double[n];
     bearing = new double[n];
     elevation = new double[n];
@@ -65,9 +68,13 @@ public class VisionInputs implements LoggableInputs {
       if (detection instanceof AprilTagSingleDetection) {
         AprilTagSingleDetection single = (AprilTagSingleDetection) detection;
         tagIds[i] = single.id;
+        clusterNames[i] = "";
         decisionMargin[i] = single.decisionMargin;
       } else {
         tagIds[i] = CLUSTER_ID;
+        clusterNames[i] = detection instanceof AprilTagClusterDetection
+            ? ((AprilTagClusterDetection) detection).metadata.name
+            : "";
         decisionMargin[i] = Double.NaN;
       }
 
@@ -122,6 +129,7 @@ public class VisionInputs implements LoggableInputs {
     table.put("Available", available);
     table.put("Fps", fps);
     table.put("TagIds", tagIds);
+    table.put("ClusterNames", clusterNames);
     table.put("RangeIn", range);
     table.put("BearingDeg", bearing);
     table.put("ElevationDeg", elevation);
@@ -139,6 +147,7 @@ public class VisionInputs implements LoggableInputs {
     available = table.get("Available", available);
     fps = table.get("Fps", fps);
     tagIds = table.get("TagIds", tagIds);
+    clusterNames = table.get("ClusterNames", clusterNames);
     range = table.get("RangeIn", range);
     bearing = table.get("BearingDeg", bearing);
     elevation = table.get("ElevationDeg", elevation);
