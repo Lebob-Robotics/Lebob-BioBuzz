@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BIOBUZZ hood travel</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="shots.js"></script>
+<script src="hood.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 14px system-ui, sans-serif; margin: 0; display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+  form { padding: 12px; overflow-y: auto; border-right: 1px solid #ccc; }
+  form label { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0; align-items: center; }
+  form input[type=number] { width: 100px; }
+  form h3 { margin: 14px 0 4px; font-size: 13px; text-transform: uppercase; color: #555; }
+  main { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 1fr); grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 8px; height: 100vh; overflow: hidden; }
+  #banner { grid-column: 1 / 4; background: #b00020; color: #fff; padding: 8px; display: none; white-space: pre-wrap; }
+  #result { grid-column: 1 / 4; font: 16px monospace; white-space: pre-wrap; background: #eef; padding: 8px; }
+  #controls { grid-column: 1 / 4; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; font-family: monospace; }
+  #controls input[type=range] { width: 240px; }
+  #region { grid-column: 1; grid-row: 4; }
+  #angles { grid-column: 1; grid-row: 5; }
+  #side { grid-column: 2; grid-row: 4; }
+  #coverage { grid-column: 2; grid-row: 5; }
+  #field { grid-column: 3; grid-row: 4 / 6; }
+  #region, #angles, #side, #coverage, #field { min-width: 0; min-height: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<form id="inputs" onsubmit="return false">
+  <span id="fields"></span>
+  <h3>Actions</h3>
+  <button id="compute">Compute</button>
+  <label>Load inputs.json <input type="file" id="loadInputs" accept=".json"></label>
+  <p id="status"></p>
+</form>
+<main>
+  <div id="banner"></div>
+  <div id="result">Press Compute. The sweep takes a few seconds.</div>
+  <div id="controls">
+    <label>Distance <input type="range" id="distIdx" min="0" max="0" value="0"> <span id="distVal"></span></label>
+    <label>Radial velocity <input type="range" id="velIdx" min="0" max="0" value="0"> <span id="velVal"></span></label>
+    <label>Field colour <select id="fieldKey"><option value="margin">margin</option><option value="angle">hood angle</option><option value="rpm">RPM</option></select></label>
+    <span id="stats"></span>
+  </div>
+  <div id="region"></div>
+  <div id="angles"></div>
+  <div id="side"></div>
+  <div id="coverage"></div>
+  <div id="field"></div>
+</main>
+<script>
+'use strict';
+const LABELS = {
+  hoodMinDeg: 'Hood sweep min (deg)', hoodMaxDeg: 'Hood sweep max (deg)', hoodStepDeg: 'Hood step (deg)', hoodTolDeg: 'Hood tolerance (deg)',
+  rpmToleranceRpm: 'Flywheel tolerance (RPM)', rpmMin: 'RPM min', rpmMax: 'RPM max', rpmStep: 'RPM step',
+  distMinM: 'Distance min (m)', distMaxM: 'Distance max (m)', distStepM: 'Distance step (m)',
+  velMinMps: 'Radial vel min (m/s)', velMaxMps: 'Radial vel max (m/s)', velStepMps: 'Radial vel step (m/s)',
+  ballDiameterM: 'Diameter (m)', ballMassKg: 'Mass (kg)', dragCd: 'Drag Cd',
+  exitHeightM: 'Exit height (m)', exitSpeedPerRpm: 'Exit speed per RPM (m/s)',
+  lipHeightM: 'Near lip height (m)', openingLengthM: 'Opening length (m)', openingTiltDeg: 'Opening tilt (deg)', marginM: 'Edge margin (m)', dtS: 'Time step (s)',
+  fieldSizeM: 'Field size (m)', cellXM: 'Cell centre x (m)', cellYM: 'Cell centre y (m)', cellFacingDeg: 'Cell facing (deg)',
+};
+// Placeholders until read from the manual: opening centre and the heading its face points along.
+const FIELD = { fieldSizeM: 3.66, cellXM: 1.83, cellYM: 3.2, cellFacingDeg: -90 };
+const GROUPS = [['Hood', 'hoodMinDeg', 'hoodMaxDeg', 'hoodStepDeg', 'hoodTolDeg'], ['Flywheel', 'rpmToleranceRpm', 'rpmMin', 'rpmMax', 'rpmStep'],
+  ['Envelope', 'distMinM', 'distMaxM', 'distStepM', 'velMinMps', 'velMaxMps', 'velStepMps'],
+  ['Ball and shooter', 'ballDiameterM', 'ballMassKg', 'dragCd', 'exitHeightM', 'exitSpeedPerRpm'], ['Cell', 'lipHeightM', 'openingLengthM', 'openingTiltDeg', 'marginM', 'dtS'], ['Field map', 'fieldSizeM', 'cellXM', 'cellYM', 'cellFacingDeg']];
+const NUMERIC = Object.keys(LABELS);
+const $ = id => document.getElementById(id);
+
+const fields = $('fields');
+for (const group of GROUPS) for (const key of group) {
+  if (!(key in LABELS)) { const h = document.createElement('h3'); h.textContent = key; fields.appendChild(h); continue; }
+  const l = document.createElement('label'); l.textContent = LABELS[key];
+  const i = document.createElement('input'); i.type = 'number'; i.step = 'any'; i.id = key;
+  l.appendChild(i); fields.appendChild(l);
+}
+function readInputs() { const p = Object.assign({}, Hood.DEFAULTS, FIELD); for (const k of NUMERIC) p[k] = parseFloat($(k).value); return p; }
+function writeInputs(p) { for (const k of NUMERIC) $(k).value = p[k]; }
+writeInputs(Object.assign({}, Hood.DEFAULTS, FIELD));
+$('loadInputs').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(t => writeInputs(Object.assign({}, Hood.DEFAULTS, FIELD, JSON.parse(t)))); };
+
+let grid = null, win = null, params = null;
+
+$('compute').onclick = () => {
+  params = readInputs();
+  $('status').textContent = 'computing...';
+  setTimeout(() => {
+    const t0 = performance.now();
+    const fails = Hood.selfCheck(params);
+    $('banner').style.display = fails.length ? 'block' : 'none';
+    $('banner').textContent = fails.length ? 'Self-check failed, the hood sweep disagrees with the RPM table:\n' + fails.join('\n') : '';
+    grid = Hood.sweep(params); win = Hood.windows(grid);
+    $('distIdx').max = grid.dist.length - 1; $('velIdx').max = grid.vel.length - 1;
+    $('distIdx').value = Math.round((grid.dist.length - 1) / 2); $('velIdx').value = Math.round((grid.vel.length - 1) / 2);
+    $('status').textContent = 'computed ' + grid.cells.length + ' cells in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s';
+    $('result').textContent = Hood.report(grid, win).split('Stationary shots')[0].trim();
+    draw();
+  }, 10);
+};
+for (const id of ['distIdx', 'velIdx', 'fieldKey']) $(id).oninput = () => grid && draw();
+
+function draw() {
+  const i = +$('distIdx').value, j = +$('velIdx').value, c = grid.cells[i * grid.vel.length + j];
+  $('distVal').textContent = c.distM.toFixed(3) + ' m'; $('velVal').textContent = c.velMps.toFixed(2) + ' m/s';
+  drawRegion(c); drawAngles(); drawSide(c); drawCoverage(); drawField(+$('velIdx').value);
+}
+
+// Valid (angle, RPM) region at this cell. Dark = miss, pale = scores but not robust, colour = margin in
+// tolerances. Star is the chosen shot with its tolerance rectangle; dashed lines are the recommended window.
+function drawRegion(c) {
+  const z = c.rpms.map((_, ir) => c.angles.map((_, ia) => c.ok[ia][ir] ? (c.margin[ia][ir] || 0.5) : 0));
+  const best = win.rec ? Hood.bestIn(c, win.rec.lo, win.rec.hi) : null;
+  const shapes = [], traces = [{ type: 'heatmap', x: c.angles, y: c.rpms, z: z, zmin: 0, zmax: 3, colorbar: { title: 'margin' },
+    colorscale: [[0, '#333'], [0.16, '#333'], [0.17, '#ddd'], [0.33, '#ddd'], [0.34, '#fde725'], [1, '#440154']] }];
+  if (win.rec) for (const a of [win.rec.lo, win.rec.hi]) shapes.push({ type: 'line', x0: c.angles[a], x1: c.angles[a], y0: c.rpms[0], y1: c.rpms[c.rpms.length - 1], line: { color: '#1f5fbf', dash: 'dash' } });
+  if (best) {
+    const a = c.angles[best.ia], r = c.rpms[best.ir];
+    shapes.push({ type: 'rect', x0: a - params.hoodTolDeg, x1: a + params.hoodTolDeg, y0: r - params.rpmToleranceRpm, y1: r + params.rpmToleranceRpm, line: { color: '#fff', width: 2 } });
+    traces.push({ x: [a], y: [r], mode: 'markers', marker: { symbol: 'star', size: 14, color: '#fff', line: { color: '#000', width: 1 } }, name: 'chosen' });
+    $('stats').textContent = 'chosen ' + a + ' deg @ ' + r + ' RPM, margin ' + best.s.toFixed(2) + ' tolerances';
+  } else $('stats').textContent = win.rec ? 'NO SHOT inside the recommended window' : 'NO SHOT';
+  // Zoom the RPM axis onto the scoring strip, or it is a sliver on a 1500-5500 axis.
+  const hit = c.rpms.filter((_, ir) => c.ok.some(row => row[ir]));
+  const yr = hit.length ? [hit[0] - 300, hit[hit.length - 1] + 300] : [c.rpms[0], c.rpms[c.rpms.length - 1]];
+  Plotly.react('region', traces, { title: 'Valid region at ' + c.distM.toFixed(3) + ' m, radial ' + c.velMps.toFixed(2) + ' m/s',
+    xaxis: { title: 'hood angle (deg)' }, yaxis: { title: 'flywheel RPM', range: yr }, shapes: shapes, showlegend: false, margin: { t: 40, r: 10 } }, { responsive: true });
+}
+
+// Chosen hood angle against distance inside the recommended window, one line per radial velocity.
+function drawAngles() {
+  const traces = grid.vel.map((v, j) => ({ x: grid.dist, mode: 'lines+markers', name: v.toFixed(1) + ' m/s',
+    y: grid.dist.map((_, i) => { const b = win.rec && Hood.bestIn(grid.cells[i * grid.vel.length + j], win.rec.lo, win.rec.hi); return b ? grid.angles[b.ia] : null; }) }));
+  Plotly.react('angles', traces, { title: 'Chosen hood angle inside the window', xaxis: { title: 'distance (m)' }, yaxis: { title: 'hood angle (deg)' }, margin: { t: 40, r: 10 }, legend: { title: { text: 'radial' } } }, { responsive: true });
+}
+
+// How many cells any window of a given width can cover. The recommended width is where it reaches every coverable cell.
+function drawCoverage() {
+  const w = grid.angles.map((_, k) => k * params.hoodStepDeg);
+  const shapes = win.rec ? [{ type: 'line', x0: grid.angles[win.rec.hi] - grid.angles[win.rec.lo], x1: grid.angles[win.rec.hi] - grid.angles[win.rec.lo], y0: 0, y1: grid.cells.length, line: { color: '#1f5fbf', dash: 'dash' } }] : [];
+  Plotly.react('coverage', [{ x: w, y: win.coverage, mode: 'lines+markers', name: 'covered' }, { x: [w[0], w[w.length - 1]], y: [win.coverable, win.coverable], mode: 'lines', name: 'coverable', line: { dash: 'dot', color: 'green' } }],
+    { title: 'Cells covered vs hood travel', xaxis: { title: 'hood travel (deg)' }, yaxis: { title: 'cells', range: [0, grid.cells.length] }, shapes: shapes, margin: { t: 40, r: 10 }, legend: { x: 1, y: 0, xanchor: 'right', yanchor: 'bottom' } }, { responsive: true });
+}
+
+// Side elevation at this cell: the hood's recommended wedge, the chosen angle, the chosen arc, and
+// faintly the four corners of its tolerance rectangle. Equal metres per pixel.
+function drawSide(c) {
+  const best = win.rec ? Hood.bestIn(c, win.rec.lo, win.rec.hi) : null;
+  const ex = 0, ey = params.exitHeightM, R = 0.35, rad = d => d * Math.PI / 180;
+  const traces = [], shapes = [];
+  if (win.rec) {
+    const a0 = grid.angles[win.rec.lo], a1 = grid.angles[win.rec.hi], arc = [];
+    for (let a = a0; a <= a1 + 1e-9; a += 0.5) arc.push([ex + R * Math.cos(rad(a)), ey + R * Math.sin(rad(a))]);
+    traces.push({ x: [ex, ...arc.map(q => q[0]), ex], y: [ey, ...arc.map(q => q[1]), ey], fill: 'toself', fillcolor: 'rgba(31,95,191,0.15)', line: { color: '#1f5fbf', width: 1 }, mode: 'lines', name: 'hood ' + a0 + '-' + a1 + ' deg' });
+  }
+  if (best) {
+    const a = c.angles[best.ia], r = c.rpms[best.ir];
+    for (const da of [-params.hoodTolDeg, params.hoodTolDeg]) for (const dr of [-params.rpmToleranceRpm, params.rpmToleranceRpm]) {
+      const sh = Shots.simulate(r + dr, c.velMps, c.distM, Object.assign({}, params, { launchAngleDeg: a + da }));
+      traces.push({ x: sh.points.map(q => q[0]), y: sh.points.map(q => q[1]), mode: 'lines', line: { color: sh.result === 'score' ? 'rgba(0,160,60,0.4)' : 'rgba(200,0,0,0.6)', width: 1 }, name: (a + da) + ' deg ' + (r + dr) + ' RPM ' + sh.result });
+    }
+    const sh = Shots.simulate(r, c.velMps, c.distM, Object.assign({}, params, { launchAngleDeg: a }));
+    traces.push({ x: sh.points.map(q => q[0]), y: sh.points.map(q => q[1]), mode: 'lines', line: { color: '#1f5fbf', width: 3 }, name: 'chosen ' + a + ' deg @ ' + r + ' RPM' });
+    traces.push({ x: [ex, ex + R * 1.3 * Math.cos(rad(a))], y: [ey, ey + R * 1.3 * Math.sin(rad(a))], mode: 'lines', line: { color: '#000', width: 3 }, name: 'hood at ' + a + ' deg' });
+  }
+  const o = Shots.opening(c.distM, params);
+  traces.push({ x: [o.x0, o.x1], y: [o.y0, o.y1], mode: 'lines+markers', name: 'Cell opening', line: { color: '#000', width: 4 }, marker: { size: 8 } });
+  traces.push({ x: [o.x0, o.x0], y: [0, o.y0], mode: 'lines', name: 'Cell front', line: { color: '#000', width: 2, dash: 'dot' } });
+  traces.push({ x: [-0.3, ex + 0.1], y: [0, 0], mode: 'lines', line: { color: '#888', width: 6 }, name: 'robot' });
+  Plotly.react('side', traces, { title: 'Side view at ' + c.distM.toFixed(3) + ' m' + (best ? '' : ' (NO SHOT)'),
+    xaxis: { title: 'distance (m)', range: [-0.4, params.distMaxM + params.openingLengthM + 0.3], constrain: 'domain' },
+    yaxis: { title: 'height (m)', range: [0, params.lipHeightM + 0.8], scaleanchor: 'x', scaleratio: 1, constrain: 'domain' }, showlegend: false, margin: { t: 40, r: 10 } }, { responsive: true });
+}
+
+// Top-down field. Each robot position looks up the nearest sweep cell by its distance to the near lip
+// along the Cell's facing axis, at the slider's radial velocity. Grey: behind the Cell, outside the
+// swept distances, or no robust shot. Head-on geometry is assumed at every bearing.
+function drawField(j) {
+  const key = $('fieldKey').value, step = 0.05, n = Math.round(params.fieldSizeM / step) + 1;
+  const ax = Array.from({ length: n }, (_, i) => i * step);
+  const fx = Math.cos(params.cellFacingDeg * Math.PI / 180), fy = Math.sin(params.cellFacingDeg * Math.PI / 180);
+  const lipX = params.cellXM + fx * params.openingLengthM * Math.cos(params.openingTiltDeg * Math.PI / 180) / 2;
+  const lipY = params.cellYM + fy * params.openingLengthM * Math.cos(params.openingTiltDeg * Math.PI / 180) / 2;
+  const z = ax.map(y => ax.map(x => {
+    const dx = x - lipX, dy = y - lipY, d = Math.hypot(dx, dy);
+    if (dx * fx + dy * fy < 0 || d < grid.dist[0] - params.distStepM / 2 || d > grid.dist[grid.dist.length - 1] + params.distStepM / 2) return null;
+    const i = Math.round((d - grid.dist[0]) / params.distStepM), c = grid.cells[i * grid.vel.length + j];
+    const b = win.rec ? Hood.bestIn(c, win.rec.lo, win.rec.hi) : null;
+    return b ? (key === 'margin' ? b.s : key === 'angle' ? c.angles[b.ia] : c.rpms[b.ir]) : null;
+  }));
+  Plotly.react('field', [
+    { type: 'heatmap', x: ax, y: ax, z: z, colorscale: 'Viridis', colorbar: { title: key }, hoverongaps: false },
+    { x: [params.cellXM], y: [params.cellYM], mode: 'markers', marker: { symbol: 'square', size: 14, color: '#000' }, name: 'Cell' },
+  ], { title: 'Field: ' + key + ' of the stationary shot, radial ' + grid.vel[j].toFixed(2) + ' m/s',
+    xaxis: { title: 'x (m)', range: [0, params.fieldSizeM], constrain: 'domain' }, yaxis: { title: 'y (m)', range: [0, params.fieldSizeM], scaleanchor: 'x', scaleratio: 1, constrain: 'domain' },
+    annotations: [{ x: params.cellXM + fx * 0.4, y: params.cellYM + fy * 0.4, ax: params.cellXM, ay: params.cellYM, xref: 'x', yref: 'y', axref: 'x', ayref: 'y', showarrow: true, arrowhead: 2, arrowwidth: 2, text: '' }],
+    plot_bgcolor: '#ddd', showlegend: false, margin: { t: 40, r: 10 } }, { responsive: true });
+}
+</script>
+</body>
+</html>
