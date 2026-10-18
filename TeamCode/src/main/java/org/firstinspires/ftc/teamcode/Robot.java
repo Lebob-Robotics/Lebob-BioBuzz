@@ -53,6 +53,8 @@ public class Robot {
   private Alliance alliance = Alliance.RED;
   // Last valid solved RPM, held while a solution is briefly invalid. NaN = none yet.
   private double lastAimRpm = Double.NaN;
+  // Last loop's full flag, to rumble once when the tunnel fills.
+  private boolean wasFull = false;
 
   // Vision pose correction. The history holds the odometry pose of each loop,
   // stamped with that loop's vision capture time, so a frame's pose can be looked up.
@@ -180,6 +182,14 @@ public class Robot {
 
     boolean rightTriggerPressed = driver.right_trigger > triggerLimit;
     boolean leftTriggerPressed = driver.left_trigger > triggerLimit;
+    // Intaking alone stops once the tunnel holds 4; shooting keeps everything
+    // running so the balls can leave.
+    boolean full = intake.isFull();
+    boolean loading = leftTriggerPressed && !full;
+    if (leftTriggerPressed && full && !wasFull) {
+      driver.rumble(300);
+    }
+    wasFull = full;
     boolean eject = driver.b;
     boolean manualOverride = driver.y;
 
@@ -227,6 +237,7 @@ public class Robot {
 
     Logger.recordOutput("Robot/Driver/Shoot", rightTriggerPressed);
     Logger.recordOutput("Robot/Driver/Intake", leftTriggerPressed || rightTriggerPressed);
+    Logger.recordOutput("Robot/Loading", loading);
     Logger.recordOutput("Robot/Driver/Eject", eject);
     Logger.recordOutput("Robot/Driver/StopShooter", driver.x);
     Logger.recordOutput("Robot/Driver/FieldCentric", fieldCentric);
@@ -258,7 +269,7 @@ public class Robot {
     IntakeState newIntakeState = IntakeState.STOP;
     if (eject) {
       newIntakeState = IntakeState.EJECT;
-    } else if (leftTriggerPressed || rightTriggerPressed) {
+    } else if (loading || rightTriggerPressed) {
       newIntakeState = IntakeState.INTAKE;
     }
     intake.setIntakeState(newIntakeState);
@@ -266,7 +277,7 @@ public class Robot {
     FeederState newFeederState = FeederState.STOP;
     if (eject) {
       newFeederState = FeederState.EJECT;
-    } else if (leftTriggerPressed || rightTriggerPressed) {
+    } else if (loading || rightTriggerPressed) {
       newFeederState = FeederState.FEED;
     }
     feeder.setFeederState(newFeederState);
@@ -278,7 +289,7 @@ public class Robot {
       newIndexerState = IndexerState.EJECT;
     } else if (rightTriggerPressed) {
       newIndexerState = IndexerState.FEED;
-    } else if (leftTriggerPressed) {
+    } else if (loading) {
       newIndexerState = IndexerState.HOLD;
     }
     // Gate first, so entering FEED never writes full power for a closed gate.
@@ -394,7 +405,8 @@ public class Robot {
         + (indexer.isFeedAllowed() ? "" : " (feed blocked)"));
     telemetry.addData("Hood", String.format("%s  %d / %d",
         hood.getPreset(), hood.getPosition(), hood.getTarget()));
-    telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken());
+    telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken()
+        + (intake.isFull() ? "  FULL" : ""));
     telemetry.addData("Vision", visionLine());
     telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
