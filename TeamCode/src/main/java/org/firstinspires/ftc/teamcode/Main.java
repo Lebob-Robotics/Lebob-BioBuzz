@@ -27,8 +27,9 @@ public class Main extends PsiKitIterativeOpMode {
    * OpMode inits, and Panels remembers that across OpModes. Panels then stays
    * off until the "Enable/Disable Panels" OpMode is run (or this is true and
    * Panels was never disabled). To remove it for good, delete the
-   * com.bylazar:fullpanels dependency and the @Configurable import in
-   * ShootOnTheMoveConstants.
+   * com.bylazar:fullpanels dependency and the @Configurable imports in
+   * ShootOnTheMoveConstants, ShooterSubsystem, HoodSubsystem and
+   * MecanumDriveSubsystem.
    */
   public static final boolean PANELS_ENABLED = true;
 

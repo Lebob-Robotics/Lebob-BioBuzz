@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -19,44 +20,47 @@ import org.psilynx.psikit.core.Logger;
  * <p>We run our own P loop in {@link #periodic()} instead of RUN_TO_POSITION.
  * The built-in position PID is tuned for the motor's own encoder, not an
  * 8192 CPR one, so it would behave badly with this feedback.
+ *
+ * <p>The gains and geometry are live in Panels. Ticks are always derived from the current geometry,
+ * so editing it takes effect immediately.
  */
+@Configurable
 public class HoodSubsystem extends SubsystemBase {
   /** Proportional gain, in motor power per encoder tick of error. */
-  private static final double KP = 0.002; // TODO tune on robot
+  public static double KP = 0.002; // TODO tune on robot
   /** Largest power the P loop may command. */
-  private static final double MAX_POWER = 0.6;
+  public static double MAX_POWER = 0.6;
   /** Errors smaller than this (ticks) are treated as on target. */
-  private static final int DEADBAND_TICKS = 30;
+  public static int DEADBAND_TICKS = 30;
   /** Soft limit at the lower hard stop, where the encoder is zeroed. */
   private static final int MIN_TICKS = 0;
-  /** Soft limit at the top of the hood's travel. */
-  private static final int MAX_TICKS = angleToTicks(51.0); // TODO tune on robot
 
   // ---- Geometry --------------------------------------------------------
   /** Launch angle at the lower hard stop, where the encoder is zeroed. */
-  public static final double ZERO_ANGLE_DEG = 99.0;
-  /** Launch angle at the top of the hood's travel. */
-  public static final double MIN_ANGLE_DEG = 51.0;
+  public static double ZERO_ANGLE_DEG = 99.0;
+  /** Launch angle at the top of the hood's travel; sets the upper soft limit. */
+  public static double MIN_ANGLE_DEG = 51.0; // TODO tune on robot
   /** Encoder ticks per degree of launch angle: 8192 ticks/rev through the 10:1. */
-  public static final double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
+  public static double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
 
   private final GobildaMotor hoodMotor;
 
   /** Hood positions, each given as a launch angle and held in Through Bore ticks. */
   public enum HoodPreset {
-    STOW(ZERO_ANGLE_DEG),
+    /** The lower hard stop, wherever ZERO_ANGLE_DEG puts it. */
+    STOW(Double.NaN),
     CLOSE(75.0), // TODO tune on robot
     MID(65.0), // TODO tune on robot
     FAR(55.0); // TODO tune on robot
 
-    private final int ticks;
+    private final double launchAngleDeg;
 
     HoodPreset(double launchAngleDeg) {
-      this.ticks = angleToTicks(launchAngleDeg);
+      this.launchAngleDeg = launchAngleDeg;
     }
 
     public int getTicks() {
-      return ticks;
+      return Double.isNaN(launchAngleDeg) ? MIN_TICKS : angleToTicks(launchAngleDeg);
     }
   }
 
@@ -116,8 +120,8 @@ public class HoodSubsystem extends SubsystemBase {
 
     double power = Math.max(-MAX_POWER, Math.min(MAX_POWER, KP * error));
 
-    // Soft limits: never drive further down below MIN_TICKS or up above MAX_TICKS.
-    if ((power < 0 && position <= MIN_TICKS) || (power > 0 && position >= MAX_TICKS)) {
+    // Soft limits: never drive further down below MIN_TICKS or up above maxTicks().
+    if ((power < 0 && position <= MIN_TICKS) || (power > 0 && position >= maxTicks())) {
       lastAtSoftLimit = true;
       hoodMotor.stop();
       return;
@@ -136,7 +140,7 @@ public class HoodSubsystem extends SubsystemBase {
    * {@link #setPreset(HoodPreset)}. Clamped to the soft limits.
    */
   public void setTargetTicks(int ticks) {
-    directTicks = Math.max(MIN_TICKS, Math.min(MAX_TICKS, ticks));
+    directTicks = Math.max(MIN_TICKS, Math.min(maxTicks(), ticks));
     directMode = true;
   }
 
@@ -155,6 +159,11 @@ public class HoodSubsystem extends SubsystemBase {
    */
   public static int angleToTicks(double launchAngleDeg) {
     return (int) Math.round((ZERO_ANGLE_DEG - launchAngleDeg) * TICKS_PER_DEG);
+  }
+
+  /** Upper soft limit, in ticks. */
+  private static int maxTicks() {
+    return angleToTicks(MIN_ANGLE_DEG);
   }
 
   /** Converts encoder ticks to a launch angle in degrees. */
