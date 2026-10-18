@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
-import org.firstinspires.ftc.teamcode.util.GobildaMotor;
+import org.firstinspires.ftc.teamcode.servo.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;

@@ -5,7 +5,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.util.GobildaMotor;
+import org.firstinspires.ftc.teamcode.servo.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 /**
