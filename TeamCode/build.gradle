@@ -26,6 +26,7 @@ android {
 
 repositories {
     maven { url 'https://repo.dairy.foundation/releases' }
+    maven { url = "https://mymaven.bylazar.com/releases" }
 }
 
 dependencies {
@@ -34,4 +35,5 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     implementation 'org.psilynx.psikit:core:0.2.0'
     implementation 'org.psilynx.psikit:ftc:0.2.0'
+    implementation "com.bylazar:fullpanels:1.0.18"
 }
