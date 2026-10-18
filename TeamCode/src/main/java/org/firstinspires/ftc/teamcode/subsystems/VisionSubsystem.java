@@ -11,6 +11,9 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.psilynx.psikit.core.Logger;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Wraps two webcams, each running an AprilTag processor, and reports their
  * detections. The two live views share the Robot Controller preview.
@@ -79,6 +82,48 @@ public class VisionSubsystem extends SubsystemBase {
       }
       Logger.processInputs(side == Side.LEFT ? "Vision/Left" : "Vision/Right", in);
     }
+  }
+
+  /** Inches to metres: the processor is configured for inches. */
+  private static final double IN_TO_M = 0.0254;
+
+  /** Frame time of the newest detection already handed out, per camera. */
+  private final long[] lastFrameNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
+
+  /** System.nanoTime() of the latest capture; the loop time Robot stamps its history with. */
+  public long getCaptureNanos() {
+    return Math.max(inputs[0].captureNanos, inputs[1].captureNanos);
+  }
+
+  /**
+   * Detections from frames not handed out before, both cameras, converted to
+   * metres. Call once per loop. Reads only the logged inputs, so replay behaves
+   * like the live run. No pose maths here.
+   */
+  public List<ShootOnTheMove.TagObservation> takeNewObservations() {
+    List<ShootOnTheMove.TagObservation> out = new ArrayList<>();
+    for (Side side : Side.values()) {
+      VisionInputs in = inputs[side.ordinal()];
+      int n = in.tagIds.length;
+      // Guards a log written before FrameNanos existed.
+      if (in.frameNanos.length != n || in.x.length != n || in.decisionMargin.length != n) {
+        continue;
+      }
+      ShootOnTheMove.Camera cam =
+          side == Side.LEFT ? ShootOnTheMove.Camera.LEFT : ShootOnTheMove.Camera.RIGHT;
+      long newest = lastFrameNanos[side.ordinal()];
+      for (int i = 0; i < n; i++) {
+        long t = in.frameNanos[i];
+        if (t > lastFrameNanos[side.ordinal()]) {
+          out.add(new ShootOnTheMove.TagObservation(
+              in.tagIds[i], cam, in.x[i] * IN_TO_M, in.y[i] * IN_TO_M, in.z[i] * IN_TO_M,
+              in.decisionMargin[i], t));
+          newest = Math.max(newest, t);
+        }
+      }
+      lastFrameNanos[side.ordinal()] = newest;
+    }
+    return out;
   }
 
   public boolean isAvailable(Side side) {
