@@ -32,11 +32,11 @@ public class OdometrySubsystem extends SubsystemBase {
    * pose.
    */
   public void init() {
-    // From CAD, relative to the robot centre the shooter and camera offsets in
-    // ShootOnTheMoveConstants assume (173.2 mm from the left side, 228.6 mm from the
-    // front): the X pod is 81.8 mm right, the Y pod 27.4 mm behind.
+    // From the 25 Oct CAD, relative to the robot centre (the middle of the four mecanum wheels),
+    // which the shooter and camera positions in ShootOnTheMoveConstants also use: the X pod is
+    // 71.5 mm right of centre and the Y pod is on the centre line.
     // TODO replace with the Odometry Calibration OpMode result.
-    pinpoint.setOffsets(-81.8, -27.4, DistanceUnit.MM);
+    pinpoint.setOffsets(-71.5, 0.1, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     pinpoint.setEncoderDirections(
         GoBildaPinpointDriver.EncoderDirection.FORWARD,
