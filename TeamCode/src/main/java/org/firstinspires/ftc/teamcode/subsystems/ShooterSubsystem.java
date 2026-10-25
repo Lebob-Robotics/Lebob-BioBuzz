@@ -35,8 +35,8 @@ public class ShooterSubsystem extends SubsystemBase {
   private static final double SHOOTER_VELOCITY = 4000;
   /** Motor encoder ticks per motor revolution (goBILDA 5203 6000 RPM). */
   private static final double MOTOR_TICKS_PER_REV = 28.0; // TODO verify
-  /** Motor revolutions per flywheel revolution (gear ratio). */
-  private static final double MOTOR_REVS_PER_WHEEL_REV = 1.0 / 0.7;
+  /** Motor revolutions per flywheel revolution: 23 tooth wheel pulley over 33 tooth motor pulley (CAD). */
+  private static final double MOTOR_REVS_PER_WHEEL_REV = 23.0 / 33.0;
   /** Target changes smaller than this (RPM) are not re-sent to the motors. */
   private static final double TARGET_RESEND_RPM = 1.0;
 
