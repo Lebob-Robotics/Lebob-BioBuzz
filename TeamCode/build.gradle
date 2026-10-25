@@ -1,4 +1,20 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+        maven {
+            url "https://repo.dairy.foundation/releases"
+        }
+    }
+    dependencies {
+        // Sloth's Load plugin: provides the deploySloth and removeSlothRemote tasks
+        classpath "dev.frozenmilk:Load:0.3.2"
+    }
+}
+
 apply plugin: 'com.android.application'
+// Sloth: hot reload deployment for TeamCode, see README "Deploy with Sloth"
+apply plugin: 'dev.frozenmilk.sinister.sloth.load'
 
 //
 // build.gradle in TeamCode
@@ -34,4 +50,5 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     implementation 'org.psilynx.psikit:core:0.2.0'
     implementation 'org.psilynx.psikit:ftc:0.2.0'
+    implementation 'dev.frozenmilk.sinister:Sloth:0.3.2'
 }
