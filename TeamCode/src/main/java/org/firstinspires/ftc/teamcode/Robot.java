@@ -9,7 +9,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.HoodPreset;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
@@ -35,6 +34,8 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double triggerLimit = 0.5;
+  /** Hood power while d-pad up/down is held. Low, since nothing stops it at the ends. */
+  private static final double HOOD_MANUAL_POWER = 0.3;
 
   public Robot(
       HardwareMap hardwareMap,
@@ -69,7 +70,8 @@ public class Robot {
     // user code runs, so the pose read below is the one that gets logged.
 
     // Driver input: set every subsystem's state for this loop.
-    boolean fieldCentric = !driver.left_bumper;
+    // Field-centric needs the Pinpoint's heading.
+    boolean fieldCentric = !driver.left_bumper && odometry.isAvailable();
     drive.drive(-driver.left_stick_y, driver.left_stick_x, driver.right_stick_x,
       fieldCentric, odometry.getPose().getHeading(AngleUnit.RADIANS));
 
@@ -123,28 +125,27 @@ public class Robot {
     }
     indexer.setIndexerState(newIndexerState);
 
+    // Manual hood while its encoder is not on the HoodMotor port: hold d-pad
+    // up/down to move it. Presets come back once the encoder reads.
     if (driver.dpad_up) {
-      hood.setPreset(HoodPreset.FAR);
-    } else if (driver.dpad_right) {
-      hood.setPreset(HoodPreset.MID);
+      hood.setManualPower(HOOD_MANUAL_POWER);
     } else if (driver.dpad_down) {
-      hood.setPreset(HoodPreset.CLOSE);
-    } else if (driver.dpad_left) {
-      hood.setPreset(HoodPreset.STOW);
+      hood.setManualPower(-HOOD_MANUAL_POWER);
+    } else {
+      hood.setManualPower(0.0);
     }
 
     // Run after the states above are set, so the hood P loop and every
     // subsystem's logging see this loop's commands rather than last loop's.
     CommandScheduler.getInstance().run();
 
-    telemetry.addData("Pose", odometry.getPose());
+    telemetry.addData("Pose", odometry.isAvailable()
+        ? odometry.getPose() : "no Pinpoint, robot-centric drive");
     telemetry.addData("Shooter", shooter.getShooterState()
         + (shooter.isAtSpeed() ? " at speed" : ""));
     telemetry.addData("Feeder", feeder.getFeederState());
     telemetry.addData("Indexer", indexer.getIndexerState());
-    telemetry.addData("Hood", String.format("%s  %d / %d",
-        hood.getPreset(), hood.getPosition(), hood.getTarget()));
-    telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken());
+    telemetry.addData("Hood ticks", hood.getPosition());
     telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
 

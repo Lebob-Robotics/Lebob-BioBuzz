@@ -38,7 +38,7 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   }
 
   private static GobildaMotor createDriveMotor(HardwareMap hardwareMap, String name, boolean reversed) {
-    return new GobildaMotor(hardwareMap, name, reversed, DcMotor.RunMode.RUN_USING_ENCODER, false);
+    return new GobildaMotor(hardwareMap, name, reversed, DcMotor.RunMode.RUN_WITHOUT_ENCODER, false);
   }
 
   /**
