@@ -22,7 +22,9 @@ These tools work that out on a laptop and give the robot a table.
   changing `inputs.json` and commit both files together.
 - `table.js`: picks one shot per cell from the hood sweep, with a small
   penalty for hood angle jumps between neighbouring cells, and writes the Java.
-- `inputs.json`: the measured constants behind the committed table.
+- `inputs.json`: the measured constants behind the committed table. With
+  `axleHeightM` and `exitRadiusM` set, each ball launches from the point on
+  the hood at that angle, not a fixed exit height.
 
 - `hood.js`: sizes an adjustable hood. Sweeps hood angle and RPM at every
   distance and radial velocity in the envelope, keeps the shots that survive
