@@ -20,8 +20,8 @@ already on the shaft.
   25 Oct CAD: one 72 mm wheel with a hood, belted 33 to 23 (gearRatio 1.435,
   wheel faster than motor), and the measured 0.250 kg spinning mass (the CAD
   gives 160 kg mm2, the same as that mass as a solid disc). Ball speed per
-  RPM is still an estimate. The design exit speed (8.32 m/s) is the hardest
-  shot in the hood table, 5200 RPM.
+  RPM is still an estimate. The design exit speed (8.40 m/s) is the hardest
+  shot in the hood table, 5250 RPM.
 - `reference-inputs.json`: the original 2 in and 1 in wheel numbers. Only
   `test.js` uses them, to check the physics against the 2 Oct handoff.
 - `test.js`: the reference results from the handoff as assertions, run on

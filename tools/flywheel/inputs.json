@@ -12,7 +12,7 @@
   "energySpreadPct": 20,
   "exitSpeedPerRpm": 0.0016,
   "transferEfficiency": 0.55,
-  "exitSpeedMps": 8.32,
+  "exitSpeedMps": 8.4,
   "toleranceRpm": 50,
   "motorFreeRpm": 6000,
   "motorStallNm": 0.144,

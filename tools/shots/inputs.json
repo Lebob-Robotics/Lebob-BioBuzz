@@ -4,7 +4,7 @@
   "ballMassKg": 0.0249,
   "dragCd": 0.45,
   "launchAngleDeg": 80,
-  "axleHeightM": 0.22,
+  "axleHeightM": 0.2276,
   "exitRadiusM": 0.0626,
   "exitSpeedPerRpm": 0.0016,
   "shooterOffsetM": 0.15,
