@@ -23,7 +23,7 @@ const SPEED = { minMps: 3, maxMps: 13 };                // exit speeds the hood 
 // Hood can travel 0-100 deg. Drive: 6000 rpm bare 5203 / 12 to 104 mm wheels = 2.72 m/s free, about 2.4 loaded.
 const HOOD = { hoodMinDeg: 0, hoodMaxDeg: 100, velMinMps: -2.4, velMaxMps: 2.4, velStepMps: 0.2 };
 
-const shotsIn = Object.assign(read('shots/inputs.json'), { exitHeightM: MK2.exitHeightM });
+const shotsIn = Object.assign(read('shots/inputs.json'), { exitHeightM: MK2.exitHeightM, exitRadiusM: undefined });  // mk2 had a fixed exit height
 const flyIn = Object.assign(read('flywheel/inputs.json'), {
   wheelDiameterM: MK2.wheelDiameterM, wheel2DiameterM: MK2.wheel2DiameterM, existingWheelMassKg: MK2.existingWheelMassKg,
   exitSpeedPerRpm: MK2.slip * Math.PI * (MK2.wheelDiameterM + MK2.wheel2DiameterM) / 2 / 60,  // as if measured at 1:1

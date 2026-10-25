@@ -19,7 +19,11 @@
     ballMassKg: BALLS.POLLEN.ballMassKg,
     dragCd: 0.45,             // guess; calibrate against measured landing distance
     launchAngleDeg: 80,       // measure on the robot
-    exitHeightM: 0.40,        // measure on the robot
+    exitHeightM: 0.40,        // measure on the robot. Used only when exitRadiusM is not set
+    // With a hood, the ball leaves from a point that swings round the flywheel axle with the hood.
+    // Set both to launch from axleHeightM + exitRadiusM cos(angle), exitRadiusM sin(angle) behind the axle.
+    axleHeightM: undefined,
+    exitRadiusM: undefined,
     exitSpeedPerRpm: 0.0023,  // m/s of ball per flywheel RPM; measure with slow-motion video
     shooterOffsetM: 0.15,     // ball exit point forward of the robot centre
     rpmToleranceRpm: 50,      // must match Constants.SHOOTER_TOLERANCE_RPM; the fixed hood leaves a 125-175 RPM band
@@ -59,7 +63,14 @@
     return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ? u : null;
   }
 
-  // Fly one ball from the shooter (x = 0, y = exit height) with nothing to hit, until it reaches the
+  // Where the ball leaves, in the shot plane, for a launch angle in radians. x = 0 is the shooter's
+  // reference point (the flywheel axle when exitRadiusM is set), positive toward the Cell.
+  function exitPoint(angleRad, p) {
+    if (p.exitRadiusM === undefined) return { x: 0, y: p.exitHeightM };
+    return { x: -p.exitRadiusM * Math.sin(angleRad), y: p.axleHeightM + p.exitRadiusM * Math.cos(angleRad) };
+  }
+
+  // Fly one ball from the shooter's exit point with nothing to hit, until it reaches the
   // tiles, 5 s, or x past maxXM (when every target of interest is behind). The robot's radial velocity adds to the ball's horizontal velocity. Quadratic drag,
   // trapezoidal velocity step so the no-drag case reproduces the exact parabola. Each point is
   // [x, y, vy]. The flight does not depend on the Cell's distance, so one flight serves every distance.
@@ -68,7 +79,8 @@
     const r = p.ballDiameterM / 2;
     const k = 0.5 * RHO * p.dragCd * Math.PI * r * r / p.ballMassKg;
     const a = p.launchAngleDeg * Math.PI / 180, v0 = rpm * p.exitSpeedPerRpm;
-    let x = 0, y = p.exitHeightM, vx = v0 * Math.cos(a) + radialVelMps, vy = v0 * Math.sin(a), t = 0;
+    const start = exitPoint(a, p);
+    let x = start.x, y = start.y, vx = v0 * Math.cos(a) + radialVelMps, vy = v0 * Math.sin(a), t = 0;
     const pts = [[x, y, vy]];
     while (t < 5 && y >= 0 && x <= maxXM) {
       const v = Math.hypot(vx, vy);
@@ -183,7 +195,8 @@
     const a = p.launchAngleDeg * Math.PI / 180, v0 = 3000 * p.exitSpeedPerRpm;
     for (const frac of [0.25, 0.5, 0.75]) {
       const n = Math.floor((s.points.length - 1) * frac), t = n * p.dtS;
-      const ex = (v0 * Math.cos(a) + 0.3) * t, ey = p.exitHeightM + v0 * Math.sin(a) * t - 0.5 * G * t * t;
+      const start = exitPoint(a, p);
+      const ex = start.x + (v0 * Math.cos(a) + 0.3) * t, ey = start.y + v0 * Math.sin(a) * t - 0.5 * G * t * t;
       const err = Math.hypot(s.points[n][0] - ex, s.points[n][1] - ey);
       if (err > 0.001) fails.push('no-drag flight is ' + (err * 1000).toFixed(2) + ' mm off the parabola at t=' + t.toFixed(3) + ' s');
     }
@@ -201,5 +214,5 @@
     return fails;
   }
 
-  return { DEFAULTS: DEFAULTS, BALLS: BALLS, axis: axis, opening: opening, fly: fly, land: land, simulate: simulate, band: band, solveGrid: solveGrid, toJava: toJava, selfCheck: selfCheck };
+  return { DEFAULTS: DEFAULTS, BALLS: BALLS, axis: axis, opening: opening, exitPoint: exitPoint, fly: fly, land: land, simulate: simulate, band: band, solveGrid: solveGrid, toJava: toJava, selfCheck: selfCheck };
 });
