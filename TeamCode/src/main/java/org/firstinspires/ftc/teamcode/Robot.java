@@ -34,14 +34,17 @@ import org.psilynx.psikit.core.Logger;
  *
  * <p>Controls (gamepad 1):
  * <ul>
- *   <li>Left stick: drive (field centric). Right stick X: turn. Left bumper held: robot centric.</li>
+ *   <li>Left stick: drive (field centric). Right stick X: turn.</li>
  *   <li>Right trigger held: aim and shoot. The robot turns to the shot heading and sets the hood and
  *       flywheels from the shot table, then feeds each ball once the shot is ready. The left stick
  *       still drives.</li>
- *   <li>Right bumper held: manual shot at full power, without aiming or waiting. A fallback for
- *       when the camera can't see the Cell.</li>
- *   <li>Left trigger: intake (stops at 4 balls). B: eject. X: stop the shooter.</li>
- *   <li>A: reset heading. D-pad: hood presets, or while aiming, up and down trim the RPM.</li>
+ *   <li>Right bumper: toggle flywheel spin-up. Keeps the flywheels at the table's RPM so the first
+ *       aimed shot is ready sooner.</li>
+ *   <li>Y held: manual shot at full power, without aiming or waiting. A fallback for when the camera
+ *       can't see the Cell.</li>
+ *   <li>Left trigger held, or left bumper to toggle: intake. Both stop at 4 balls.</li>
+ *   <li>B: eject. X: stop the shooter (also ends spin-up). A: reset heading.</li>
+ *   <li>D-pad: hood presets, or while aiming, up and down trim the RPM.</li>
  *   <li>During INIT, X picks blue and B picks red.</li>
  * </ul>
  */
@@ -74,9 +77,13 @@ public class Robot {
   private AimState aimState = AimState.OFF;
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private double rpmTrim = 0; // Driver's, for the rest of the match
+  private boolean flywheelSpinUpOn = false;
+  private boolean intakeOn = false;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
+  private boolean wasLeftBumper = false;
+  private boolean wasRightBumper = false;
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driver) {
     this.telemetry = telemetry;
@@ -145,6 +152,7 @@ public class Robot {
     updateAimState(aiming, aim, ready);
 
     updateTrim(aiming);
+    updateToggles();
     updateDrive(aiming, aim, pose, velocity[2]);
     updateShooterAndHood(aiming, aim);
     updateIntakeFeederIndexer(aiming, ready);
@@ -192,14 +200,33 @@ public class Robot {
 
   /** While aiming, D-pad up and down nudge the RPM, for when the table is a little off on the day. */
   private void updateTrim(boolean aiming) {
-    if (aiming && driver.dpad_up && !wasDpadUp) {
+    if (aiming && justPressed(driver.dpad_up, wasDpadUp)) {
       rpmTrim += ShootOnTheMoveConstants.RPM_TRIM_STEP;
     }
-    if (aiming && driver.dpad_down && !wasDpadDown) {
+    if (aiming && justPressed(driver.dpad_down, wasDpadDown)) {
       rpmTrim -= ShootOnTheMoveConstants.RPM_TRIM_STEP;
     }
     wasDpadUp = driver.dpad_up;
     wasDpadDown = driver.dpad_down;
+  }
+
+  /** Right bumper toggles flywheel spin-up, left bumper toggles the intake. X ends spin-up. */
+  private void updateToggles() {
+    if (justPressed(driver.right_bumper, wasRightBumper)) {
+      flywheelSpinUpOn = !flywheelSpinUpOn;
+    }
+    if (driver.x) {
+      flywheelSpinUpOn = false;
+    }
+    if (justPressed(driver.left_bumper, wasLeftBumper)) {
+      intakeOn = !intakeOn;
+    }
+    wasRightBumper = driver.right_bumper;
+    wasLeftBumper = driver.left_bumper;
+  }
+
+  private static boolean justPressed(boolean pressedNow, boolean pressedLastLoop) {
+    return pressedNow && !pressedLastLoop;
   }
 
   private void updateDrive(boolean aiming, Aim aim, Pose pose, double turnRateRadPerSec) {
@@ -208,24 +235,26 @@ public class Robot {
     if (aiming && aim != null) { // Lines up even without a valid shot, so it's ready the moment one appears
       drive.driveHeadingLock(forward, right, aim.targetHeadingRad, pose.headingRad, turnRateRadPerSec);
     } else {
-      boolean fieldCentric = !driver.left_bumper;
-      drive.drive(forward, right, driver.right_stick_x, fieldCentric, pose.headingRad);
+      drive.drive(forward, right, driver.right_stick_x, true, pose.headingRad);
     }
   }
 
   private void updateShooterAndHood(boolean aiming, Aim aim) {
     boolean validShot = aim != null && aim.shot.valid;
+    if (validShot) {
+      aimRpm = aim.shot.targetRpm;
+    }
 
     if (aiming) {
-      if (validShot) {
-        aimRpm = aim.shot.targetRpm;
-      }
       shooter.setShooterState(ShooterState.AIM);
       shooter.setTargetRpm(aimRpm + rpmTrim);
-    } else if (driver.right_bumper) {
+    } else if (driver.y) {
       shooter.setShooterState(ShooterState.SHOOT);
     } else if (driver.b) {
       shooter.setShooterState(ShooterState.EJECT);
+    } else if (flywheelSpinUpOn) {
+      shooter.setShooterState(ShooterState.AIM);
+      shooter.setTargetRpm(aimRpm + rpmTrim);
     } else if (driver.x) {
       shooter.setShooterState(ShooterState.STOP);
     } else {
@@ -248,13 +277,16 @@ public class Robot {
   }
 
   private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
-    boolean shooting = aiming || driver.right_bumper; // Aimed shots wait for READY at the indexer
-    boolean intaking = driver.left_trigger > TRIGGER_PRESSED;
+    boolean shooting = aiming || driver.y; // Aimed shots wait for READY at the indexer
+    boolean intaking = driver.left_trigger > TRIGGER_PRESSED || intakeOn;
     boolean ejecting = driver.b;
     boolean full = intake.isFull();
     boolean loading = intaking && !full; // Shooting keeps everything running, so balls can leave
     if (intaking && full && !wasFull) {
       driver.rumble(300);
+    }
+    if (full) {
+      intakeOn = false; // So it doesn't start again by itself once balls are shot
     }
     wasFull = full;
 
@@ -293,6 +325,8 @@ public class Robot {
     Logger.recordOutput("SOTM/CellX", tracker.getCellX());
     Logger.recordOutput("SOTM/CellY", tracker.getCellY());
     Logger.recordOutput("SOTM/RpmTrim", rpmTrim);
+    Logger.recordOutput("Robot/FlywheelSpinUpOn", flywheelSpinUpOn);
+    Logger.recordOutput("Robot/IntakeOn", intakeOn);
     if (aim == null) {
       return;
     }
@@ -325,7 +359,8 @@ public class Robot {
     }
     telemetry.addData("Pose", String.format("%.2f %.2f m  %.0f deg",
         pose.xM, pose.yM, Math.toDegrees(pose.headingRad)));
-    telemetry.addData("Shooter", shooter.getShooterState());
+    telemetry.addData("Shooter", shooter.getShooterState() + (flywheelSpinUpOn ? "  (spin-up on)" : ""));
+    telemetry.addData("Intake", intakeOn ? "ON (toggle)" : intake.getIntakeState());
     telemetry.addData("Indexer", indexer.getIndexerState()
         + (indexer.isFeedAllowed() ? "" : " (waiting)"));
     telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken()
