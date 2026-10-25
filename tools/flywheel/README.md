@@ -16,10 +16,12 @@ already on the shaft.
   minute) and feeds its worst shot in as a case.
   `node tools/flywheel/flywheel.js gear` sweeps the second wheel's gear ratio
   across every case first.
-- `inputs.json`: the shooter, motor and ball numbers for mark 3 (3 in and
-  1 in wheels, 0.7 belt, the same wheels as mark 2). Most are estimates or
-  guesses, see the table below. The design exit speed (7.49 m/s) is the
-  hardest shot in the hood table, 3300 RPM.
+- `inputs.json`: the shooter, motor and ball numbers for mark 3, from the
+  25 Oct CAD: one 72 mm wheel with a hood, belted 33 to 23 (gearRatio 1.435,
+  wheel faster than motor), and the measured 0.250 kg spinning mass (the CAD
+  gives 160 kg mm2, the same as that mass as a solid disc). Ball speed per
+  RPM is still an estimate. The design exit speed (8.32 m/s) is the hardest
+  shot in the hood table, 5200 RPM.
 - `reference-inputs.json`: the original 2 in and 1 in wheel numbers. Only
   `test.js` uses them, to check the physics against the 2 Oct handoff.
 - `test.js`: the reference results from the handoff as assertions, run on
