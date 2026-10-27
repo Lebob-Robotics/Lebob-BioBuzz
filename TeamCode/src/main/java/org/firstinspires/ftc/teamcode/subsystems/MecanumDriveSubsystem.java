@@ -29,12 +29,15 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   private final double[] wheelPowers = new double[4];
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
-    // Left motors are flipped so that a positive power on every motor drives
-    // straight.
-    frontLeft = createDriveMotor(hardwareMap, "DriveFL", true);
-    frontRight = createDriveMotor(hardwareMap, "DriveFR", false);
+    // Set so that a positive power on every motor drives the robot forward.
+    // Measured on Mark 3 with the Drive Check OpMode on 27 Oct: at raw positive
+    // power DriveFL turned forward and the other three turned backward. DriveFL
+    // is the odd one out because its power leads are swapped against its
+    // encoder, so its encoder counts backward while it drives forward.
+    frontLeft = createDriveMotor(hardwareMap, "DriveFL", false);
+    frontRight = createDriveMotor(hardwareMap, "DriveFR", true);
     backLeft = createDriveMotor(hardwareMap, "DriveBL", true);
-    backRight = createDriveMotor(hardwareMap, "DriveBR", false);
+    backRight = createDriveMotor(hardwareMap, "DriveBR", true);
   }
 
   private static GobildaMotor createDriveMotor(HardwareMap hardwareMap, String name, boolean reversed) {
@@ -69,9 +72,27 @@ public class MecanumDriveSubsystem extends SubsystemBase {
       right = r * Math.cos(theta);
     }
 
-    double frontLeftPower = forward - right + rotate;
+    mix(forward, right, rotate, wheelPowers);
+
+    frontLeft.setPower(wheelPowers[0]);
+    frontRight.setPower(wheelPowers[1]);
+    backLeft.setPower(wheelPowers[2]);
+    backRight.setPower(wheelPowers[3]);
+  }
+
+  /**
+   * Robot-centric mecanum mix (gm0), with the rollers forming an X seen from
+   * above.
+   *
+   * @param forward forward power, [-1, 1]
+   * @param right   strafe-right power, [-1, 1]
+   * @param rotate  clockwise rotation power, [-1, 1]
+   * @param out     receives the wheel powers {FL, FR, BL, BR}
+   */
+  static void mix(double forward, double right, double rotate, double[] out) {
+    double frontLeftPower = forward + right + rotate;
     double frontRightPower = forward - right - rotate;
-    double backLeftPower = forward + right + rotate;
+    double backLeftPower = forward - right + rotate;
     double backRightPower = forward + right - rotate;
 
     // Scale all wheels down together so no power exceeds 1 and the direction
@@ -80,15 +101,10 @@ public class MecanumDriveSubsystem extends SubsystemBase {
         Math.max(Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
             Math.max(Math.abs(backLeftPower), Math.abs(backRightPower))));
 
-    wheelPowers[0] = frontLeftPower / maxPower;
-    wheelPowers[1] = frontRightPower / maxPower;
-    wheelPowers[2] = backLeftPower / maxPower;
-    wheelPowers[3] = backRightPower / maxPower;
-
-    frontLeft.setPower(wheelPowers[0]);
-    frontRight.setPower(wheelPowers[1]);
-    backLeft.setPower(wheelPowers[2]);
-    backRight.setPower(wheelPowers[3]);
+    out[0] = frontLeftPower / maxPower;
+    out[1] = frontRightPower / maxPower;
+    out[2] = backLeftPower / maxPower;
+    out[3] = backRightPower / maxPower;
   }
 
   @Override
