@@ -50,6 +50,13 @@ public class Main extends PsiKitIterativeOpMode {
   }
 
   @Override
+  protected void onPsiKitInitLoop() {
+    if (robot != null) {
+      robot.initLoop();
+    }
+  }
+
+  @Override
   protected void onPsiKitLoop() {
     robot.periodic();
   }
