@@ -36,6 +36,10 @@ public class Robot {
   public static final double triggerLimit = 0.5;
   /** Hood power while d-pad up/down is held. Low, since nothing stops it at the ends. */
   private static final double HOOD_MANUAL_POWER = 0.3;
+  /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
+  private static final int STALL_RUMBLE_MS = 1000;
+
+  private boolean shooterWasStalled;
 
   public Robot(
       HardwareMap hardwareMap,
@@ -139,10 +143,16 @@ public class Robot {
     // subsystem's logging see this loop's commands rather than last loop's.
     CommandScheduler.getInstance().run();
 
+    if (shooter.isStalled() && !shooterWasStalled) {
+      driver.rumble(STALL_RUMBLE_MS);
+    }
+    shooterWasStalled = shooter.isStalled();
+
     telemetry.addData("Pose", odometry.isAvailable()
         ? odometry.getPose() : "no Pinpoint, robot-centric drive");
     telemetry.addData("Shooter", shooter.getShooterState()
         + (shooter.isAtSpeed() ? " at speed" : ""));
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addData("Feeder", feeder.getFeederState());
     telemetry.addData("Indexer", indexer.getIndexerState());
     telemetry.addData("Hood ticks", hood.getPosition());
