@@ -98,7 +98,7 @@ public class Robot {
     boolean eject = driver.b;
 
     Logger.recordOutput("Robot/Driver/Shoot", rightTriggerPressed);
-    Logger.recordOutput("Robot/Driver/Intake", leftTriggerPressed || rightTriggerPressed);
+    Logger.recordOutput("Robot/Driver/Intake", leftTriggerPressed);
     Logger.recordOutput("Robot/Driver/Eject", eject);
     Logger.recordOutput("Robot/Driver/StopShooter", driver.x);
     Logger.recordOutput("Robot/Driver/FieldCentric", fieldCentric);
@@ -114,10 +114,16 @@ public class Robot {
     }
     shooter.setShooterState(newShooterState);
 
+    // LT loads: the intake and indexer bring balls up to the feeder, which
+    // runs backward to hold them there. RT shoots: the indexer and feeder push
+    // the queued balls into the shooter, and the intake stays off. RT wins if
+    // both are held.
+    boolean loading = leftTriggerPressed && !rightTriggerPressed;
+
     IntakeState newIntakeState = IntakeState.STOP;
     if (eject) {
       newIntakeState = IntakeState.EJECT;
-    } else if (leftTriggerPressed || rightTriggerPressed) {
+    } else if (loading) {
       newIntakeState = IntakeState.INTAKE;
     }
     intake.setIntakeState(newIntakeState);
@@ -125,16 +131,17 @@ public class Robot {
     FeederState newFeederState = FeederState.STOP;
     if (eject) {
       newFeederState = FeederState.EJECT;
-    } else if (leftTriggerPressed || rightTriggerPressed) {
+    } else if (rightTriggerPressed) {
       newFeederState = FeederState.FEED;
+    } else if (loading) {
+      newFeederState = FeederState.HOLD;
     }
     feeder.setFeederState(newFeederState);
 
-    // Intaking loads the tunnel without pushing balls into the shooter.
     IndexerState newIndexerState = IndexerState.STOP;
     if (eject) {
       newIndexerState = IndexerState.EJECT;
-    } else if (rightTriggerPressed) {
+    } else if (rightTriggerPressed || loading) {
       newIndexerState = IndexerState.FEED;
     }
     indexer.setIndexerState(newIndexerState);

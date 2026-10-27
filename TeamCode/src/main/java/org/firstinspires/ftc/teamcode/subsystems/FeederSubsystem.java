@@ -7,19 +7,22 @@ import org.firstinspires.ftc.teamcode.util.CrServo;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Controls the feeder tunnel, which holds all the balls. It is driven by one
- * Melonbotics Super Servo in continuous mode.
+ * Controls the feeder, the last stage before the shooter. It is driven by one
+ * Melonbotics Super Servo in continuous mode. {@link FeederState#HOLD} runs it
+ * backward so the indexer can queue balls against it without any reaching the
+ * shooter.
  */
 public class FeederSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
   private static final double EJECT_POWER = 1.0;
+  private static final double HOLD_POWER = 1.0;
 
   // ---- Hardware --------------------------------------------------------
   private final CrServo feederServo;
 
   public enum FeederState {
-    STOP, FEED, EJECT
+    STOP, FEED, HOLD, EJECT
   }
 
   private FeederState feederState;
@@ -44,6 +47,9 @@ public class FeederSubsystem extends SubsystemBase {
         break;
       case FEED:
         feederServo.setPower(FEED_POWER);
+        break;
+      case HOLD:
+        feederServo.setPower(-HOLD_POWER);
         break;
       case EJECT:
         feederServo.setPower(-EJECT_POWER);
