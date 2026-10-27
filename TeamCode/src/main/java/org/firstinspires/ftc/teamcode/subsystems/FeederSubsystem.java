@@ -26,8 +26,9 @@ public class FeederSubsystem extends SubsystemBase {
   private FeederState previousFeederState = FeederState.STOP;
 
   public FeederSubsystem(HardwareMap hardwareMap) {
-    // Direction is to be verified on the robot.
-    feederServo = new CrServo(hardwareMap, "FeederServo", false);
+    // Reversed: on Mark 3 a positive raw power runs the tunnel backward
+    // (Servo Check and driving, 27 Oct).
+    feederServo = new CrServo(hardwareMap, "FeederServo", true);
 
     setFeederState(FeederState.STOP);
   }
