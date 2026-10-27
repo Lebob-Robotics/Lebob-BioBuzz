@@ -30,13 +30,14 @@ public class MecanumDriveSubsystem extends SubsystemBase {
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
     // Set so that a positive power on every motor drives the robot forward.
-    // Measured on Mark 3 with the Drive Check OpMode on 27 Oct: at raw positive
-    // power DriveFL turned forward and the other three turned backward. DriveFL
-    // is the odd one out because its power leads are swapped against its
-    // encoder, so its encoder counts backward while it drives forward.
-    frontLeft = createDriveMotor(hardwareMap, "DriveFL", false);
+    // From the Mark 3 log of 27 Oct 17:51: with the left side forward and the
+    // right side reversed, a forward stick spun the robot counterclockwise and
+    // a clockwise rotate drove it backward (Pinpoint pods), so the left side
+    // was inverted. DriveFL's encoder counts against its motor, so it reads
+    // backward while the wheel drives forward.
+    frontLeft = createDriveMotor(hardwareMap, "DriveFL", true);
     frontRight = createDriveMotor(hardwareMap, "DriveFR", true);
-    backLeft = createDriveMotor(hardwareMap, "DriveBL", true);
+    backLeft = createDriveMotor(hardwareMap, "DriveBL", false);
     backRight = createDriveMotor(hardwareMap, "DriveBR", true);
   }
 
