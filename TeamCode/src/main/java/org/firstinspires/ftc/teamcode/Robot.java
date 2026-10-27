@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -39,7 +41,17 @@ public class Robot {
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
 
+  /** Battery voltage is a separate hub read, so sample it this often. */
+  private static final double BATTERY_SAMPLE_PERIOD_S = 0.1;
+
   private boolean shooterWasStalled;
+
+  /** Null if the config has no voltage sensor. */
+  private final VoltageSensor battery;
+  private final ElapsedTime clock = new ElapsedTime();
+  private double lastBatterySampleS = Double.NEGATIVE_INFINITY;
+  private double batteryVolts = Double.NaN;
+  private double batteryMinVolts = Double.NaN;
 
   public Robot(
       HardwareMap hardwareMap,
@@ -59,6 +71,27 @@ public class Robot {
     indexer = new IndexerSubsystem(hardwareMap);
     hood = new HoodSubsystem(hardwareMap);
     vision = new VisionSubsystem(hardwareMap);
+
+    // Both hubs read the same battery, so one sensor is enough.
+    battery = hardwareMap.voltageSensor.iterator().hasNext()
+        ? hardwareMap.voltageSensor.iterator().next() : null;
+  }
+
+  /**
+   * Samples the battery voltage, keeping the lowest seen this run (it sags
+   * when the shooter spins up), then logs it and adds it to telemetry.
+   */
+  private void updateBattery() {
+    double now = clock.seconds();
+    if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
+      lastBatterySampleS = now;
+      batteryVolts = battery.getVoltage();
+      batteryMinVolts = Double.isNaN(batteryMinVolts)
+          ? batteryVolts : Math.min(batteryMinVolts, batteryVolts);
+    }
+    Logger.recordOutput("Robot/BatteryVolts", batteryVolts);
+    Logger.recordOutput("Robot/BatteryMinVolts", batteryMinVolts);
+    telemetry.addData("Battery", "%.2f V (lowest %.2f V)", batteryVolts, batteryMinVolts);
   }
 
   /** Called once when the OpMode enters INIT. */
@@ -74,6 +107,7 @@ public class Robot {
    */
   public void initLoop() {
     shooter.periodic();
+    updateBattery();
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.update();
   }
@@ -165,6 +199,7 @@ public class Robot {
     }
     shooterWasStalled = shooter.isStalled();
 
+    updateBattery();
     telemetry.addData("Pose", odometry.isAvailable()
         ? odometry.getPose() : "no Pinpoint, robot-centric drive");
     telemetry.addData("Shooter", shooter.getShooterState()
