@@ -8,8 +8,8 @@ import org.psilynx.psikit.core.Logger;
 
 /**
  * Controls the indexer, two Melonbotics Super Servos in continuous mode that
- * send balls from the feeder tunnel into the shooter. It only runs on driver
- * input; there are no beam breaks.
+ * carry balls from the intake up to the feeder. It only runs on driver input;
+ * there are no beam breaks.
  */
 public class IndexerSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------

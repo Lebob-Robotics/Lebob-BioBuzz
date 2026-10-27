@@ -14,7 +14,8 @@ import org.psilynx.psikit.core.Logger;
  * done by {@link FeederSubsystem} and {@link IndexerSubsystem}.
  *
  * <ul>
- * <li>{@link ShooterState#IDLE} spins the flywheels (the initial state).</li>
+ * <li>{@link ShooterState#IDLE} spins the flywheels a little slower (the
+ * initial state), so they are close to shooting speed.</li>
  * <li>{@link ShooterState#SHOOT} spins them at full open-loop power.</li>
  * <li>{@link ShooterState#EJECT} runs them backward.</li>
  * <li>{@link ShooterState#STOP} stops them.</li>
@@ -27,6 +28,8 @@ import org.psilynx.psikit.core.Logger;
 public class ShooterSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double SHOOTER_VELOCITY = 4000;
+  private static final double IDLE_POWER = 0.8;
+  private static final double SHOOT_POWER = 1.0;
   /** Current and velocity are separate hub reads, so sample them this often. */
   private static final double STALL_SAMPLE_PERIOD_S = 0.1;
 
@@ -69,8 +72,10 @@ public class ShooterSubsystem extends SubsystemBase {
       // Always open loop: RUN_USING_ENCODER would cap power 1.0 at 85% of the
       // motor's rated speed (about 5100 RPM on the 6000 RPM motors).
       case IDLE:
+        setShooterPower(IDLE_POWER);
+        break;
       case SHOOT:
-        setShooterPower(1.0);
+        setShooterPower(SHOOT_POWER);
         break;
       case EJECT:
         setShooterPower(-1.0);
