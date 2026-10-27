@@ -17,15 +17,11 @@ import org.psilynx.psikit.core.wpi.math.Rotation2d;
  * reports the robot's field pose: X forward, Y left, heading counterclockwise.
  *
  * <p>
- * On Mark 3 the Pinpoint works in a mirror image of that frame. Measured with
- * the Drive Check OpMode on 27 Oct: pushing the robot forward raised its Y,
- * pushing it left raised its X, and a quarter turn counterclockwise read -89
- * degrees. So the pod on the X port measures strafe, the pod on the Y port
- * measures forward, and the board's IMU reads clockwise as positive (probably
- * mounted upside down). The mirror image is self-consistent, so the Pinpoint
- * still tracks correctly in it, and {@link #toRobotFrame} reflects every pose
- * we read back into the robot's frame. Swapping the two pod cables and
- * flipping the board over would remove the need for it.
+ * The forward pod must be on the Pinpoint's X port and the strafe pod on its Y
+ * port. On 27 Oct Mark 3 had them the other way round: pushing the robot
+ * forward raised Y and pushing it left raised X. The heading comes from the
+ * Pinpoint's IMU, so field-centric driving still works with the pods swapped,
+ * but X and Y are wrong once the robot turns.
  */
 public class OdometrySubsystem extends SubsystemBase {
   private static final Pose2D ZERO_POSE =
@@ -57,11 +53,7 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return;
     }
-    // In the Pinpoint's mirrored frame (see the class comment), the X offset is
-    // how far forward the strafe pod sits and the Y offset is how far left the
-    // forward pod sits: forward pod on the centre line, strafe pod 105 mm
-    // behind the centre.
-    pinpoint.setOffsets(-105.0, 0.0, DistanceUnit.MM);
+    pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     pinpoint.setEncoderDirections(
         GoBildaPinpointDriver.EncoderDirection.FORWARD,
@@ -86,7 +78,7 @@ public class OdometrySubsystem extends SubsystemBase {
       pinpoint.update();
     }
 
-    Pose2D pose = getPose();
+    Pose2D pose = pinpoint.getPosition();
     double headingRad = pose.getHeading(AngleUnit.RADIANS);
 
     // Meters and radians, as AdvantageScope expects.
@@ -98,33 +90,18 @@ public class OdometrySubsystem extends SubsystemBase {
     Logger.recordOutput("Odometry/YInches", pose.getY(DistanceUnit.INCH));
     Logger.recordOutput("Odometry/HeadingDegrees", pose.getHeading(AngleUnit.DEGREES));
 
-    // Reflected like the pose: X and Y swap, and the heading rate flips sign.
-    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", pinpoint.getVelY(DistanceUnit.INCH));
-    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", pinpoint.getVelX(DistanceUnit.INCH));
+    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", pinpoint.getVelX(DistanceUnit.INCH));
+    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", pinpoint.getVelY(DistanceUnit.INCH));
     Logger.recordOutput("Odometry/Velocity/HeadingDegreesPerSec",
-        -pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
+        pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
     Logger.recordOutput("Odometry/DeviceStatus", String.valueOf(pinpoint.getDeviceStatus()));
   }
 
   public Pose2D getPose() {
-    return pinpoint == null ? ZERO_POSE : toRobotFrame(pinpoint.getPosition());
+    return pinpoint == null ? ZERO_POSE : pinpoint.getPosition();
   }
 
-  /**
-   * Reflects a pose between the Pinpoint's mirrored frame and the robot's
-   * frame: X and Y swap and the heading changes sign. Its own inverse, so it
-   * also converts a robot-frame pose for {@code setPosition}.
-   */
-  public static Pose2D toRobotFrame(Pose2D pose) {
-    return new Pose2D(DistanceUnit.MM,
-        pose.getY(DistanceUnit.MM), pose.getX(DistanceUnit.MM),
-        AngleUnit.RADIANS, -pose.getHeading(AngleUnit.RADIANS));
-  }
-
-  /**
-   * Zeroes the reported heading in place, keeping the current position. Works
-   * on the Pinpoint's own pose: a zero heading is zero in both frames.
-   */
+  /** Zeroes the reported heading in place, keeping the current position. */
   public void resetHeading() {
     if (pinpoint == null) {
       return;
