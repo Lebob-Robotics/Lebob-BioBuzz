@@ -68,6 +68,16 @@ public class Robot {
     shooter.setShooterState(ShooterState.IDLE);
   }
 
+  /**
+   * Called repeatedly during INIT. The shooter already runs at IDLE here, so
+   * its stall guard must too.
+   */
+  public void initLoop() {
+    shooter.periodic();
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
+    telemetry.update();
+  }
+
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {
     // The Pinpoint is already updated for this loop: PsiKit does it before
