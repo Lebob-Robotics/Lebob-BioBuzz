@@ -8,13 +8,13 @@ import com.qualcomm.robotcore.hardware.CRServo;
  * Runs one continuous servo at a time, so you can see which roller each
  * configured name actually drives. Hold Y for FeederServo, X for IndexerServoL,
  * B for IndexerServoR; hold the left bumper as well to run it in reverse.
- * X runs IndexerServoL reversed; the others run in their raw direction.
+ * Y and X run reversed; B runs in its raw direction.
  */
 @TeleOp(name = "Servo Check", group = "Test")
 public class ServoCheck extends OpMode {
   private static final String[] NAMES = {"FeederServo", "IndexerServoL", "IndexerServoR"};
   private static final String[] BUTTONS = {"Y", "X", "B"};
-  private static final double[] DIRECTIONS = {1.0, -1.0, 1.0};
+  private static final double[] DIRECTIONS = {-1.0, -1.0, 1.0};
 
   private final CRServo[] servos = new CRServo[NAMES.length];
 
