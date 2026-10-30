@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.bylazar.configurables.annotations.Configurable;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.servo.GobildaMotor;
@@ -77,7 +76,9 @@ public class HoodSubsystem extends SubsystemBase {
 
   public HoodSubsystem(HardwareMap hardwareMap) {
     // reversed=false is a guess: verify on robot that positive power raises the hood.
-    hoodMotor = new GobildaMotor(hardwareMap, "HoodMotor", false, DcMotor.RunMode.RUN_WITHOUT_ENCODER, true);
+    // Power control, not speed control: the encoder port carries the 8192 count Through Bore, so the
+    // hub's speed control would misread the speed. Power is still capped at MAX_OUTPUT.
+    hoodMotor = GobildaMotor.powerControlled(hardwareMap, "HoodMotor", false, true);
   }
 
   /**
