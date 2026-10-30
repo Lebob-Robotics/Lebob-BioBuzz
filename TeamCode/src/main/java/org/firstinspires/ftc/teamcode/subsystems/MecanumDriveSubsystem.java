@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.bylazar.configurables.annotations.Configurable;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -51,7 +50,7 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   }
 
   private static GobildaMotor createDriveMotor(HardwareMap hardwareMap, String name, boolean reversed) {
-    return new GobildaMotor(hardwareMap, name, reversed, DcMotor.RunMode.RUN_USING_ENCODER, false);
+    return GobildaMotor.speedControlled(hardwareMap, name, reversed, false);
   }
 
   /**
@@ -94,10 +93,11 @@ public class MecanumDriveSubsystem extends SubsystemBase {
         Math.max(Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
             Math.max(Math.abs(backLeftPower), Math.abs(backRightPower))));
 
-    wheelPowers[0] = frontLeftPower / maxPower;
-    wheelPowers[1] = frontRightPower / maxPower;
-    wheelPowers[2] = backLeftPower / maxPower;
-    wheelPowers[3] = backRightPower / maxPower;
+    double scale = GobildaMotor.MAX_OUTPUT / maxPower; // Full stick reaches the motor cap on every wheel together, so the direction stays exact
+    wheelPowers[0] = frontLeftPower * scale;
+    wheelPowers[1] = frontRightPower * scale;
+    wheelPowers[2] = backLeftPower * scale;
+    wheelPowers[3] = backRightPower * scale;
 
     frontLeft.setPower(wheelPowers[0]);
     frontRight.setPower(wheelPowers[1]);

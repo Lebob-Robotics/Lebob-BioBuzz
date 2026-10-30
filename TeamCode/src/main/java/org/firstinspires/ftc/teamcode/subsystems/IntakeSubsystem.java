@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -31,7 +30,7 @@ public class IntakeSubsystem extends SubsystemBase {
   private int fullChangeLoops = 0;
 
   public IntakeSubsystem(HardwareMap hardwareMap) {
-    intakeMotor = new GobildaMotor(hardwareMap, "IntakeMotor", true, DcMotor.RunMode.RUN_USING_ENCODER, false);
+    intakeMotor = GobildaMotor.speedControlled(hardwareMap, "IntakeMotor", true, false);
     beamBreakTop = hardwareMap.get(DigitalChannel.class, "BeamBreakT");
     beamBreakBottom = hardwareMap.get(DigitalChannel.class, "BeamBreakB");
     beamBreakTop.setMode(DigitalChannel.Mode.INPUT);
