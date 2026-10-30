@@ -8,7 +8,7 @@ package org.firstinspires.ftc.teamcode.utils;
  * speed toward the Cell (metres per second, positive when closing). NaN means no safe shot.
  * 682 of 725 cells have a shot.
  *
- * <p>Inputs: {"ball":"POLLEN","ballDiameterM":0.0711,"ballMassKg":0.0249,"dragCd":0.45,"launchAngleDeg":80,"exitHeightM":0.4,"axleHeightM":0.2276,"exitRadiusM":0.0626,"exitSpeedPerRpm":0.0016,"shooterOffsetM":0.15,"rpmToleranceRpm":50,"lipHeightM":1.357,"openingWidthM":0.508,"openingLengthM":0.357,"openingTiltDeg":59.7,"marginM":0.02,"distMinM":0.2,"distMaxM":3,"distStepM":0.1,"velMinMps":-2.4,"velMaxMps":2.4,"velStepMps":0.2,"rpmMin":1500,"rpmMax":6850,"rpmStep":50,"dtS":0.002,"hoodMinDeg":51,"hoodMaxDeg":99,"hoodStepDeg":1,"hoodTolDeg":1}
+ * <p>Inputs: {"ball":"POLLEN","ballDiameterM":0.0711,"ballMassKg":0.0249,"dragCd":0.45,"launchAngleDeg":80,"exitHeightM":0.4,"axleHeightM":0.2276,"exitRadiusM":0.0626,"exitSpeedPerRpm":0.0016,"shooterOffsetM":0.15,"rpmToleranceRpm":50,"lipHeightM":1.357,"openingWidthM":0.508,"openingLengthM":0.357,"openingTiltDeg":59.7,"marginM":0.02,"distMinM":0.2,"distMaxM":3,"distStepM":0.1,"velMinMps":-2.4,"velMaxMps":2.4,"velStepMps":0.2,"rpmMin":1500,"rpmMax":5800,"rpmStep":50,"dtS":0.002,"hoodMinDeg":51,"hoodMaxDeg":99,"hoodStepDeg":1,"hoodTolDeg":1}
  */
 public final class ShotTable {
   private ShotTable() {}

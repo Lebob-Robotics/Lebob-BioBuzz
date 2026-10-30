@@ -25,6 +25,6 @@
   "velMaxMps": 2.4,
   "velStepMps": 0.2,
   "rpmMin": 1500,
-  "rpmMax": 6850,
+  "rpmMax": 5800,
   "rpmStep": 50
 }
