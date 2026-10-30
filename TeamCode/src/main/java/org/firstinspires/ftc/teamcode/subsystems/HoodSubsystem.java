@@ -52,6 +52,8 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   private HoodPreset preset = HoodPreset.STOW;
+  // Open-loop power that overrides the P loop. NaN = follow the preset.
+  private double manualPower = Double.NaN;
 
   // What the last P loop step saw, kept for logging.
   private int lastPosition;
@@ -74,9 +76,16 @@ public class HoodSubsystem extends SubsystemBase {
 
   @Override
   public void periodic() {
-    runPositionLoop();
+    if (Double.isNaN(manualPower)) {
+      runPositionLoop();
+    } else {
+      // No soft limits: they need the encoder, which manual mode does not trust.
+      lastPosition = hoodMotor.getPosition();
+      hoodMotor.setPower(manualPower);
+    }
 
     Logger.recordOutput("Hood/Preset", preset);
+    Logger.recordOutput("Hood/ManualPower", manualPower);
     Logger.recordOutput("Hood/TargetTicks", getTarget());
     Logger.recordOutput("Hood/PositionTicks", lastPosition);
     Logger.recordOutput("Hood/ErrorTicks", lastError);
@@ -113,6 +122,15 @@ public class HoodSubsystem extends SubsystemBase {
 
   public void setPreset(HoodPreset newPreset) {
     preset = newPreset;
+    manualPower = Double.NaN;
+  }
+
+  /**
+   * Drives the hood open loop at this power (0 holds it with brake), ignoring
+   * the preset and soft limits until the next {@link #setPreset(HoodPreset)}.
+   */
+  public void setManualPower(double power) {
+    manualPower = power;
   }
 
   public HoodPreset getPreset() {

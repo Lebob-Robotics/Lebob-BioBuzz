@@ -6,7 +6,7 @@ import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.FtcLogTuning;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
-@TeleOp(name = "BioBuzz TeleOp", group = "Robot")
+@TeleOp(name = "test12342574839", group = "Robot")
 public class Main extends PsiKitIterativeOpMode {
   /**
    * Serves the live log to AdvantageScope over the network. MUST be false at
@@ -47,6 +47,13 @@ public class Main extends PsiKitIterativeOpMode {
   protected void onPsiKitInit() {
     robot = new Robot(hardwareMap, telemetry, gamepad1);
     robot.init();
+  }
+
+  @Override
+  protected void onPsiKitInitLoop() {
+    if (robot != null) {
+      robot.initLoop();
+    }
   }
 
   @Override
