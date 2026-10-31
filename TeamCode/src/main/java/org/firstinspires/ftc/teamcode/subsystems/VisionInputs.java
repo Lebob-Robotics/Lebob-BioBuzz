@@ -33,11 +33,16 @@ public class VisionInputs implements LoggableInputs {
   public double[] y = new double[0];
   public double[] z = new double[0];
   public double[] decisionMargin = new double[0];
+  /** Per detection: frame acquisition time (detection.frameAcquisitionNanoTime). */
+  public long[] frameNanos = new long[0];
+  /** System.nanoTime() when this capture was taken. Zero before the first capture. */
+  public long captureNanos = 0;
 
   /** Copies the processor's current detections into this object. Live only. */
   public void capture(AprilTagProcessor processor, VisionPortal portal) {
     available = processor != null;
     fps = portal == null ? 0.0 : portal.getFps();
+    captureNanos = System.nanoTime();
 
     List<AprilTagDetection> detections = processor == null
         ? Collections.<AprilTagDetection>emptyList()
@@ -52,9 +57,11 @@ public class VisionInputs implements LoggableInputs {
     y = new double[n];
     z = new double[n];
     decisionMargin = new double[n];
+    frameNanos = new long[n];
 
     for (int i = 0; i < n; i++) {
       AprilTagDetection detection = detections.get(i);
+      frameNanos[i] = detection.frameAcquisitionNanoTime;
       if (detection instanceof AprilTagSingleDetection) {
         AprilTagSingleDetection single = (AprilTagSingleDetection) detection;
         tagIds[i] = single.id;
@@ -123,6 +130,8 @@ public class VisionInputs implements LoggableInputs {
     table.put("YIn", y);
     table.put("ZIn", z);
     table.put("DecisionMargin", decisionMargin);
+    table.put("FrameNanos", frameNanos);
+    table.put("CaptureNanos", captureNanos);
   }
 
   @Override
@@ -138,5 +147,7 @@ public class VisionInputs implements LoggableInputs {
     y = table.get("YIn", y);
     z = table.get("ZIn", z);
     decisionMargin = table.get("DecisionMargin", decisionMargin);
+    frameNanos = table.get("FrameNanos", frameNanos);
+    captureNanos = table.get("CaptureNanos", captureNanos);
   }
 }

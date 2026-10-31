@@ -15,17 +15,21 @@ public class IndexerSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
   private static final double EJECT_POWER = 1.0;
+  // Small reverse power while intaking, so balls cannot creep into the shooter.
+  private static final double HOLD_POWER = 0.15; // TODO tune
 
   // ---- Hardware --------------------------------------------------------
   private final CrServo indexerServoL;
   private final CrServo indexerServoR;
 
   public enum IndexerState {
-    STOP, FEED, EJECT
+    STOP, FEED, EJECT, HOLD
   }
 
   private IndexerState indexerState;
   private IndexerState previousIndexerState = IndexerState.STOP;
+  // Gates FEED only (e.g. until the shooter is up to speed). EJECT is never gated.
+  private boolean feedAllowed = true;
 
   public IndexerSubsystem(HardwareMap hardwareMap) {
     // The servos face each other, so one is reversed. Direction is to be
@@ -46,10 +50,13 @@ public class IndexerSubsystem extends SubsystemBase {
         setIndexerPower(0.0);
         break;
       case FEED:
-        setIndexerPower(FEED_POWER);
+        setIndexerPower(feedAllowed ? FEED_POWER : 0.0);
         break;
       case EJECT:
         setIndexerPower(-EJECT_POWER);
+        break;
+      case HOLD:
+        setIndexerPower(-HOLD_POWER);
         break;
     }
   }
@@ -60,6 +67,22 @@ public class IndexerSubsystem extends SubsystemBase {
     doIndexerState();
   }
 
+  /**
+   * Allows or blocks feeding. Takes effect immediately even if already in FEED.
+   */
+  public void setFeedAllowed(boolean allowed) {
+    boolean changed = feedAllowed != allowed;
+    feedAllowed = allowed;
+    // doIndexerState ignores unchanged states, so write the servo directly.
+    if (changed && indexerState == IndexerState.FEED) {
+      setIndexerPower(allowed ? FEED_POWER : 0.0);
+    }
+  }
+
+  public boolean isFeedAllowed() {
+    return feedAllowed;
+  }
+
   public IndexerState getIndexerState() {
     return indexerState;
   }
@@ -67,6 +90,7 @@ public class IndexerSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     Logger.recordOutput("Indexer/State", indexerState);
+    Logger.recordOutput("Indexer/FeedAllowed", feedAllowed);
     Logger.recordOutput("Indexer/CommandedPower", indexerServoL.getCommandedPower());
   }
 

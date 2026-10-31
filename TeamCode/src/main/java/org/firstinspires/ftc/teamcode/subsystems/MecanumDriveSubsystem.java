@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -14,7 +15,14 @@ import java.util.Arrays;
  * Drivetrain subsystem for a four-motor mecanum base, with optional
  * field-centric driving using the Pinpoint's heading.
  */
+@Configurable
 public class MecanumDriveSubsystem extends SubsystemBase {
+  // ---- Tuning ----------------------------------------------------------
+  // Heading lock gains. The rotate sign is to be verified on the robot.
+  public static double HEADING_KP = 1.0; // TODO tune on robot
+  public static double HEADING_KD = 0.05; // TODO tune on robot
+  public static double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
+
   private final GobildaMotor frontLeft;
   private final GobildaMotor frontRight;
   private final GobildaMotor backLeft;
@@ -27,6 +35,11 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   private boolean fieldCentric;
   private double headingRadians;
   private final double[] wheelPowers = new double[4];
+
+  // Heading lock state, kept for logging. drive() clears the active flag.
+  private boolean headingLockActive;
+  private double headingTargetRad;
+  private double headingErrorRad;
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
     // Set so that a positive power on every motor drives the robot forward.
@@ -62,6 +75,7 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     cmdRotate = rotate;
     this.fieldCentric = fieldCentric;
     this.headingRadians = headingRadians;
+    headingLockActive = false;
 
     if (fieldCentric) {
       double theta = Math.atan2(forward, right);
@@ -108,6 +122,37 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     out[3] = backRightPower / maxPower;
   }
 
+  /**
+   * Field-centric drive that turns to hold a target heading instead of taking
+   * a rotate input. A PD loop on heading error; the sign is to be verified on
+   * the robot.
+   *
+   * @param forward              forward power, [-1, 1], relative to the field
+   * @param right                strafe-right power, [-1, 1], relative to the field
+   * @param targetHeadingRad     desired field heading, CCW positive
+   * @param currentHeadingRad    current field heading, CCW positive (Pinpoint)
+   * @param headingRateRadPerSec current turn rate, CCW positive
+   */
+  public void driveHeadingLock(double forward, double right, double targetHeadingRad,
+      double currentHeadingRad, double headingRateRadPerSec) {
+    double error = AngleUnit.normalizeRadians(targetHeadingRad - currentHeadingRad);
+    double ccw = HEADING_KP * error - HEADING_KD * headingRateRadPerSec;
+    ccw = Math.max(-HEADING_MAX_ROTATE, Math.min(HEADING_MAX_ROTATE, ccw));
+
+    // drive()'s rotate is clockwise positive, the opposite of heading.
+    drive(forward, right, -ccw, true, currentHeadingRad);
+
+    // Set after drive(), which clears the flag.
+    headingLockActive = true;
+    headingTargetRad = targetHeadingRad;
+    headingErrorRad = error;
+  }
+
+  /** Heading error from the last {@link #driveHeadingLock}, CCW positive. */
+  public double getHeadingErrorRad() {
+    return headingErrorRad;
+  }
+
   @Override
   public void periodic() {
     Logger.recordOutput("Drive/Cmd/Forward", cmdForward);
@@ -115,6 +160,9 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     Logger.recordOutput("Drive/Cmd/Rotate", cmdRotate);
     Logger.recordOutput("Drive/FieldCentric", fieldCentric);
     Logger.recordOutput("Drive/HeadingRad", headingRadians);
+    Logger.recordOutput("Drive/HeadingLock/Active", headingLockActive);
+    Logger.recordOutput("Drive/HeadingLock/TargetRad", headingTargetRad);
+    Logger.recordOutput("Drive/HeadingLock/ErrorRad", headingErrorRad);
     Logger.recordOutput("Drive/WheelPowers", wheelPowers.clone());
   }
 
