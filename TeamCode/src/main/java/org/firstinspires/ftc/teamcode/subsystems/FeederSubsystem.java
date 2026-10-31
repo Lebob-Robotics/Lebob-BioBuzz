@@ -7,30 +7,31 @@ import org.firstinspires.ftc.teamcode.servo.CrServo;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Controls the feeder tunnel, which holds all the balls. It is driven by two
- * Melonbotics Super Servos in continuous mode.
+ * Controls the feeder, the last stage before the shooter. It is driven by one
+ * Melonbotics Super Servo in continuous mode. {@link FeederState#HOLD} runs it
+ * backward so the indexer can queue balls against it without any reaching the
+ * shooter.
  */
 public class FeederSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
   private static final double EJECT_POWER = 1.0;
+  private static final double HOLD_POWER = 1.0;
 
   // ---- Hardware --------------------------------------------------------
-  private final CrServo feederServoL;
-  private final CrServo feederServoR;
+  private final CrServo feederServo;
 
   public enum FeederState {
-    STOP, FEED, EJECT
+    STOP, FEED, HOLD, EJECT
   }
 
   private FeederState feederState;
   private FeederState previousFeederState = FeederState.STOP;
 
   public FeederSubsystem(HardwareMap hardwareMap) {
-    // The servos face each other, so one is reversed. Direction is to be
-    // verified on the robot.
-    feederServoL = new CrServo(hardwareMap, "FeederServoL", true);
-    feederServoR = new CrServo(hardwareMap, "FeederServoR", false);
+    // Reversed: on Mark 3 a positive raw power runs the tunnel backward
+    // (Servo Check and driving, 27 Oct).
+    feederServo = new CrServo(hardwareMap, "FeederServo", true);
 
     setFeederState(FeederState.STOP);
   }
@@ -42,13 +43,16 @@ public class FeederSubsystem extends SubsystemBase {
 
     switch (feederState) {
       case STOP:
-        setFeederPower(0.0);
+        feederServo.stop();
         break;
       case FEED:
-        setFeederPower(FEED_POWER);
+        feederServo.setPower(FEED_POWER);
+        break;
+      case HOLD:
+        feederServo.setPower(-HOLD_POWER);
         break;
       case EJECT:
-        setFeederPower(-EJECT_POWER);
+        feederServo.setPower(-EJECT_POWER);
         break;
     }
   }
@@ -66,11 +70,6 @@ public class FeederSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     Logger.recordOutput("Feeder/State", feederState);
-    Logger.recordOutput("Feeder/CommandedPower", feederServoL.getCommandedPower());
-  }
-
-  private void setFeederPower(double power) {
-    feederServoL.setPower(power);
-    feederServoR.setPower(power);
+    Logger.recordOutput("Feeder/CommandedPower", feederServo.getCommandedPower());
   }
 }
