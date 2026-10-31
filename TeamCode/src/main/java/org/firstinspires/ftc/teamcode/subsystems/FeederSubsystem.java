@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.util.CrServo;
+import org.firstinspires.ftc.teamcode.servo.CrServo;
 import org.psilynx.psikit.core.Logger;
 
 /**

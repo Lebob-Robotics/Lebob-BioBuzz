@@ -24,6 +24,10 @@ import org.psilynx.psikit.core.wpi.math.Rotation2d;
  * but X and Y are wrong once the robot turns.
  */
 public class OdometrySubsystem extends SubsystemBase {
+  // ---- Tuning ----------------------------------------------------------
+  // The SDK javadoc only says "X (forward) velocity", so the frame is unconfirmed.
+  private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // TODO verify
+
   private static final Pose2D ZERO_POSE =
       new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0);
 
@@ -53,6 +57,9 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return;
     }
+    // Andre's values, which the robot has been driving on. CAD gives (-71.5, 0.1) to the middle of the
+    // four wheels, the centre ShootOnTheMoveConstants uses. TODO replace with the Odometry Calibration
+    // result once the pods are on the right ports.
     pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     pinpoint.setEncoderDirections(
@@ -94,11 +101,38 @@ public class OdometrySubsystem extends SubsystemBase {
     Logger.recordOutput("Odometry/Velocity/YInchesPerSec", pinpoint.getVelY(DistanceUnit.INCH));
     Logger.recordOutput("Odometry/Velocity/HeadingDegreesPerSec",
         pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
+    double[] velocity = getVelocityMetersPerSec();
+    Logger.recordOutput("Odometry/VelocityField", new double[] { velocity[0], velocity[1] });
     Logger.recordOutput("Odometry/DeviceStatus", String.valueOf(pinpoint.getDeviceStatus()));
   }
 
   public Pose2D getPose() {
     return pinpoint == null ? ZERO_POSE : pinpoint.getPosition();
+  }
+
+  /**
+   * Velocity in the field frame.
+   *
+   * @return {vx m/s, vy m/s, omega rad/s}
+   */
+  public double[] getVelocityMetersPerSec() {
+    if (pinpoint == null) {
+      return new double[] { 0, 0, 0 };
+    }
+    double vx = pinpoint.getVelX(DistanceUnit.METER);
+    double vy = pinpoint.getVelY(DistanceUnit.METER);
+    double omega = pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS);
+
+    if (!PINPOINT_VELOCITY_IS_FIELD_FRAME) {
+      double heading = pinpoint.getPosition().getHeading(AngleUnit.RADIANS);
+      double cos = Math.cos(heading);
+      double sin = Math.sin(heading);
+      double fieldVx = vx * cos - vy * sin;
+      double fieldVy = vx * sin + vy * cos;
+      vx = fieldVx;
+      vy = fieldVy;
+    }
+    return new double[] { vx, vy, omega };
   }
 
   /** Zeroes the reported heading in place, keeping the current position. */

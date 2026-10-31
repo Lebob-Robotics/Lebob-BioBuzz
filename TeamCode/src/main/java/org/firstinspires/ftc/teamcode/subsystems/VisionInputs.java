@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
@@ -25,6 +26,7 @@ public class VisionInputs implements LoggableInputs {
   public double fps = 0.0;
 
   public int[] tagIds = new int[0];
+  public String[] clusterNames = new String[0]; // For example "RED SCORING". "" for a single tag
   public double[] range = new double[0];
   public double[] bearing = new double[0];
   public double[] elevation = new double[0];
@@ -33,17 +35,23 @@ public class VisionInputs implements LoggableInputs {
   public double[] y = new double[0];
   public double[] z = new double[0];
   public double[] decisionMargin = new double[0];
+  /** Per detection: frame acquisition time (detection.frameAcquisitionNanoTime). */
+  public long[] frameNanos = new long[0];
+  /** System.nanoTime() when this capture was taken. Zero before the first capture. */
+  public long captureNanos = 0;
 
   /** Copies the processor's current detections into this object. Live only. */
   public void capture(AprilTagProcessor processor, VisionPortal portal) {
     available = processor != null;
     fps = portal == null ? 0.0 : portal.getFps();
+    captureNanos = System.nanoTime();
 
     List<AprilTagDetection> detections = processor == null
         ? Collections.<AprilTagDetection>emptyList()
         : processor.getDetections();
     int n = detections.size();
     tagIds = new int[n];
+    clusterNames = new String[n];
     range = new double[n];
     bearing = new double[n];
     elevation = new double[n];
@@ -52,15 +60,21 @@ public class VisionInputs implements LoggableInputs {
     y = new double[n];
     z = new double[n];
     decisionMargin = new double[n];
+    frameNanos = new long[n];
 
     for (int i = 0; i < n; i++) {
       AprilTagDetection detection = detections.get(i);
+      frameNanos[i] = detection.frameAcquisitionNanoTime;
       if (detection instanceof AprilTagSingleDetection) {
         AprilTagSingleDetection single = (AprilTagSingleDetection) detection;
         tagIds[i] = single.id;
+        clusterNames[i] = "";
         decisionMargin[i] = single.decisionMargin;
       } else {
         tagIds[i] = CLUSTER_ID;
+        clusterNames[i] = detection instanceof AprilTagClusterDetection
+            ? ((AprilTagClusterDetection) detection).metadata.name
+            : "";
         decisionMargin[i] = Double.NaN;
       }
 
@@ -115,6 +129,7 @@ public class VisionInputs implements LoggableInputs {
     table.put("Available", available);
     table.put("Fps", fps);
     table.put("TagIds", tagIds);
+    table.put("ClusterNames", clusterNames);
     table.put("RangeIn", range);
     table.put("BearingDeg", bearing);
     table.put("ElevationDeg", elevation);
@@ -123,6 +138,8 @@ public class VisionInputs implements LoggableInputs {
     table.put("YIn", y);
     table.put("ZIn", z);
     table.put("DecisionMargin", decisionMargin);
+    table.put("FrameNanos", frameNanos);
+    table.put("CaptureNanos", captureNanos);
   }
 
   @Override
@@ -130,6 +147,7 @@ public class VisionInputs implements LoggableInputs {
     available = table.get("Available", available);
     fps = table.get("Fps", fps);
     tagIds = table.get("TagIds", tagIds);
+    clusterNames = table.get("ClusterNames", clusterNames);
     range = table.get("RangeIn", range);
     bearing = table.get("BearingDeg", bearing);
     elevation = table.get("ElevationDeg", elevation);
@@ -138,5 +156,7 @@ public class VisionInputs implements LoggableInputs {
     y = table.get("YIn", y);
     z = table.get("ZIn", z);
     decisionMargin = table.get("DecisionMargin", decisionMargin);
+    frameNanos = table.get("FrameNanos", frameNanos);
+    captureNanos = table.get("CaptureNanos", captureNanos);
   }
 }

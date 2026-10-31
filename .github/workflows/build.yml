@@ -52,3 +52,7 @@ jobs:
 
       - name: Assemble the TeamCode debug APK
         run: ./gradlew :TeamCode:assembleDebug --no-daemon --stacktrace
+
+      # JVM unit tests for the shoot-on-the-move maths (no robot needed).
+      - name: Run TeamCode unit tests
+        run: ./gradlew :TeamCode:testDebugUnitTest --no-daemon --stacktrace
