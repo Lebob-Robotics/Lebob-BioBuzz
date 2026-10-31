@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -47,6 +49,22 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double triggerLimit = 0.5;
+  /** Hood power while d-pad up/down is held. Low, since nothing stops it at the ends. */
+  private static final double HOOD_MANUAL_POWER = 0.3;
+  /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
+  private static final int STALL_RUMBLE_MS = 1000;
+
+  /** Battery voltage is a separate hub read, so sample it this often. */
+  private static final double BATTERY_SAMPLE_PERIOD_S = 0.1;
+
+  private boolean shooterWasStalled;
+
+  /** Null if the config has no voltage sensor. */
+  private final VoltageSensor battery;
+  private final ElapsedTime clock = new ElapsedTime();
+  private double lastBatterySampleS = Double.NEGATIVE_INFINITY;
+  private double batteryVolts = Double.NaN;
+  private double batteryMinVolts = Double.NaN;
 
   /** How the shooter is being driven this loop. */
   private enum Mode {
@@ -57,8 +75,6 @@ public class Robot {
   private Alliance alliance = Alliance.RED;
   // Last valid solved RPM, held while a solution is briefly invalid. NaN = none yet.
   private double lastAimRpm = Double.NaN;
-  // Last loop's full flag, to rumble once when the tunnel fills.
-  private boolean wasFull = false;
 
   // Vision pose correction. The history holds the odometry pose of each loop,
   // stamped with that loop's vision capture time, so a frame's pose can be looked up.
@@ -89,6 +105,27 @@ public class Robot {
     indexer = new IndexerSubsystem(hardwareMap);
     hood = new HoodSubsystem(hardwareMap);
     vision = new VisionSubsystem(hardwareMap);
+
+    // Both hubs read the same battery, so one sensor is enough.
+    battery = hardwareMap.voltageSensor.iterator().hasNext()
+        ? hardwareMap.voltageSensor.iterator().next() : null;
+  }
+
+  /**
+   * Samples the battery voltage, keeping the lowest seen this run (it sags
+   * when the shooter spins up), then logs it and adds it to telemetry.
+   */
+  private void updateBattery() {
+    double now = clock.seconds();
+    if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
+      lastBatterySampleS = now;
+      batteryVolts = battery.getVoltage();
+      batteryMinVolts = Double.isNaN(batteryMinVolts)
+          ? batteryVolts : Math.min(batteryMinVolts, batteryVolts);
+    }
+    Logger.recordOutput("Robot/BatteryVolts", batteryVolts);
+    Logger.recordOutput("Robot/BatteryMinVolts", batteryMinVolts);
+    telemetry.addData("Battery", "%.2f V (lowest %.2f V)", batteryVolts, batteryMinVolts);
   }
 
   /** Called once when the OpMode enters INIT. */
@@ -98,10 +135,16 @@ public class Robot {
     shooter.setShooterState(ShooterState.IDLE);
   }
 
-  /** Called repeatedly during INIT: the driver picks the alliance. */
+  /**
+   * Called repeatedly during INIT: the driver picks the alliance. The shooter
+   * already runs at IDLE here, so its stall guard must too.
+   */
   public void initLoop() {
     pollAlliance();
+    shooter.periodic();
+    updateBattery();
     telemetry.addData("Alliance", alliance + "  (X = BLUE, B = RED)");
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.update();
   }
 
@@ -188,19 +231,16 @@ public class Robot {
 
     boolean rightTriggerPressed = driver.right_trigger > triggerLimit;
     boolean leftTriggerPressed = driver.left_trigger > triggerLimit;
-    // Intaking alone stops once the tunnel holds 4; shooting keeps everything
-    // running so the balls can leave.
-    boolean full = intake.isFull();
-    boolean loading = leftTriggerPressed && !full;
-    if (leftTriggerPressed && full && !wasFull) {
-      driver.rumble(300);
-    }
-    wasFull = full;
+    // LT loads: the intake and indexer bring balls up to the feeder, which
+    // runs backward to hold them there. RT shoots: the indexer and feeder push
+    // the queued balls into the shooter, and the intake stays off. RT wins if
+    // both are held.
+    boolean loading = leftTriggerPressed && !rightTriggerPressed;
     boolean eject = driver.b;
     boolean manualOverride = driver.y;
 
-    // Aim needs a trusted pose and no manual override.
-    boolean poseValid = ShootOnTheMove.poseValid;
+    // Aim needs a trusted pose (so a Pinpoint) and no manual override.
+    boolean poseValid = ShootOnTheMove.poseValid && odometry.isAvailable();
     Mode mode = Mode.IDLE;
     if (rightTriggerPressed) {
       mode = (poseValid && !manualOverride) ? Mode.AIM : Mode.MANUAL;
@@ -221,7 +261,8 @@ public class Robot {
     boolean aimValid = mode == Mode.AIM && sol.valid;
 
     // Driver input: set every subsystem's state for this loop.
-    boolean fieldCentric = !driver.left_bumper;
+    // Field-centric needs the Pinpoint's heading.
+    boolean fieldCentric = !driver.left_bumper && odometry.isAvailable();
     double forward = -driver.left_stick_y;
     double right = driver.left_stick_x;
     if (aimValid) {
@@ -242,7 +283,7 @@ public class Robot {
     }
 
     Logger.recordOutput("Robot/Driver/Shoot", rightTriggerPressed);
-    Logger.recordOutput("Robot/Driver/Intake", leftTriggerPressed || rightTriggerPressed);
+    Logger.recordOutput("Robot/Driver/Intake", leftTriggerPressed);
     Logger.recordOutput("Robot/Loading", loading);
     Logger.recordOutput("Robot/Driver/Eject", eject);
     Logger.recordOutput("Robot/Driver/StopShooter", driver.x);
@@ -276,7 +317,7 @@ public class Robot {
     IntakeState newIntakeState = IntakeState.STOP;
     if (eject) {
       newIntakeState = IntakeState.EJECT;
-    } else if (loading || rightTriggerPressed) {
+    } else if (loading) {
       newIntakeState = IntakeState.INTAKE;
     }
     intake.setIntakeState(newIntakeState);
@@ -284,35 +325,38 @@ public class Robot {
     FeederState newFeederState = FeederState.STOP;
     if (eject) {
       newFeederState = FeederState.EJECT;
-    } else if (loading || rightTriggerPressed) {
+    } else if (rightTriggerPressed) {
       newFeederState = FeederState.FEED;
+    } else if (loading) {
+      newFeederState = FeederState.HOLD;
     }
     feeder.setFeederState(newFeederState);
 
-    // Intaking loads the tunnel; the indexer holds back so balls cannot creep
-    // into the shooter. Only RT feeds, and in AIM each ball waits for the gate.
+    // The indexer carries balls up while loading and into the shooter on RT. In
+    // AIM each ball waits for the gate (loading is never AIM, so it is not gated).
     IndexerState newIndexerState = IndexerState.STOP;
     if (eject) {
       newIndexerState = IndexerState.EJECT;
-    } else if (rightTriggerPressed) {
+    } else if (rightTriggerPressed || loading) {
       newIndexerState = IndexerState.FEED;
-    } else if (loading) {
-      newIndexerState = IndexerState.HOLD;
     }
     // Gate first, so entering FEED never writes full power for a closed gate.
     indexer.setFeedAllowed(mode != Mode.AIM || gate.allowed);
     indexer.setIndexerState(newIndexerState);
 
-    if (aimValid) {
+    // Holding d-pad up/down moves the hood by hand and beats aiming: it is
+    // the way to move it while its encoder is not on the HoodMotor port. Aim
+    // and the d-pad presets need that encoder.
+    if (driver.dpad_up) {
+      hood.setManualPower(HOOD_MANUAL_POWER);
+    } else if (driver.dpad_down) {
+      hood.setManualPower(-HOOD_MANUAL_POWER);
+    } else if (aimValid) {
       hood.setTargetTicks(HoodSubsystem.angleToTicks(sol.hoodCommandDeg));
-    } else if (driver.dpad_up) {
-      hood.setPreset(HoodPreset.FAR);
     } else if (driver.dpad_right) {
       hood.setPreset(HoodPreset.MID);
-    } else if (driver.dpad_down) {
-      hood.setPreset(HoodPreset.CLOSE);
     } else if (driver.dpad_left) {
-      hood.setPreset(HoodPreset.STOW);
+      hood.setPreset(HoodPreset.FAR);
     }
 
     // Run after the states above are set, so the hood P loop and every
@@ -326,6 +370,11 @@ public class Robot {
       poseHistory.add(stamp, new Pose(posX, posY, heading));
       lastHistoryNanos = stamp;
     }
+
+    if (shooter.isStalled() && !shooterWasStalled) {
+      driver.rumble(STALL_RUMBLE_MS);
+    }
+    shooterWasStalled = shooter.isStalled();
 
     addTelemetry(mode, sol, gate, heading);
     telemetry.update();
@@ -385,6 +434,7 @@ public class Robot {
   }
 
   private void addTelemetry(Mode mode, Solution sol, GateResult gate, double heading) {
+    updateBattery();
     telemetry.addData("Alliance", alliance + "  poseValid " + ShootOnTheMove.poseValid);
     telemetry.addData("Mode", mode);
     if (sol != null) {
@@ -404,16 +454,16 @@ public class Robot {
         telemetry.addData("Solution", sol.reason);
       }
     }
-    telemetry.addData("Pose", odometry.getPose());
+    telemetry.addData("Pose", odometry.isAvailable()
+        ? odometry.getPose() : "no Pinpoint, robot-centric drive");
     telemetry.addData("Shooter", shooter.getShooterState()
         + (shooter.isAtSpeed() ? " at speed" : ""));
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addData("Feeder", feeder.getFeederState());
     telemetry.addData("Indexer", indexer.getIndexerState()
         + (indexer.isFeedAllowed() ? "" : " (feed blocked)"));
     telemetry.addData("Hood", String.format("%s  %d / %d",
         hood.getPreset(), hood.getPosition(), hood.getTarget()));
-    telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken()
-        + (intake.isFull() ? "  FULL" : ""));
     telemetry.addData("Vision", visionLine());
     telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
