@@ -68,6 +68,8 @@ public class HoodSubsystem extends SubsystemBase {
   // When on, directTicks overrides the preset (used for continuous aiming).
   private boolean directMode = false;
   private int directTicks = 0;
+  // Open-loop power that overrides the P loop. NaN = follow the preset.
+  private double manualPower = Double.NaN;
 
   // What the last P loop step saw, kept for logging.
   private int lastPosition;
@@ -90,10 +92,17 @@ public class HoodSubsystem extends SubsystemBase {
 
   @Override
   public void periodic() {
-    runPositionLoop();
+    if (Double.isNaN(manualPower)) {
+      runPositionLoop();
+    } else {
+      // No soft limits: they need the encoder, which manual mode does not trust.
+      lastPosition = hoodMotor.getPosition();
+      hoodMotor.setPower(manualPower);
+    }
 
     Logger.recordOutput("Hood/Preset", preset);
     Logger.recordOutput("Hood/DirectMode", directMode);
+    Logger.recordOutput("Hood/ManualPower", manualPower);
     Logger.recordOutput("Hood/TargetTicks", getTarget());
     Logger.recordOutput("Hood/PositionTicks", lastPosition);
     Logger.recordOutput("Hood/TargetAngleDeg", ticksToAngle(getTarget()));
@@ -133,6 +142,7 @@ public class HoodSubsystem extends SubsystemBase {
   public void setPreset(HoodPreset newPreset) {
     preset = newPreset;
     directMode = false;
+    manualPower = Double.NaN;
   }
 
   /**
@@ -142,11 +152,20 @@ public class HoodSubsystem extends SubsystemBase {
   public void setTargetTicks(int ticks) {
     directTicks = Math.max(MIN_TICKS, Math.min(maxTicks(), ticks));
     directMode = true;
+    manualPower = Double.NaN;
   }
 
   /** True while a direct-ticks target is overriding the preset. */
   public boolean isDirectMode() {
     return directMode;
+  }
+
+  /**
+   * Drives the hood open loop at this power (0 holds it with brake), ignoring
+   * the preset and soft limits until the next {@link #setPreset(HoodPreset)}.
+   */
+  public void setManualPower(double power) {
+    manualPower = power;
   }
 
   public HoodPreset getPreset() {
