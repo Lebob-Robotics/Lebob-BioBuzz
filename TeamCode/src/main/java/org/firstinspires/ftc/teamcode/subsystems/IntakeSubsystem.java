@@ -12,6 +12,14 @@ import org.psilynx.psikit.core.Logger;
  * both look at the last (4th) tunnel position and so tell when we are full.
  */
 public class IntakeSubsystem extends SubsystemBase {
+  /** False until the beam breaks are wired and in the config. Without them the intake never reports full. */
+  private static final boolean BEAM_BREAKS_WIRED = false;
+  /**
+   * The intake has run in power mode since 27 Oct: under speed control it surged on and off, because
+   * its encoder was unplugged or counted the wrong way. Set true once the log shows its velocity
+   * rising when it intakes.
+   */
+  private static final boolean INTAKE_USES_ENCODER = false;
   /** Loops a beam reading must hold before "full" changes, to ignore flicker. */
   private static final int FULL_DEBOUNCE_LOOPS = 3; // TODO tune on robot
 
@@ -30,12 +38,18 @@ public class IntakeSubsystem extends SubsystemBase {
   private int fullChangeLoops = 0;
 
   public IntakeSubsystem(HardwareMap hardwareMap) {
-    intakeMotor = GobildaMotor.speedControlled(hardwareMap, "IntakeMotor", true, false);
-    beamBreakTop = hardwareMap.get(DigitalChannel.class, "BeamBreakT");
-    beamBreakBottom = hardwareMap.get(DigitalChannel.class, "BeamBreakB");
-    beamBreakTop.setMode(DigitalChannel.Mode.INPUT);
-    beamBreakBottom.setMode(DigitalChannel.Mode.INPUT);
+    intakeMotor = INTAKE_USES_ENCODER
+        ? GobildaMotor.speedControlled(hardwareMap, "IntakeMotor", false, false)
+        : GobildaMotor.powerControlled(hardwareMap, "IntakeMotor", false, false);
+    beamBreakTop = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, "BeamBreakT") : null;
+    beamBreakBottom = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, "BeamBreakB") : null;
     setIntakeState(IntakeState.STOP);
+  }
+
+  private static DigitalChannel createBeamBreak(HardwareMap hardwareMap, String name) {
+    DigitalChannel beamBreak = hardwareMap.get(DigitalChannel.class, name);
+    beamBreak.setMode(DigitalChannel.Mode.INPUT);
+    return beamBreak;
   }
 
   private void doIntakeState() {
@@ -68,12 +82,12 @@ public class IntakeSubsystem extends SubsystemBase {
 
   /** True when a ball blocks the top beam. The receiver output goes low when broken. */
   public boolean isTopBroken() {
-    return !beamBreakTop.getState();
+    return BEAM_BREAKS_WIRED && !beamBreakTop.getState();
   }
 
   /** True when a ball blocks the bottom beam. The receiver output goes low when broken. */
   public boolean isBottomBroken() {
-    return !beamBreakBottom.getState();
+    return BEAM_BREAKS_WIRED && !beamBreakBottom.getState();
   }
 
   /**

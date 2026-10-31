@@ -112,3 +112,34 @@ run the `TeamCode` configuration. Android Studio does the same `adb install` and
 launch shown above. If the Hub does not appear in the device dropdown, run
 `adb connect 192.168.43.1:5555` in a terminal first; Android Studio picks up
 devices from the same adb server.
+
+## Deploy with Sloth (hot reload)
+
+The full install above takes a long time because it sends the whole APK. For
+day-to-day changes, deploy with [Sloth](https://github.com/Dairy-Foundation/Sloth),
+which sends only the TeamCode classes and reloads them on the Hub in about a
+second. The Gradle build already has Sloth wired in (`TeamCode/build.gradle`
+applies the `dev.frozenmilk.sinister.sloth.load` plugin and depends on
+`dev.frozenmilk.sinister:Sloth`), so no extra setup is needed beyond the
+requirements above.
+
+```
+./gradlew :TeamCode:deploySloth
+```
+
+`deploySloth` connects to the Hub at `192.168.43.1` with adb by itself and
+pushes the change. Run it again after every edit. Changes are kept across Hub
+restarts. Only classes in `org.firstinspires.ftc.teamcode` are reloaded, so a
+change elsewhere, or a change to a library, needs a full install.
+
+Things to know:
+
+- **A full install removes the Sloth copy.** `installDebug` and
+  `installRelease` run `removeSlothRemote` first, so the APK you install is the
+  one that runs. You don't need to clear anything by hand.
+- **If a Sloth deploy reports a lock file,** a previous load was probably
+  interrupted. Restart the Robot Controller app or the Hub, then deploy again.
+- **To remove Sloth code from the Hub without installing**, run
+  `./gradlew :TeamCode:removeSlothRemote`.
+- **In Android Studio,** add a Gradle run configuration for the `TeamCode`
+  module with the task `:TeamCode:deploySloth`.

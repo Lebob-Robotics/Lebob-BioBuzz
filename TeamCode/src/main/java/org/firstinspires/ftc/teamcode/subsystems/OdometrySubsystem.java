@@ -14,17 +14,39 @@ import org.psilynx.psikit.core.wpi.math.Rotation2d;
 
 /**
  * Wraps a goBILDA Pinpoint Odometry Computer reading two dead-wheel pods, and
- * reports the robot's field pose.
+ * reports the robot's field pose: X forward, Y left, heading counterclockwise.
+ *
+ * <p>
+ * The forward pod must be on the Pinpoint's X port and the strafe pod on its Y
+ * port. On 27 Oct Mark 3 had them the other way round: pushing the robot
+ * forward raised Y and pushing it left raised X. The heading comes from the
+ * Pinpoint's IMU, so field-centric driving still works with the pods swapped,
+ * but X and Y are wrong once the robot turns.
  */
 public class OdometrySubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   // The SDK javadoc only says "X (forward) velocity", so the frame is unconfirmed.
   private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // TODO verify
 
+  private static final Pose2D ZERO_POSE =
+      new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0);
+
+  /** Null when "pinpoint" is not in the config: the pose then stays at zero. */
   private final GoBildaPinpointDriver pinpoint;
 
   public OdometrySubsystem(HardwareMap hardwareMap) {
-    pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+    GoBildaPinpointDriver found = null;
+    try {
+      found = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+    } catch (IllegalArgumentException e) {
+      // Not configured; run without odometry.
+    }
+    pinpoint = found;
+  }
+
+  /** True when the Pinpoint is configured. */
+  public boolean isAvailable() {
+    return pinpoint != null;
   }
 
   /**
@@ -32,11 +54,13 @@ public class OdometrySubsystem extends SubsystemBase {
    * pose.
    */
   public void init() {
-    // From the 25 Oct CAD, relative to the robot centre (the middle of the four mecanum wheels),
-    // which the shooter and camera positions in ShootOnTheMoveConstants also use: the X pod is
-    // 71.5 mm right of centre and the Y pod is on the centre line.
-    // TODO replace with the Odometry Calibration OpMode result.
-    pinpoint.setOffsets(-71.5, 0.1, DistanceUnit.MM);
+    if (pinpoint == null) {
+      return;
+    }
+    // Andre's values, which the robot has been driving on. CAD gives (-71.5, 0.1) to the middle of the
+    // four wheels, the centre ShootOnTheMoveConstants uses. TODO replace with the Odometry Calibration
+    // result once the pods are on the right ports.
+    pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     pinpoint.setEncoderDirections(
         GoBildaPinpointDriver.EncoderDirection.FORWARD,
@@ -54,6 +78,9 @@ public class OdometrySubsystem extends SubsystemBase {
    */
   @Override
   public void periodic() {
+    if (pinpoint == null) {
+      return;
+    }
     if (!Logger.isRunning()) {
       pinpoint.update();
     }
@@ -80,7 +107,7 @@ public class OdometrySubsystem extends SubsystemBase {
   }
 
   public Pose2D getPose() {
-    return pinpoint.getPosition();
+    return pinpoint == null ? ZERO_POSE : pinpoint.getPosition();
   }
 
   /**
@@ -89,6 +116,9 @@ public class OdometrySubsystem extends SubsystemBase {
    * @return {vx m/s, vy m/s, omega rad/s}
    */
   public double[] getVelocityMetersPerSec() {
+    if (pinpoint == null) {
+      return new double[] { 0, 0, 0 };
+    }
     double vx = pinpoint.getVelX(DistanceUnit.METER);
     double vy = pinpoint.getVelY(DistanceUnit.METER);
     double omega = pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS);
@@ -105,22 +135,11 @@ public class OdometrySubsystem extends SubsystemBase {
     return new double[] { vx, vy, omega };
   }
 
-  /** Overwrites the tracked pose, e.g. to start from a known field position. */
-  public void setPose(double xMeters, double yMeters, double headingRad) {
-    pinpoint.setPosition(new Pose2D(
-        DistanceUnit.METER, xMeters, yMeters, AngleUnit.RADIANS, headingRad));
-  }
-
-  /** Sets the reported heading in place, keeping the current position. */
-  public void setHeading(double headingRad) {
-    Pose2D current = pinpoint.getPosition();
-    pinpoint.setPosition(new Pose2D(
-        DistanceUnit.MM, current.getX(DistanceUnit.MM), current.getY(DistanceUnit.MM),
-        AngleUnit.RADIANS, headingRad));
-  }
-
   /** Zeroes the reported heading in place, keeping the current position. */
   public void resetHeading() {
+    if (pinpoint == null) {
+      return;
+    }
     Pose2D current = pinpoint.getPosition();
     pinpoint.setPosition(new Pose2D(
         DistanceUnit.MM, current.getX(DistanceUnit.MM), current.getY(DistanceUnit.MM),

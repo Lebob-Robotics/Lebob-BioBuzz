@@ -21,6 +21,12 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   public static double HEADING_KP = 1.0; // TODO tune on robot
   public static double HEADING_KD = 0.05; // TODO tune on robot
   public static double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
+  /**
+   * Speed control needs every drive encoder counting the same way as its motor. On 27 Oct DriveFL's
+   * counted backward, which under speed control makes the wheel run away at full speed. Set true
+   * once Drive Check shows all four encoders count forward when the robot drives forward.
+   */
+  private static final boolean DRIVE_USES_ENCODERS = false;
 
   private final GobildaMotor frontLeft;
   private final GobildaMotor frontRight;
@@ -41,16 +47,22 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   private double headingErrorRad;
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
-    // Left motors are flipped so that a positive power on every motor drives
-    // straight.
+    // Set so that a positive power on every motor drives the robot forward.
+    // From the Mark 3 log of 27 Oct 17:51: with the left side forward and the
+    // right side reversed, a forward stick spun the robot counterclockwise and
+    // a clockwise rotate drove it backward (Pinpoint pods), so the left side
+    // was inverted. DriveFL's encoder counts against its motor, so it reads
+    // backward while the wheel drives forward.
     frontLeft = createDriveMotor(hardwareMap, "DriveFL", true);
-    frontRight = createDriveMotor(hardwareMap, "DriveFR", false);
-    backLeft = createDriveMotor(hardwareMap, "DriveBL", true);
-    backRight = createDriveMotor(hardwareMap, "DriveBR", false);
+    frontRight = createDriveMotor(hardwareMap, "DriveFR", true);
+    backLeft = createDriveMotor(hardwareMap, "DriveBL", false);
+    backRight = createDriveMotor(hardwareMap, "DriveBR", true);
   }
 
   private static GobildaMotor createDriveMotor(HardwareMap hardwareMap, String name, boolean reversed) {
-    return GobildaMotor.speedControlled(hardwareMap, name, reversed, false);
+    return DRIVE_USES_ENCODERS
+        ? GobildaMotor.speedControlled(hardwareMap, name, reversed, false)
+        : GobildaMotor.powerControlled(hardwareMap, name, reversed, false);
   }
 
   /**
@@ -82,9 +94,30 @@ public class MecanumDriveSubsystem extends SubsystemBase {
       right = r * Math.cos(theta);
     }
 
-    double frontLeftPower = forward - right + rotate;
+    mix(forward, right, rotate, wheelPowers);
+    for (int i = 0; i < wheelPowers.length; i++) {
+      wheelPowers[i] *= GobildaMotor.MAX_OUTPUT; // Full stick reaches the motor cap on every wheel together, so the direction stays exact
+    }
+
+    frontLeft.setPower(wheelPowers[0]);
+    frontRight.setPower(wheelPowers[1]);
+    backLeft.setPower(wheelPowers[2]);
+    backRight.setPower(wheelPowers[3]);
+  }
+
+  /**
+   * Robot-centric mecanum mix (gm0), with the rollers forming an X seen from
+   * above.
+   *
+   * @param forward forward power, [-1, 1]
+   * @param right   strafe-right power, [-1, 1]
+   * @param rotate  clockwise rotation power, [-1, 1]
+   * @param out     receives the wheel powers {FL, FR, BL, BR}
+   */
+  static void mix(double forward, double right, double rotate, double[] out) {
+    double frontLeftPower = forward + right + rotate;
     double frontRightPower = forward - right - rotate;
-    double backLeftPower = forward + right + rotate;
+    double backLeftPower = forward - right + rotate;
     double backRightPower = forward + right - rotate;
 
     // Scale all wheels down together so no power exceeds 1 and the direction
@@ -93,16 +126,10 @@ public class MecanumDriveSubsystem extends SubsystemBase {
         Math.max(Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower)),
             Math.max(Math.abs(backLeftPower), Math.abs(backRightPower))));
 
-    double scale = GobildaMotor.MAX_OUTPUT / maxPower; // Full stick reaches the motor cap on every wheel together, so the direction stays exact
-    wheelPowers[0] = frontLeftPower * scale;
-    wheelPowers[1] = frontRightPower * scale;
-    wheelPowers[2] = backLeftPower * scale;
-    wheelPowers[3] = backRightPower * scale;
-
-    frontLeft.setPower(wheelPowers[0]);
-    frontRight.setPower(wheelPowers[1]);
-    backLeft.setPower(wheelPowers[2]);
-    backRight.setPower(wheelPowers[3]);
+    out[0] = frontLeftPower / maxPower;
+    out[1] = frontRightPower / maxPower;
+    out[2] = backLeftPower / maxPower;
+    out[3] = backRightPower / maxPower;
   }
 
   /**

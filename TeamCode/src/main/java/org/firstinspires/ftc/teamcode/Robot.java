@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -42,11 +44,16 @@ import org.psilynx.psikit.core.Logger;
  *       aimed shot is ready sooner.</li>
  *   <li>Y held: manual shot at full power, without aiming or waiting. A fallback for when the camera
  *       can't see the Cell.</li>
- *   <li>Left trigger held, or left bumper to toggle: intake. Both stop at 4 balls.</li>
- *   <li>B: eject. X: stop the shooter (also ends spin-up). A: reset heading.</li>
+ *   <li>Left trigger held, or left bumper to toggle: intake. The feeder runs backward to queue the
+ *       balls short of the shooter. Both stop at 4 balls once the beam breaks are wired.</li>
+ *   <li>B: eject. X: stop the shooter (also ends spin-up, and resets a stall trip). A: reset
+ *       heading.</li>
  *   <li>D-pad: hood presets, or while aiming, up and down trim the RPM.</li>
  *   <li>During INIT, X picks blue and B picks red.</li>
  * </ul>
+ *
+ * <p>Balls go from the intake to the indexer to the feeder to the shooter. The feeder is the last
+ * stage, so it is what waits for READY on an aimed shot.
  */
 public class Robot {
   private final Telemetry telemetry;
@@ -62,6 +69,17 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double TRIGGER_PRESSED = 0.5;
+  /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
+  private static final int STALL_RUMBLE_MS = 1000;
+  /** Battery voltage is a separate hub read, so sample it this often. */
+  private static final double BATTERY_SAMPLE_PERIOD_S = 0.1;
+
+  /** Null if the config has no voltage sensor. */
+  private final VoltageSensor battery;
+  private final ElapsedTime clock = new ElapsedTime();
+  private double lastBatterySampleS = Double.NEGATIVE_INFINITY;
+  private double batteryVolts = Double.NaN;
+  private double batteryMinVolts = Double.NaN;
 
   /** Where shoot on the move is up to. Shown to the driver and logged. */
   public enum AimState {
@@ -84,6 +102,7 @@ public class Robot {
   private boolean wasDpadDown = false;
   private boolean wasLeftBumper = false;
   private boolean wasRightBumper = false;
+  private boolean shooterWasStalled = false;
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driver) {
     this.telemetry = telemetry;
@@ -99,6 +118,10 @@ public class Robot {
     indexer = new IndexerSubsystem(hardwareMap);
     hood = new HoodSubsystem(hardwareMap);
     vision = new VisionSubsystem(hardwareMap);
+
+    // Both hubs read the same battery, so one sensor is enough.
+    battery = hardwareMap.voltageSensor.iterator().hasNext()
+        ? hardwareMap.voltageSensor.iterator().next() : null;
   }
 
   /** Called once when the OpMode enters INIT. */
@@ -108,10 +131,16 @@ public class Robot {
     shooter.setShooterState(ShooterState.IDLE);
   }
 
-  /** Called repeatedly during INIT: the driver picks the alliance. */
+  /**
+   * Called repeatedly during INIT: the driver picks the alliance. The shooter already idles here, so
+   * its stall guard must run too.
+   */
   public void initLoop() {
     pollAlliance();
+    shooter.periodic();
+    updateBattery();
     telemetry.addData("Alliance", alliance + "  (X = BLUE, B = RED)");
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.update();
   }
 
@@ -159,6 +188,12 @@ public class Robot {
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
 
+    if (shooter.isStalled() && !shooterWasStalled) {
+      driver.rumble(STALL_RUMBLE_MS);
+    }
+    shooterWasStalled = shooter.isStalled();
+
+    updateBattery();
     logAim(aim);
     addTelemetry(aim, pose);
     telemetry.update();
@@ -276,12 +311,17 @@ public class Robot {
     }
   }
 
+  /**
+   * Shooting runs the indexer and feeder into the shooter with the intake off. An aimed shot holds the
+   * feeder backward until READY, so the indexer queues balls against it. Loading runs the intake and
+   * indexer with the feeder backward, so balls stop short of the shooter. Shooting wins over loading.
+   */
   private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
-    boolean shooting = aiming || driver.y; // Aimed shots wait for READY at the indexer
+    boolean shooting = aiming || driver.y;
     boolean intaking = driver.left_trigger > TRIGGER_PRESSED || intakeOn;
     boolean ejecting = driver.b;
     boolean full = intake.isFull();
-    boolean loading = intaking && !full; // Shooting keeps everything running, so balls can leave
+    boolean loading = intaking && !full && !shooting;
     if (intaking && full && !wasFull) {
       driver.rumble(300);
     }
@@ -292,24 +332,20 @@ public class Robot {
 
     if (ejecting) {
       intake.setIntakeState(IntakeState.EJECT);
+      indexer.setIndexerState(IndexerState.EJECT);
       feeder.setFeederState(FeederState.EJECT);
-    } else if (loading || shooting) {
+    } else if (shooting) {
+      intake.setIntakeState(IntakeState.STOP);
+      indexer.setIndexerState(IndexerState.FEED);
+      feeder.setFeederState(!aiming || ready ? FeederState.FEED : FeederState.HOLD);
+    } else if (loading) {
       intake.setIntakeState(IntakeState.INTAKE);
-      feeder.setFeederState(FeederState.FEED);
+      indexer.setIndexerState(IndexerState.FEED);
+      feeder.setFeederState(FeederState.HOLD);
     } else {
       intake.setIntakeState(IntakeState.STOP);
-      feeder.setFeederState(FeederState.STOP);
-    }
-
-    indexer.setFeedAllowed(!aiming || ready); // Before the state, so FEED never writes full power to a closed gate
-    if (ejecting) {
-      indexer.setIndexerState(IndexerState.EJECT);
-    } else if (shooting) {
-      indexer.setIndexerState(IndexerState.FEED);
-    } else if (loading) {
-      indexer.setIndexerState(IndexerState.HOLD);
-    } else {
       indexer.setIndexerState(IndexerState.STOP);
+      feeder.setFeederState(FeederState.STOP);
     }
   }
 
@@ -360,13 +396,31 @@ public class Robot {
     telemetry.addData("Pose", String.format("%.2f %.2f m  %.0f deg",
         pose.xM, pose.yM, Math.toDegrees(pose.headingRad)));
     telemetry.addData("Shooter", shooter.getShooterState() + (flywheelSpinUpOn ? "  (spin-up on)" : ""));
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addData("Intake", intakeOn ? "ON (toggle)" : intake.getIntakeState());
-    telemetry.addData("Indexer", indexer.getIndexerState()
-        + (indexer.isFeedAllowed() ? "" : " (waiting)"));
+    telemetry.addData("Indexer", indexer.getIndexerState());
+    telemetry.addData("Feeder", feeder.getFeederState());
     telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken()
         + (intake.isFull() ? "  FULL" : ""));
     telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
+  }
+
+  /**
+   * Samples the battery voltage, keeping the lowest seen this run (it sags when the shooter spins up),
+   * then logs it and adds it to telemetry.
+   */
+  private void updateBattery() {
+    double now = clock.seconds();
+    if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
+      lastBatterySampleS = now;
+      batteryVolts = battery.getVoltage();
+      batteryMinVolts = Double.isNaN(batteryMinVolts)
+          ? batteryVolts : Math.min(batteryMinVolts, batteryVolts);
+    }
+    Logger.recordOutput("Robot/BatteryVolts", batteryVolts);
+    Logger.recordOutput("Robot/BatteryMinVolts", batteryMinVolts);
+    telemetry.addData("Battery", "%.2f V (lowest %.2f V)", batteryVolts, batteryMinVolts);
   }
 
   /** Called once when the OpMode stops. */
