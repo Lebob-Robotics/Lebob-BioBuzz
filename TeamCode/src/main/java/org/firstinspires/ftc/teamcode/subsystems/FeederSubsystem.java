@@ -7,10 +7,11 @@ import org.firstinspires.ftc.teamcode.servo.CrServo;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Controls the feeder, the last stage before the shooter. It is driven by one
- * Melonbotics Super Servo in continuous mode. {@link FeederState#HOLD} runs it
- * backward so the indexer can queue balls against it without any reaching the
- * shooter.
+ * Controls the feeder, the last stage before the shooter. It is driven by two
+ * Melonbotics Super Servos in continuous mode, both belted to the same feeder
+ * shaft at the same gear ratio, so they always get the same power.
+ * {@link FeederState#HOLD} runs it backward so the indexer can queue balls
+ * against it without any reaching the shooter.
  */
 public class FeederSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
@@ -19,7 +20,8 @@ public class FeederSubsystem extends SubsystemBase {
   private static final double HOLD_POWER = 1.0;
 
   // ---- Hardware --------------------------------------------------------
-  private final CrServo feederServo;
+  private final CrServo feederServoL;
+  private final CrServo feederServoR;
 
   public enum FeederState {
     STOP, FEED, HOLD, EJECT
@@ -29,9 +31,13 @@ public class FeederSubsystem extends SubsystemBase {
   private FeederState previousFeederState = FeederState.STOP;
 
   public FeederSubsystem(HardwareMap hardwareMap) {
-    // Reversed: on Mark 3 a positive raw power runs the tunnel backward
-    // (Servo Check and driving, 27 Oct).
-    feederServo = new CrServo(hardwareMap, "FeederServo", true);
+    // R is the original feeder servo. Reversed: on Mark 3 a positive raw power
+    // runs the tunnel backward (Servo Check and driving, 27 Oct).
+    feederServoR = new CrServo(hardwareMap, "FeederServoR", true);
+    // L sits on the other end of the shaft, so it faces the other way and is
+    // not reversed. Direction is to be verified on the robot with Servo Check:
+    // if the two servos fight each other, flip this.
+    feederServoL = new CrServo(hardwareMap, "FeederServoL", false);
 
     setFeederState(FeederState.STOP);
   }
@@ -43,16 +49,16 @@ public class FeederSubsystem extends SubsystemBase {
 
     switch (feederState) {
       case STOP:
-        feederServo.stop();
+        setFeederPower(0.0);
         break;
       case FEED:
-        feederServo.setPower(FEED_POWER);
+        setFeederPower(FEED_POWER);
         break;
       case HOLD:
-        feederServo.setPower(-HOLD_POWER);
+        setFeederPower(-HOLD_POWER);
         break;
       case EJECT:
-        feederServo.setPower(-EJECT_POWER);
+        setFeederPower(-EJECT_POWER);
         break;
     }
   }
@@ -70,6 +76,12 @@ public class FeederSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     Logger.recordOutput("Feeder/State", feederState);
-    Logger.recordOutput("Feeder/CommandedPower", feederServo.getCommandedPower());
+    Logger.recordOutput("Feeder/CommandedPower", feederServoL.getCommandedPower());
+  }
+
+  /** Both servos drive the same shaft at the same ratio, so they get the same power. */
+  private void setFeederPower(double power) {
+    feederServoL.setPower(power);
+    feederServoR.setPower(power);
   }
 }
