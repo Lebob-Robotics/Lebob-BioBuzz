@@ -17,12 +17,12 @@ import java.util.Arrays;
  * done by {@link FeederSubsystem} and {@link IndexerSubsystem}.
  *
  * <ul>
- * <li>{@link ShooterState#IDLE} holds IDLE_RPM (the initial state), so the wheels are part way to
- * shooting speed.</li>
+ * <li>{@link ShooterState#IDLE} holds IDLE_RPM, so the wheels are part way to shooting speed.
+ * Teleop drops back to it whenever nothing else is asked for, so it starts once the OpMode runs.</li>
  * <li>{@link ShooterState#SHOOT} spins them at the fastest allowed speed.</li>
  * <li>{@link ShooterState#EJECT} runs them backward.</li>
  * <li>{@link ShooterState#AIM} holds {@link #setTargetRpm(double)} in closed loop.</li>
- * <li>{@link ShooterState#STOP} stops them.</li>
+ * <li>{@link ShooterState#STOP} stops them (the initial state, so they stay off during INIT).</li>
  * </ul>
  *
  * <p>Both motors always use the hub's speed control, and {@link GobildaMotor} caps them at
@@ -99,7 +99,7 @@ public class ShooterSubsystem extends SubsystemBase {
     }
     applyVelocityPidf();
 
-    setShooterState(ShooterState.IDLE);
+    setShooterState(ShooterState.STOP);
   }
 
   private void doShooterState() {

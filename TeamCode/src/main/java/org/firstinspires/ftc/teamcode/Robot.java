@@ -146,12 +146,13 @@ public class Robot {
   public void init() {
     odometry.init();
     hood.init();
-    shooter.setShooterState(ShooterState.IDLE);
+    // Off during INIT; the teleop loop idles the flywheels once the OpMode starts.
+    shooter.setShooterState(ShooterState.STOP);
   }
 
   /**
-   * Called repeatedly during INIT: the driver picks the alliance. The shooter already idles here, so
-   * its stall guard must run too.
+   * Called repeatedly during INIT: the driver picks the alliance. The shooter is stopped here, but
+   * its stall guard still runs so the shooter is logged from the start.
    */
   public void initLoop() {
     pollAlliance();
