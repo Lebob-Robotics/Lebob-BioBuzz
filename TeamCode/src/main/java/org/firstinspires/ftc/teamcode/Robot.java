@@ -78,6 +78,8 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double TRIGGER_PRESSED = 0.5;
+  /** Per flywheel, in RPM. How close the wheels must be to feed when RT is held without the Cell in view. */
+  private static final double MANUAL_RPM_TOLERANCE = 150;
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
@@ -114,6 +116,7 @@ public class Robot {
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private double rpmTrim = 0; // Driver's, for the rest of the match
   private boolean flywheelSpinUpOn = false;
+  private boolean manualFeeding = false; // RT held without the Cell: set once the wheels are up to speed, until RT is released
   private boolean intakeOn = false;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
@@ -215,7 +218,17 @@ public class Robot {
     updateToggles();
     updateDrive(aiming, aim, pose, velocity[2]);
     updateShooterAndHood(aiming, aim);
-    updateIntakeFeederIndexer(aiming, ready);
+    // Without the Cell in view there is nothing to aim at, so RT shoots at the held RPM and hood
+    // once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
+    // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
+    // time they dip would pull the next ball back out.
+    if (!aiming || aim != null || shooter.isStalled()) {
+      manualFeeding = false;
+    } else if (!manualFeeding && shooter.atSpeed(MANUAL_RPM_TOLERANCE)) {
+      manualFeeding = true;
+    }
+    boolean manualReady = manualFeeding;
+    updateIntakeFeederIndexer(aiming, ready || manualReady);
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
     stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
