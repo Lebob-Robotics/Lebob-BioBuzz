@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import android.util.Size;
+
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -30,6 +32,16 @@ public class VisionSubsystem extends SubsystemBase {
     LEFT, RIGHT
   }
 
+  // ---- Cameras ---------------------------------------------------------
+  /** Both cameras run at this size. The lens calibrations below are only valid at it. */
+  private static final Size RESOLUTION = new Size(1280, 720);
+  /**
+   * Lens calibration {fx, fy, cx, cy} in pixels at RESOLUTION, per physical camera, from
+   * tools/camera-calibration (results/*.json, 1 Nov). Recalibrate if a lens is refocused or swapped.
+   */
+  private static final double[] LENS_LEFT = {892.442, 892.360, 632.589, 355.601};
+  private static final double[] LENS_RIGHT = {885.382, 885.080, 677.418, 365.001};
+
   private final AprilTagProcessor[] processors = new AprilTagProcessor[2];
   private final VisionPortal[] portals = new VisionPortal[2];
   private final VisionInputs[] inputs = {new VisionInputs(), new VisionInputs()};
@@ -47,19 +59,23 @@ public class VisionSubsystem extends SubsystemBase {
       // Fall back to portals without a shared live view.
     }
 
-    setUpCamera(hardwareMap, Side.LEFT, "CameraL", viewIds == null ? -1 : viewIds[0]);
-    setUpCamera(hardwareMap, Side.RIGHT, "CameraR", viewIds == null ? -1 : viewIds[1]);
+    setUpCamera(hardwareMap, Side.LEFT, "CameraL", LENS_LEFT, viewIds == null ? -1 : viewIds[0]);
+    setUpCamera(hardwareMap, Side.RIGHT, "CameraR", LENS_RIGHT, viewIds == null ? -1 : viewIds[1]);
   }
 
-  private void setUpCamera(HardwareMap hardwareMap, Side side, String name, int viewId) {
+  private void setUpCamera(HardwareMap hardwareMap, Side side, String name, double[] lens, int viewId) {
     try {
       AprilTagProcessor processor = new AprilTagProcessor.Builder()
           .setTagLibrary(AprilTagGameDatabase.getCurrentGameTagLibrary())
           .setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES)
+          .setLensIntrinsics(lens[0], lens[1], lens[2], lens[3])
           .build();
 
       VisionPortal.Builder builder = new VisionPortal.Builder()
           .setCamera(hardwareMap.get(WebcamName.class, name))
+          .setCameraResolution(RESOLUTION)
+          // Compressed, so two 720p streams fit through the hub's USB
+          .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
           .addProcessor(processor);
       if (viewId >= 0) {
         builder.setLiveViewContainerId(viewId);
