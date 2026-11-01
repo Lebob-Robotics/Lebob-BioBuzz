@@ -43,6 +43,41 @@ public final class ShootOnTheMoveConstants {
   public static final CameraMount RIGHT_CAMERA = new CameraMount(
       -0.1457, -0.0625, 0.2093, -(Math.PI - Math.toRadians(35)), Math.toRadians(41.09));
 
+  // ---- Field frame -----------------------------------------------------
+  // The odometry heading is in the field frame (0 along +x, anticlockwise positive), so the camera can
+  // use the tags' field positions. The drive stays driver relative: heading minus the forward below.
+  public static double ALLIANCE_FORWARD_RED_RAD = Math.PI / 2; // Heading the driver calls "forward", standing at their wall. TODO verify
+  public static double ALLIANCE_FORWARD_BLUE_RAD = -Math.PI / 2; // TODO verify
+
+  // ---- Vision pose correction (from Sean's feature/sotm) -----------------
+  // The Hive tags give the robot's field position. Only each tag's ftcPose x/y/z is used, not the SDK's
+  // robotPose: the tags move when a Hive tips. Hive tag ids: RED SCORING 30-33, RED AUDIENCE 34-37,
+  // BLUE AUDIENCE 38-41, BLUE SCORING 42-45. AUDIENCE Cells are at +x and SCORING at -x.
+  public static double CLUSTER_UP_X_M = 0.3329; // Tag cluster centre of the up Cell: |x| and height
+  public static double CLUSTER_UP_Z_M = 1.2646;
+  public static double CLUSTER_DOWN_X_M = 0.2949; // Same for the down Cell
+  public static double CLUSTER_DOWN_Z_M = 0.9022;
+  public static final double[] TAG_Y_IN = { // By tag id less 30, four per Cell
+      -6.25, -10.0, -15.5, -19.25,
+      -19.25, -15.5, -10.0, -6.25,
+      6.25, 10.0, 15.5, 19.25,
+      19.25, 15.5, 10.0, 6.25};
+  public static final double IN_TO_M = 0.0254;
+
+  public static double Z_TOL_M = 0.10; // A tag's measured height must be this close to the up or down cluster height
+  public static int TIP_CONFIRM_FRAMES = 3; // Frames in a row voting for a flip before a Hive's up Cell changes
+
+  public static double MIN_DECISION_MARGIN = 20; // Placeholder, tune
+  public static double MAX_TAG_RANGE_M = 3.0;
+  public static double MAX_SPEED_FOR_VISION_MPS = 1.0; // Faster than this the frame's pose is too uncertain
+  public static double MAX_OMEGA_FOR_VISION_RAD_S = 1.0;
+  public static double MAX_FRAME_AGE_S = 0.3;
+  public static double MAX_SPREAD_M = 0.10; // Most any tag's correction may differ from the median
+  public static double MAX_JUMP_M = 0.5; // Largest correction once the pose is trusted. The first fix may be any size
+  public static double FIELD_HALF_SIZE_M = 1.83;
+  public static double ROBOT_HALF_SIZE_M = 0.15;
+  public static double CORRECTION_GAIN = 0.5; // Share of each correction applied. The first fix applies all of it
+
   // ---- Shot checks -----------------------------------------------------
   public static double MAX_TURNING_DEG = 30; // Above this, the ball's sideways error grows too fast
   /**

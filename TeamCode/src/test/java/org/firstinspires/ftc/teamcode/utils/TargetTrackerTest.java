@@ -128,4 +128,47 @@ public class TargetTrackerTest {
     tracker.update(twoMetresAhead(0)); // The time 0 pose was dropped, so the time 10 one is nearest
     assertEquals(3, tracker.getCellX(), TOLERANCE);
   }
+
+  @Test
+  public void shiftMovesTheStoredCell() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    tracker.update(twoMetresAhead(0));
+    tracker.shift(0.5, -0.25);
+    assertEquals(2.5, tracker.getCellX(), TOLERANCE);
+    assertEquals(-0.25, tracker.getCellY(), TOLERANCE);
+    assertTrue(tracker.knowsCell(0)); // Still known, and still as recently seen
+  }
+
+  @Test
+  public void shiftMovesTheStoredPosesToo() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    tracker.shift(1, 0.5);
+    tracker.update(twoMetresAhead(0)); // A frame from before the shift lands in the shifted frame
+    assertEquals(3, tracker.getCellX(), TOLERANCE);
+    assertEquals(0.5, tracker.getCellY(), TOLERANCE);
+  }
+
+  @Test
+  public void shiftingTheCellAndThePoseTogetherKeepsTheCellWhereItWasFromTheRobot() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    tracker.update(twoMetresAhead(0));
+    double robotShiftX = 0.3; // The pose is corrected by this, and the tracker told the same
+    double robotShiftY = 0.2;
+    tracker.shift(robotShiftX, robotShiftY);
+    assertEquals(2, tracker.getCellX() - robotShiftX, TOLERANCE);
+    assertEquals(0, tracker.getCellY() - robotShiftY, TOLERANCE);
+  }
+
+  @Test
+  public void shiftBeforeAnySightingChangesNothing() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    tracker.shift(1, 1);
+    assertFalse(tracker.knowsCell(0));
+    assertEquals(0, tracker.getCellX(), TOLERANCE);
+    assertEquals(0, tracker.getCellY(), TOLERANCE);
+  }
 }

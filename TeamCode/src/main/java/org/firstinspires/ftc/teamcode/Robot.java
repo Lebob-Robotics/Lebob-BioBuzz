@@ -26,17 +26,23 @@ import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.utils.PoseHistory;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.utils.TagObservation;
 import org.firstinspires.ftc.teamcode.utils.TargetTracker;
+import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
+import org.firstinspires.ftc.teamcode.utils.VisionResult;
 import org.psilynx.psikit.core.Logger;
+
+import java.util.List;
 
 /**
  * Turns gamepad input into subsystem states each loop, and runs shoot on the move.
  *
  * <p>Controls (gamepad 1):
  * <ul>
- *   <li>Left stick: drive (field centric). Right stick X: turn.</li>
+ *   <li>Left stick: drive (field centric, forward is away from the driver's wall). Right stick X: turn.</li>
  *   <li>Right trigger held: aim and shoot. The robot turns to the shot heading and sets the hood and
  *       flywheels from the shot table, then feeds each ball once the shot is ready. The left stick
  *       still drives.</li>
@@ -46,11 +52,14 @@ import org.psilynx.psikit.core.Logger;
  *       can't see the Cell.</li>
  *   <li>Left trigger held, or left bumper to toggle: intake. The feeder runs backward to queue the
  *       balls short of the shooter. Both stop at 4 balls once the beam breaks are wired.</li>
- *   <li>B: eject. X: stop the shooter (also ends spin-up, and resets a stall trip). A: reset
- *       heading.</li>
+ *   <li>B: eject. X: stop the shooter (also ends spin-up, and resets a stall trip). A: tell the robot
+ *       it is facing away from the driver's wall (use it if the heading drifts).</li>
  *   <li>D-pad: hood presets, or while aiming, up and down trim the RPM.</li>
  *   <li>During INIT, X picks blue and B picks red.</li>
  * </ul>
+ *
+ * <p>The odometry heading is in the field frame (0 along +x), so the Hive tags can correct the pose.
+ * Driving uses the driver's heading, which is that heading less the alliance's forward heading.
  *
  * <p>Balls go from the intake to the indexer to the feeder to the shooter. The feeder is the last
  * stage, so it is what waits for READY on an aimed shot.
@@ -92,6 +101,15 @@ public class Robot {
 
   private Alliance alliance = Alliance.RED;
   private final TargetTracker tracker = new TargetTracker(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+  // Vision pose correction. The history holds each loop's odometry pose with the time of that loop's
+  // camera capture, so a frame can be matched to where the robot was. It is separate from the tracker's.
+  private final PoseHistory poseHistory = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+  private final VisionCorrector visionCorrector = new VisionCorrector();
+  private long lastHistoryNanos = Long.MIN_VALUE;
+  private boolean poseValid = false; // True once a tag fix has placed the robot on the field. Nothing is gated on it yet
+  private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
+  private long lastVisionNanos = 0;
+
   private AimState aimState = AimState.OFF;
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private double rpmTrim = 0; // Driver's, for the rest of the match
@@ -144,10 +162,19 @@ public class Robot {
     telemetry.update();
   }
 
-  /** Called once when the OpMode starts. */
+  /**
+   * Called once when the OpMode starts. Sets the heading to the alliance's forward heading, which
+   * assumes the robot is placed square to its wall, facing away from it. A resets it later.
+   */
   public void start() {
     pollAlliance();
+    odometry.setHeading(alliance.forwardHeadingRad());
     tracker.clear();
+    poseHistory.clear();
+    visionCorrector.reset();
+    lastHistoryNanos = Long.MIN_VALUE;
+    poseValid = false;
+    lastVision = null;
   }
 
   private void pollAlliance() {
@@ -167,10 +194,13 @@ public class Robot {
     long nowNanos = vision.getCaptureNanos(); // Logged, so replay gives the same result
 
     if (driver.a) {
-      odometry.resetHeading();
-      tracker.clear(); // The field frame just turned, so the stored Cell and poses no longer apply
-      pose = new Pose(pose.xM, pose.yM, 0);
+      odometry.setHeading(alliance.forwardHeadingRad());
+      tracker.clear(); // The frame just turned, so the stored Cell and poses no longer apply
+      poseHistory.clear();
+      pose = new Pose(pose.xM, pose.yM, alliance.forwardHeadingRad());
     }
+
+    pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
 
     Aim aim = aimAtCell(pose, velocity, nowNanos);
     boolean aiming = driver.right_trigger > TRIGGER_PRESSED;
@@ -187,6 +217,7 @@ public class Robot {
     updateIntakeFeederIndexer(aiming, ready);
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
+    stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
 
     if (shooter.isStalled() && !shooterWasStalled) {
       driver.rumble(STALL_RUMBLE_MS);
@@ -197,6 +228,43 @@ public class Robot {
     logAim(aim);
     addTelemetry(aim, pose);
     telemetry.update();
+  }
+
+  /**
+   * Corrects the pose from the Hive tags, and moves the tracker's stored Cell and poses by the same
+   * amount so the aim does not jump. Returns the pose to use this loop.
+   */
+  private Pose correctPoseFromVision(Pose pose, double[] velocity, long nowNanos) {
+    List<TagObservation> observations = vision.takeNewTagObservations();
+    VisionResult result = visionCorrector.process(observations, poseHistory, pose,
+        velocity[0], velocity[1], velocity[2], poseValid, nowNanos);
+    if (result.accepted) {
+      odometry.setPose(result.newPose.xM, result.newPose.yM, result.newPose.headingRad);
+      poseHistory.shift(result.appliedDxM(), result.appliedDyM());
+      tracker.shift(result.appliedDxM(), result.appliedDyM());
+      poseValid = true; // The first fix is applied in full, so after it the pose is on the field
+      pose = result.newPose; // The Pinpoint may not report the new pose until its next update
+    }
+    if (result.reason != VisionResult.Reason.NO_OBSERVATIONS) {
+      lastVision = result;
+      lastVisionNanos = nowNanos;
+    }
+    double frameAgeS = Double.NaN; // Of the newest frame handed in
+    for (TagObservation observation : observations) {
+      double ageS = (nowNanos - observation.frameTimeNanos) * 1e-9;
+      frameAgeS = Double.isNaN(frameAgeS) ? ageS : Math.min(frameAgeS, ageS);
+    }
+    logVision(result, frameAgeS, observations.size());
+    return pose;
+  }
+
+  /** Records this loop's pose against this loop's capture time, so later frames can be matched to it. */
+  private void stampPoseHistory(Pose pose) {
+    long stampNanos = vision.getCaptureNanos();
+    if (stampNanos > lastHistoryNanos && stampNanos > 0) { // Not before the first capture, or twice for one
+      poseHistory.add(stampNanos, pose);
+      lastHistoryNanos = stampNanos;
+    }
   }
 
   /** Null when the Cell hasn't been seen recently. */
@@ -264,13 +332,18 @@ public class Robot {
     return pressedNow && !pressedLastLoop;
   }
 
+  /** The stick directions are from the driver's wall, so the drive gets the heading less the alliance's forward. */
   private void updateDrive(boolean aiming, Aim aim, Pose pose, double turnRateRadPerSec) {
     double forward = -driver.left_stick_y;
     double right = driver.left_stick_x;
+    double forwardOffsetRad = alliance.forwardHeadingRad();
+    double driverHeadingRad = pose.headingRad - forwardOffsetRad;
     if (aiming && aim != null) { // Lines up even without a valid shot, so it's ready the moment one appears
-      drive.driveHeadingLock(forward, right, aim.targetHeadingRad, pose.headingRad, turnRateRadPerSec);
+      // Target and heading both less the offset, so the error is the same and the driving is driver relative
+      drive.driveHeadingLock(forward, right, aim.targetHeadingRad - forwardOffsetRad, driverHeadingRad,
+          turnRateRadPerSec);
     } else {
-      drive.drive(forward, right, driver.right_stick_x, true, pose.headingRad);
+      drive.drive(forward, right, driver.right_stick_x, true, driverHeadingRad);
     }
   }
 
@@ -379,8 +452,50 @@ public class Robot {
     Logger.recordOutput("SOTM/HeadingToleranceRad", aim.headingToleranceRad);
   }
 
+  /** Everything the pose correction worked out this loop. */
+  private void logVision(VisionResult result, double frameAgeS, int newTags) {
+    Logger.recordOutput("Vision/Correction/Accepted", result.accepted);
+    Logger.recordOutput("Vision/Correction/Reason", result.reason.name());
+    Logger.recordOutput("Vision/Correction/TagReject", result.firstTagReject.name());
+    Logger.recordOutput("Vision/Correction/NewTags", newTags);
+    Logger.recordOutput("Vision/Correction/DxM", result.dxM);
+    Logger.recordOutput("Vision/Correction/DyM", result.dyM);
+    Logger.recordOutput("Vision/Correction/Gain", result.gain);
+    Logger.recordOutput("Vision/Correction/TagsUsed", result.tagsUsed);
+    Logger.recordOutput("Vision/Correction/TagsRejected", result.tagsRejected);
+    Logger.recordOutput("Vision/Correction/SpreadM", result.spreadM);
+    Logger.recordOutput("Vision/Correction/UsedIds", result.usedIds);
+    Logger.recordOutput("Vision/Correction/UsedDxM", result.usedDxM);
+    Logger.recordOutput("Vision/Correction/UsedDyM", result.usedDyM);
+    Logger.recordOutput("Vision/Correction/FrameAgeS", frameAgeS);
+    Logger.recordOutput("Vision/Correction/UpCellRed", visionCorrector.upCell(Alliance.RED).name());
+    Logger.recordOutput("Vision/Correction/UpCellBlue", visionCorrector.upCell(Alliance.BLUE).name());
+    Logger.recordOutput("Vision/Correction/RedFlipped", result.redFlipped);
+    Logger.recordOutput("Vision/Correction/BlueFlipped", result.blueFlipped);
+    Logger.recordOutput("Vision/Correction/PoseValid", poseValid);
+  }
+
+  /** For example "✓ 6 tags Δ3cm (0.1s ago) | up AUDIENCE", or the reason the last tags were not used. */
+  private String visionLine() {
+    String upCell = "up " + visionCorrector.upCell(alliance);
+    VisionResult result = lastVision;
+    if (result == null) {
+      return "no tags yet | " + upCell;
+    }
+    String text;
+    if (result.accepted) {
+      text = String.format("✓ %d tags Δ%.0fcm", result.tagsUsed, Math.hypot(result.dxM, result.dyM) * 100);
+    } else if (result.reason == VisionResult.Reason.NO_VALID_TAGS) {
+      text = "✗ " + result.firstTagReject;
+    } else {
+      text = "✗ " + result.reason;
+    }
+    double sinceS = (vision.getCaptureNanos() - lastVisionNanos) * 1e-9;
+    return text + String.format(" (%.1fs ago) | ", sinceS) + upCell;
+  }
+
   private void addTelemetry(Aim aim, Pose pose) {
-    telemetry.addData("Alliance", alliance);
+    telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet"));
     telemetry.addData("Aim", aimState);
     if (aim != null) {
       telemetry.addData("Shot", aim.shot.valid ? "OK" : aim.shot.reason);
@@ -393,8 +508,10 @@ public class Robot {
       telemetry.addData("Heading err", String.format("%.1f deg (allowed %.1f)",
           Math.toDegrees(aim.headingErrorRad(pose.headingRad)), Math.toDegrees(aim.headingToleranceRad)));
     }
-    telemetry.addData("Pose", String.format("%.2f %.2f m  %.0f deg",
-        pose.xM, pose.yM, Math.toDegrees(pose.headingRad)));
+    telemetry.addData("Pose", String.format("%.2f %.2f m  %.0f deg  (driver %.0f)",
+        pose.xM, pose.yM, Math.toDegrees(pose.headingRad),
+        Math.toDegrees(pose.headingRad - alliance.forwardHeadingRad())));
+    telemetry.addData("Vision", visionLine());
     telemetry.addData("Shooter", shooter.getShooterState() + (flywheelSpinUpOn ? "  (spin-up on)" : ""));
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addData("Intake", intakeOn ? "ON (toggle)" : intake.getIntakeState());

@@ -135,14 +135,23 @@ public class OdometrySubsystem extends SubsystemBase {
     return new double[] { vx, vy, omega };
   }
 
-  /** Zeroes the reported heading in place, keeping the current position. */
-  public void resetHeading() {
+  /** Sets the reported pose. The Pinpoint may not report it until its next update. */
+  public void setPose(double xM, double yM, double headingRad) {
+    if (pinpoint == null) {
+      return;
+    }
+    pinpoint.setPosition(new Pose2D(
+        DistanceUnit.METER, xM, yM, AngleUnit.RADIANS, headingRad));
+  }
+
+  /** Sets the reported heading in place, keeping the current position. */
+  public void setHeading(double headingRad) {
     if (pinpoint == null) {
       return;
     }
     Pose2D current = pinpoint.getPosition();
     pinpoint.setPosition(new Pose2D(
         DistanceUnit.MM, current.getX(DistanceUnit.MM), current.getY(DistanceUnit.MM),
-        AngleUnit.DEGREES, 0));
+        AngleUnit.RADIANS, headingRad));
   }
 }

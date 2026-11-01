@@ -41,21 +41,12 @@ public final class TargetTracker {
     if (poseCount == 0) {
       return false;
     }
-    CameraMount camera = sighting.camera;
-
-    double cosPitch = Math.cos(camera.pitchRad); // Undo the camera's tilt
-    double sinPitch = Math.sin(camera.pitchRad);
-    double levelForwardM = sighting.forwardM * cosPitch - sighting.upM * sinPitch;
-    double levelUpM = sighting.forwardM * sinPitch + sighting.upM * cosPitch;
-    double levelLeftM = -sighting.rightM;
-    if (camera.heightM + levelUpM < MIN_UP_CELL_HEIGHT_M) {
+    double[] inRobot = sighting.camera.toRobotFrame(sighting.rightM, sighting.forwardM, sighting.upM);
+    double robotForwardM = inRobot[0];
+    double robotLeftM = inRobot[1];
+    if (inRobot[2] < MIN_UP_CELL_HEIGHT_M) {
       return false;
     }
-
-    double cosYaw = Math.cos(camera.yawRad); // Turn by the camera's yaw, then add where it is mounted
-    double sinYaw = Math.sin(camera.yawRad);
-    double robotForwardM = camera.forwardM + levelForwardM * cosYaw - levelLeftM * sinYaw;
-    double robotLeftM = camera.leftM + levelForwardM * sinYaw + levelLeftM * cosYaw;
 
     Pose pose = poseNearestTo(sighting.frameTimeNanos);
     double cosHeading = Math.cos(pose.headingRad);
@@ -79,6 +70,21 @@ public final class TargetTracker {
       }
     }
     return poses[nearest];
+  }
+
+  /**
+   * Moves the stored Cell and every stored pose by the same amount. Call when the pose is corrected,
+   * so the Cell stays where it was relative to the robot and the aim does not jump.
+   */
+  public void shift(double dxM, double dyM) {
+    if (cellSeen) {
+      cellX += dxM;
+      cellY += dyM;
+    }
+    for (int slot = 0; slot < poseCount; slot++) {
+      Pose pose = poses[slot];
+      poses[slot] = new Pose(pose.xM + dxM, pose.yM + dyM, pose.headingRad);
+    }
   }
 
   /** True when the Cell was seen within the last CELL_EXPIRY_S. */

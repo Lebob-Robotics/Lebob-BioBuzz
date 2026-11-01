@@ -9,6 +9,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.utils.CameraMount;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.utils.TagObservation;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -89,11 +90,17 @@ public class VisionSubsystem extends SubsystemBase {
 
   private static final double INCHES_TO_METRES = 0.0254; // The processor is set to inches
 
-  private final long[] newestFrameHandedOutNanos = {Long.MIN_VALUE, Long.MIN_VALUE}; // Per camera
+  // Each consumer keeps its own mark per camera, so taking frames for one never starves the other.
+  private final long[] newestCellFrameHandedOutNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
+  private final long[] newestTagFrameHandedOutNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
 
   /** System.nanoTime() of the latest capture. Robot uses it as the loop time, so replay matches. */
   public long getCaptureNanos() {
     return Math.max(inputs[0].captureNanos, inputs[1].captureNanos);
+  }
+
+  private static CameraMount mountOf(Side side) {
+    return side == Side.LEFT ? ShootOnTheMoveConstants.LEFT_CAMERA : ShootOnTheMoveConstants.RIGHT_CAMERA;
   }
 
   /**
@@ -104,16 +111,14 @@ public class VisionSubsystem extends SubsystemBase {
     List<CellSighting> sightings = new ArrayList<>();
     for (Side side : Side.values()) {
       VisionInputs camera = inputs[side.ordinal()];
-      CameraMount mount = side == Side.LEFT
-          ? ShootOnTheMoveConstants.LEFT_CAMERA
-          : ShootOnTheMoveConstants.RIGHT_CAMERA;
+      CameraMount mount = mountOf(side);
       int detectionCount = camera.tagIds.length;
       boolean oldLog = camera.clusterNames.length != detectionCount // Logged before every array existed
           || camera.frameNanos.length != detectionCount;
       if (oldLog) {
         continue;
       }
-      long previousNewestNanos = newestFrameHandedOutNanos[side.ordinal()];
+      long previousNewestNanos = newestCellFrameHandedOutNanos[side.ordinal()];
       long newestNanos = previousNewestNanos;
       for (int i = 0; i < detectionCount; i++) {
         boolean isCluster = camera.tagIds[i] == VisionInputs.CLUSTER_ID;
@@ -124,9 +129,43 @@ public class VisionSubsystem extends SubsystemBase {
         }
         newestNanos = Math.max(newestNanos, camera.frameNanos[i]);
       }
-      newestFrameHandedOutNanos[side.ordinal()] = newestNanos;
+      newestCellFrameHandedOutNanos[side.ordinal()] = newestNanos;
     }
     return sightings;
+  }
+
+  /**
+   * Single AprilTag observations from both cameras, for the pose correction, from frames not handed
+   * out before. Cluster detections are left out: those are the Cell sightings. Call once per loop.
+   * Reads only the logged inputs, so replay behaves like the live run.
+   */
+  public List<TagObservation> takeNewTagObservations() {
+    List<TagObservation> observations = new ArrayList<>();
+    for (Side side : Side.values()) {
+      VisionInputs camera = inputs[side.ordinal()];
+      CameraMount mount = mountOf(side);
+      int detectionCount = camera.tagIds.length;
+      boolean oldLog = camera.frameNanos.length != detectionCount // Logged before every array existed
+          || camera.x.length != detectionCount || camera.y.length != detectionCount
+          || camera.z.length != detectionCount || camera.decisionMargin.length != detectionCount;
+      if (oldLog) {
+        continue;
+      }
+      long previousNewestNanos = newestTagFrameHandedOutNanos[side.ordinal()];
+      long newestNanos = previousNewestNanos;
+      for (int i = 0; i < detectionCount; i++) {
+        boolean isSingleTag = camera.tagIds[i] != VisionInputs.CLUSTER_ID;
+        boolean isNewFrame = camera.frameNanos[i] > previousNewestNanos;
+        if (isSingleTag && isNewFrame) {
+          observations.add(new TagObservation(camera.tagIds[i], mount,
+              camera.x[i] * INCHES_TO_METRES, camera.y[i] * INCHES_TO_METRES, camera.z[i] * INCHES_TO_METRES,
+              camera.decisionMargin[i], camera.frameNanos[i]));
+        }
+        newestNanos = Math.max(newestNanos, camera.frameNanos[i]);
+      }
+      newestTagFrameHandedOutNanos[side.ordinal()] = newestNanos;
+    }
+    return observations;
   }
 
   public boolean isAvailable(Side side) {
