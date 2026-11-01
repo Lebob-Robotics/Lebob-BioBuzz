@@ -167,6 +167,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     telemetry.addData("Hood (deg)", "target %.1f, actual %.1f",
         hoodDeg, HoodSubsystem.ticksToAngle(hood.getPosition()));
     telemetry.addData("Ready to feed", readyToFeed ? "YES (right bumper)" : "no");
+    telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addLine();
     telemetry.addData("Shot", shotCount);
     telemetry.addData("WRITE DOWN", "rpm %.0f, hoodDeg %.1f", lastShotRpm, lastShotHoodDeg);

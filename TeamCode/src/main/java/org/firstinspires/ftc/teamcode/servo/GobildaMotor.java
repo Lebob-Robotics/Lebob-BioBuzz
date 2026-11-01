@@ -21,6 +21,8 @@ public class GobildaMotor {
   private final double maxVelocityTicksPerSec;
   private double lastPower = Double.NaN;
   private double commandedPower = 0.0;
+  private final DcMotor.RunMode constructionMode;
+  private boolean cut = false; // True from cut() until the next setPower or setVelocity
 
   /**
    * A motor under the hub's speed control. Needs the motor's own encoder plugged in: without it the
@@ -45,6 +47,7 @@ public class GobildaMotor {
 
   private GobildaMotor(HardwareMap hardwareMap, String name, boolean reversed, boolean brake, DcMotor.RunMode mode) {
     this.name = name;
+    this.constructionMode = mode;
     this.motor = hardwareMap.get(DcMotorEx.class, name);
     motor.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
     motor.setMode(mode);
@@ -62,6 +65,7 @@ public class GobildaMotor {
 
   /** Capped to MAX_OUTPUT either way. Skips the hardware write if unchanged. */
   public void setPower(double power) {
+    resumeIfCut();
     power = Math.max(-MAX_OUTPUT, Math.min(MAX_OUTPUT, power));
     commandedPower = power;
     if (!Double.isNaN(lastPower) && Math.abs(power - lastPower) < POWER_MIN) {
@@ -73,8 +77,38 @@ public class GobildaMotor {
 
   /** Capped to {@link #getMaxVelocity()} either way. Speed-controlled motors only. */
   public void setVelocity(double ticksPerSecond) {
+    resumeIfCut();
     lastPower = Double.NaN; // The power cache is no longer meaningful
     motor.setVelocity(Math.max(-maxVelocityTicksPerSec, Math.min(maxVelocityTicksPerSec, ticksPerSecond)));
+  }
+
+  /**
+   * Really turns the motor off. Under speed control, power 0 is a hold-zero-speed setpoint that a
+   * stalled motor's PID can still drive against, so this drops to open loop first. The next
+   * setPower or setVelocity restores speed control.
+   */
+  public void cut() {
+    commandedPower = 0.0;
+    if (constructionMode != DcMotor.RunMode.RUN_USING_ENCODER) {
+      lastPower = 0.0;
+      motor.setPower(0.0);
+      return;
+    }
+    if (cut) {
+      return; // Already off
+    }
+    motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    motor.setPower(0.0); // Direct, so the power cache cannot skip it
+    cut = true;
+  }
+
+  private void resumeIfCut() {
+    if (!cut) {
+      return;
+    }
+    motor.setMode(constructionMode);
+    cut = false;
+    lastPower = Double.NaN; // Force the next power write through
   }
 
   /** MAX_OUTPUT of the motor's full speed, in ticks per second. */

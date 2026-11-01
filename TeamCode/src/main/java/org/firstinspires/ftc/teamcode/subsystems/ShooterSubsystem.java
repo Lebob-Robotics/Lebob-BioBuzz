@@ -30,7 +30,9 @@ import java.util.Arrays;
  *
  * <p>{@link ShooterStallGuard} cuts both motors if either stalls, in any running state. Under speed
  * control a stalled wheel gets full power just as it would open loop, so the guard is still needed.
- * Once tripped the shooter stays off until the driver selects {@link ShooterState#STOP}.
+ * A trip drops the motors to open loop at zero power, since speed control's zero is a hold-zero
+ * setpoint, not off. Once tripped the shooter stays off until the driver selects
+ * {@link ShooterState#STOP}, and the next power or velocity write restores speed control.
  */
 @Configurable
 public class ShooterSubsystem extends SubsystemBase {
@@ -226,7 +228,7 @@ public class ShooterSubsystem extends SubsystemBase {
     rightAmps = powered ? shooterRight.getCurrentAmps() : 0.0;
     boolean wasTripped = stallGuard.isTripped();
     if (stallGuard.update(now, powered, leftAmps, leftVelocity, rightAmps, rightVelocity) && !wasTripped) {
-      setShooterPower(0.0);
+      cutShooter();
       RobotLog.ee("BioBuzz", "shooter stalled, trip %d/%d: L %.1f A %.0f ticks/s, R %.1f A %.0f ticks/s",
           stallGuard.getTrips(), ShooterStallGuard.MAX_TRIPS,
           leftAmps, leftVelocity, rightAmps, rightVelocity);
@@ -270,16 +272,24 @@ public class ShooterSubsystem extends SubsystemBase {
   // Every shooter motor write goes through these two, so a stall trip cannot be overridden.
   private void setShooterPower(double power) {
     if (stallGuard.isTripped()) {
-      power = 0.0;
+      cutShooter(); // A plain zero would restore speed control
+      return;
     }
     sentRpm = Double.NaN;
     shooterRight.setPower(power);
     shooterLeft.setPower(power);
   }
 
+  // Open-loop zero on both motors. Speed control's zero is a hold-zero setpoint, not off.
+  private void cutShooter() {
+    sentRpm = Double.NaN; // So the next AIM target is re-sent
+    shooterRight.cut();
+    shooterLeft.cut();
+  }
+
   private void setShooterRpm(double rpm) {
     if (stallGuard.isTripped()) {
-      setShooterPower(0.0);
+      cutShooter();
       return;
     }
     sentRpm = rpm;
