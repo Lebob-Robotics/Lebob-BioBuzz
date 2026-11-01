@@ -4,7 +4,7 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.servo.GobildaMotor;
+import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 /**

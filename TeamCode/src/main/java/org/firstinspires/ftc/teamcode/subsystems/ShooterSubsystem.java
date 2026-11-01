@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.teamcode.servo.GobildaMotor;
+import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;

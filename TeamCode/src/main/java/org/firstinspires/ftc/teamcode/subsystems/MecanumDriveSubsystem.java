@@ -5,7 +5,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.teamcode.servo.GobildaMotor;
+import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;
