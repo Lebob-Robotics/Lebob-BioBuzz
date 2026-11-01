@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.hardware.CrServo;
@@ -20,8 +21,10 @@ public class FeederSubsystem extends SubsystemBase {
   private static final double HOLD_POWER = 1.0;
 
   // ---- Hardware --------------------------------------------------------
+  // Either can be null until the robot configuration has both servos: see the constructor.
   private final CrServo feederServoL;
   private final CrServo feederServoR;
+  private double commandedPower = 0.0;
 
   public enum FeederState {
     STOP, FEED, HOLD, EJECT
@@ -33,13 +36,22 @@ public class FeederSubsystem extends SubsystemBase {
   public FeederSubsystem(HardwareMap hardwareMap) {
     // R is the original feeder servo. Reversed: on Mark 3 a positive raw power
     // runs the tunnel backward (Servo Check and driving, 27 Oct).
-    feederServoR = new CrServo(hardwareMap, "FeederServoR", true);
+    // TODO: the robot configuration still names it "FeederServo" and has no
+    // FeederServoL, which crashed the OpMode. Fall back until the configuration
+    // is updated, then use get() for both again.
+    CrServo r = find(hardwareMap, "FeederServoR", true);
+    feederServoR = r != null ? r : find(hardwareMap, "FeederServo", true);
     // L sits on the other end of the shaft, so it faces the other way and is
     // not reversed. Direction is to be verified on the robot with Servo Check:
     // if the two servos fight each other, flip this.
-    feederServoL = new CrServo(hardwareMap, "FeederServoL", false);
+    feederServoL = find(hardwareMap, "FeederServoL", false);
 
     setFeederState(FeederState.STOP);
+  }
+
+  /** The servo named name, or null if the robot configuration has none. */
+  private static CrServo find(HardwareMap hardwareMap, String name, boolean reversed) {
+    return hardwareMap.tryGet(CRServo.class, name) == null ? null : new CrServo(hardwareMap, name, reversed);
   }
 
   private void doFeederState() {
@@ -76,12 +88,17 @@ public class FeederSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     Logger.recordOutput("Feeder/State", feederState);
-    Logger.recordOutput("Feeder/CommandedPower", feederServoL.getCommandedPower());
+    Logger.recordOutput("Feeder/CommandedPower", commandedPower);
   }
 
   /** Both servos drive the same shaft at the same ratio, so they get the same power. */
   private void setFeederPower(double power) {
-    feederServoL.setPower(power);
-    feederServoR.setPower(power);
+    commandedPower = power;
+    if (feederServoL != null) {
+      feederServoL.setPower(power);
+    }
+    if (feederServoR != null) {
+      feederServoR.setPower(power);
+    }
   }
 }
