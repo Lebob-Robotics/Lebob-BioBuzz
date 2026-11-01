@@ -13,7 +13,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
  * control (RUN_USING_ENCODER), so setPower(p) asks for p of full speed, not p of the battery voltage.
  */
 public class GobildaMotor {
-  public static final double MAX_OUTPUT = 0.8; // Share of full speed any motor may be asked for
+  public static final double MAX_OUTPUT = 1.0; // Share of full speed any motor may be asked for (no cap)
   private static final double POWER_MIN = 1e-3; // Power changes smaller than this are not re-sent to the hub
 
   private final String name;

@@ -16,6 +16,13 @@ public class Main extends PsiKitIterativeOpMode {
   public static final boolean LIVE_LOGGING = true;
 
   /**
+   * Port of the live log server. Not 5800, the PsiKit default: the Panels Limelight proxy takes
+   * 5800, 5801, 5805 and 5807 on the hub, so PsiKit could not bind it. Set the same port in
+   * AdvantageScope (Preferences, RLOG port).
+   */
+  public static final int RLOG_PORT = 5810;
+
+  /**
    * Logs each motor's current. Adds a non-bulk hub read per motor every
    * FtcLogTuning.motorCurrentReadPeriodSec.
    */
@@ -37,7 +44,7 @@ public class Main extends PsiKitIterativeOpMode {
 
   @Override
   protected int getRlogPort() {
-    return LIVE_LOGGING ? 5800 : 0;
+    return LIVE_LOGGING ? RLOG_PORT : 0;
   }
 
   @Override

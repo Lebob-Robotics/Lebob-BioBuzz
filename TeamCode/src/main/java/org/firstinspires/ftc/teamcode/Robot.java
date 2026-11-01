@@ -23,12 +23,14 @@ import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
+import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.utils.PoseHistory;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.utils.ShooterTuning;
 import org.firstinspires.ftc.teamcode.utils.TagObservation;
 import org.firstinspires.ftc.teamcode.utils.TargetTracker;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
@@ -66,7 +68,10 @@ import java.util.List;
  */
 public class Robot {
   private final Telemetry telemetry;
-  private final Gamepad driver;
+  /** The real gamepad 1, kept for rumble. */
+  private final Gamepad physicalDriver;
+  /** What the code reads: gamepad 1, plus the browser gamepad from Panels when Panels is on. Rebuilt each loop. */
+  private Gamepad driver;
 
   public final IntakeSubsystem intake;
   public final MecanumDriveSubsystem drive;
@@ -78,8 +83,6 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double TRIGGER_PRESSED = 0.5;
-  /** Per flywheel, in RPM. How close the wheels must be to feed when RT is held without the Cell in view. */
-  private static final double MANUAL_RPM_TOLERANCE = 150;
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
@@ -117,6 +120,7 @@ public class Robot {
   private double rpmTrim = 0; // Driver's, for the rest of the match
   private boolean flywheelSpinUpOn = false;
   private boolean manualFeeding = false; // RT held without the Cell: set once the wheels are up to speed, until RT is released
+  private double manualHeldSinceS = Double.NaN; // When RT was pressed without the Cell
   private boolean intakeOn = false;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
@@ -127,6 +131,7 @@ public class Robot {
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driver) {
     this.telemetry = telemetry;
+    this.physicalDriver = driver;
     this.driver = driver;
 
     CommandScheduler.getInstance().reset();
@@ -154,10 +159,21 @@ public class Robot {
   }
 
   /**
+   * Merges the Panels browser gamepad into gamepad 1 so either can drive. Panels builds a new
+   * combined Gamepad on every call, so this runs once per loop. Off with Main.PANELS_ENABLED.
+   */
+  private void refreshDriver() {
+    driver = Main.PANELS_ENABLED
+        ? PanelsGamepad.INSTANCE.getFirstManager().asCombinedFTCGamepad(physicalDriver)
+        : physicalDriver;
+  }
+
+  /**
    * Called repeatedly during INIT: the driver picks the alliance. The shooter is stopped here, but
    * its stall guard still runs so the shooter is logged from the start.
    */
   public void initLoop() {
+    refreshDriver();
     pollAlliance();
     shooter.periodic();
     updateBattery();
@@ -191,6 +207,7 @@ public class Robot {
 
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {
+    refreshDriver();
     Pose2D pinpointPose = odometry.getPose(); // PsiKit has already updated the Pinpoint this loop
     Pose pose = new Pose(pinpointPose.getX(DistanceUnit.METER), pinpointPose.getY(DistanceUnit.METER),
         pinpointPose.getHeading(AngleUnit.RADIANS));
@@ -218,14 +235,23 @@ public class Robot {
     updateToggles();
     updateDrive(aiming, aim, pose, velocity[2]);
     updateShooterAndHood(aiming, aim);
-    // Without the Cell in view there is nothing to aim at, so RT shoots at the held RPM and hood
-    // once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
+    // Without the Cell in view there is nothing to aim at, so RT shoots at full flywheel speed and the
+    // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
     // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
     // time they dip would pull the next ball back out.
     if (!aiming || aim != null || shooter.isStalled()) {
       manualFeeding = false;
-    } else if (!manualFeeding && shooter.atSpeed(MANUAL_RPM_TOLERANCE)) {
-      manualFeeding = true;
+      manualHeldSinceS = Double.NaN;
+    } else {
+      double nowS = clock.seconds();
+      if (Double.isNaN(manualHeldSinceS)) {
+        manualHeldSinceS = nowS;
+      }
+      if (!manualFeeding
+          && (shooter.getRpm() >= ShooterTuning.MANUAL_SPEED_SHARE * shooter.getTargetRpm()
+              || nowS - manualHeldSinceS >= ShooterTuning.MANUAL_MAX_SPINUP_S)) {
+        manualFeeding = true;
+      }
     }
     boolean manualReady = manualFeeding;
     updateIntakeFeederIndexer(aiming, ready || manualReady);
@@ -234,7 +260,7 @@ public class Robot {
     stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
 
     if (shooter.isStalled() && !shooterWasStalled) {
-      driver.rumble(STALL_RUMBLE_MS);
+      physicalDriver.rumble(STALL_RUMBLE_MS);
     }
     shooterWasStalled = shooter.isStalled();
 
@@ -310,7 +336,7 @@ public class Robot {
       newState = AimState.LINING_UP;
     }
     if (newState == AimState.READY && aimState != AimState.READY) {
-      driver.rumble(150);
+      physicalDriver.rumble(150);
     }
     aimState = newState;
   }
@@ -369,9 +395,17 @@ public class Robot {
 
     if (aiming) {
       shooter.setShooterState(ShooterState.AIM);
-      shooter.setTargetRpm(aimRpm + rpmTrim);
+      // No Cell in view means no shot table to read, so go for the top speed
+      shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0
+          ? ShooterTuning.RPM_OVERRIDE
+          : aim == null ? shooter.getMaxRpm() : aimRpm + rpmTrim);
     } else if (driver.y) {
-      shooter.setShooterState(ShooterState.SHOOT);
+      if (ShooterTuning.RPM_OVERRIDE > 0) {
+        shooter.setShooterState(ShooterState.AIM);
+        shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE);
+      } else {
+        shooter.setShooterState(ShooterState.SHOOT);
+      }
     } else if (driver.b) {
       shooter.setShooterState(ShooterState.EJECT);
     } else if (flywheelSpinUpOn) {
@@ -410,7 +444,7 @@ public class Robot {
     boolean full = intake.isFull();
     boolean loading = intaking && !full && !shooting;
     if (intaking && full && !wasFull) {
-      driver.rumble(300);
+      physicalDriver.rumble(300);
     }
     if (full) {
       intakeOn = false; // So it doesn't start again by itself once balls are shot
