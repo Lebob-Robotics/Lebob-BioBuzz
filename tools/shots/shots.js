@@ -78,8 +78,10 @@
     if (maxXM === undefined) maxXM = Infinity;
     const r = p.ballDiameterM / 2;
     const k = 0.5 * RHO * p.dragCd * Math.PI * r * r / p.ballMassKg;
-    const a = p.launchAngleDeg * Math.PI / 180, v0 = rpm * p.exitSpeedPerRpm;
-    const start = exitPoint(a, p);
+    // The ball leaves launchOffsetDeg steeper than the hood is set (fitted from shots that scored).
+    const hoodRad = p.launchAngleDeg * Math.PI / 180, v0 = rpm * p.exitSpeedPerRpm;
+    const a = (p.launchAngleDeg + (p.launchOffsetDeg || 0)) * Math.PI / 180;
+    const start = exitPoint(hoodRad, p);
     let x = start.x, y = start.y, vx = v0 * Math.cos(a) + radialVelMps, vy = v0 * Math.sin(a), t = 0;
     const pts = [[x, y, vy]];
     while (t < 5 && y >= 0 && x <= maxXM) {
@@ -192,10 +194,10 @@
     // 1. With no drag the flight must match the closed-form parabola to 1 mm.
     const p = Object.assign({}, base, { dragCd: 0, lipHeightM: 100 });  // nothing to hit
     const s = simulate(3000, 0.3, 2, p);
-    const a = p.launchAngleDeg * Math.PI / 180, v0 = 3000 * p.exitSpeedPerRpm;
+    const a = (p.launchAngleDeg + (p.launchOffsetDeg || 0)) * Math.PI / 180, v0 = 3000 * p.exitSpeedPerRpm;
     for (const frac of [0.25, 0.5, 0.75]) {
       const n = Math.floor((s.points.length - 1) * frac), t = n * p.dtS;
-      const start = exitPoint(a, p);
+      const start = exitPoint(p.launchAngleDeg * Math.PI / 180, p);
       const ex = start.x + (v0 * Math.cos(a) + 0.3) * t, ey = start.y + v0 * Math.sin(a) * t - 0.5 * G * t * t;
       const err = Math.hypot(s.points[n][0] - ex, s.points[n][1] - ey);
       if (err > 0.001) fails.push('no-drag flight is ' + (err * 1000).toFixed(2) + ' mm off the parabola at t=' + t.toFixed(3) + ' s');
