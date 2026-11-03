@@ -11,6 +11,11 @@ import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
+import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
+import org.firstinspires.ftc.teamcode.utils.CellSighting;
+import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
+import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.utils.Shot;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
@@ -25,7 +30,12 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * <li>D-pad up/down: target RPM. Right raises the hood 2 degrees per press; left lowers it 2.</li>
  * <li>Right bumper, held: feed. Only feeds while both wheels are within RPM_TOLERANCE.</li>
  * <li>B, held: run the feeder and indexer backward to clear a jam.</li>
+ * <li>Y: load the shot table's RPM and hood angle for the distance the cameras see.</li>
+ * <li>X: mark the last shot as scored (logged with its distance, RPM and hood angle).</li>
  * </ul>
+ *
+ * <p>The cameras give the distance from the shooter to the Cell's tag cluster and near lip, so a
+ * shot that scores can be logged against where it was taken from.
  *
  * <p>Telemetry shows the RPM and hood angle each shot was fired at. Write those down, not the
  * targets: the real speed is what the ball got.
@@ -33,7 +43,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 @TeleOp(name = "Shooter Calibration", group = "Tuning")
 public class ShooterCalibration extends PsiKitIterativeOpMode {
   private static final double START_RPM = 3500;
-  private static final double RPM_STEP = 250;
+  private static final double RPM_STEP = 100;
   private static final double START_HOOD_DEG = HoodSubsystem.ZERO_ANGLE_DEG;
   private static final double RPM_TOLERANCE = 50;
   private static final double TRIGGER_PRESSED = 0.5;
@@ -50,6 +60,17 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private int shotCount = 0;
   private double lastShotRpm = Double.NaN;
   private double lastShotHoodDeg = Double.NaN;
+
+  private VisionSubsystem vision;
+  private double lipDistM = Double.NaN;
+  private double clusterDistM = Double.NaN;
+  private String clusterName = "";
+  private long lastSightingNanos;
+  private double lastShotLipDistM = Double.NaN;
+  private int scoredCount = 0;
+  private boolean lastShotScored;
+  private boolean wasX;
+  private boolean wasY;
 
   private boolean wasA;
   private boolean wasDpadUp;
@@ -75,11 +96,14 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     indexer = new IndexerSubsystem(hardwareMap);
     hood.init();
     shooter.setShooterState(ShooterState.STOP);
+    vision = new VisionSubsystem(hardwareMap);
   }
 
   @Override
   protected void onPsiKitInitLoop() {
     hood.periodic(); // STOW target: log both zeroed encoders without requesting hood travel.
+    updateDistance();
+    telemetry.addData("Distance", distanceText());
     telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT" : "ok");
     telemetry.addLine("Hood must rest on its lower stop now. Robot does not drive.");
     telemetry.update();
@@ -90,6 +114,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
 
   @Override
   protected void onPsiKitLoop() {
+    updateDistance();
     updateTargets();
 
     shooter.setShooterState(flywheelsOn ? ShooterState.AIM : ShooterState.STOP);
@@ -110,11 +135,18 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     Logger.recordOutput("Calibration/ShotCount", shotCount);
     Logger.recordOutput("Calibration/LastShotRpm", lastShotRpm);
     Logger.recordOutput("Calibration/LastShotHoodDeg", lastShotHoodDeg);
+    Logger.recordOutput("Calibration/LastShotLipDistM", lastShotLipDistM);
+    Logger.recordOutput("Calibration/LastShotScored", lastShotScored);
+    Logger.recordOutput("Calibration/ScoredCount", scoredCount);
+    Logger.recordOutput("Calibration/LipDistM", lipDistM);
+    Logger.recordOutput("Calibration/ClusterDistM", clusterDistM);
+    Logger.recordOutput("Calibration/ClusterName", clusterName);
     addTelemetry(readyToFeed);
   }
 
   @Override
   protected void onPsiKitStop() {
+    if (vision != null) { vision.close(); }
     CommandScheduler.getInstance().cancelAll();
     CommandScheduler.getInstance().reset();
   }
@@ -133,6 +165,19 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
         gamepad1.dpad_right, gamepad1.dpad_left,
         HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG);
     hoodDeg = HoodSubsystem.ZERO_ANGLE_DEG - lift;
+    if (justPressed(gamepad1.y, wasY) && !Double.isNaN(lipDistM)) {
+      Shot shot = ShootOnTheMove.calculate(lipDistM, 0, 0);
+      if (shot.valid) {
+        targetRpm = Math.min(shooter.getMaxRpm(), Math.round(shot.targetRpm / 10.0) * 10.0);
+        hoodDeg = shot.hoodDeg;
+      }
+    }
+    if (justPressed(gamepad1.x, wasX) && shotCount > 0 && !lastShotScored) {
+      lastShotScored = true;
+      scoredCount++;
+    }
+    wasX = gamepad1.x;
+    wasY = gamepad1.y;
     wasA = gamepad1.a;
     wasDpadUp = gamepad1.dpad_up;
     wasDpadDown = gamepad1.dpad_down;
@@ -143,6 +188,39 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     shotCount++;
     lastShotRpm = shooter.getRpm();
     lastShotHoodDeg = HoodSubsystem.ticksToAngle(hood.getPosition());
+    lastShotLipDistM = lipDistM;
+    lastShotScored = false;
+  }
+
+  /** Nearest Cell cluster in this loop's new frames, from the shooter, along the floor. */
+  private void updateDistance() {
+    vision.periodic();
+    double nearestM = Double.NaN;
+    for (CellSighting sighting : vision.takeNewCellSightings()) {
+      double[] inRobot = sighting.camera.toRobotFrame(sighting.rightM, sighting.forwardM, sighting.upM);
+      double distM = Math.hypot(inRobot[0] - ShootOnTheMoveConstants.SHOOTER_FORWARD_M,
+          inRobot[1] - ShootOnTheMoveConstants.SHOOTER_LEFT_M);
+      if (Double.isNaN(nearestM) || distM < nearestM) {
+        nearestM = distM;
+        clusterName = sighting.clusterName;
+        lastSightingNanos = sighting.frameTimeNanos;
+      }
+    }
+    if (!Double.isNaN(nearestM)) {
+      clusterDistM = nearestM;
+      lipDistM = nearestM - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    }
+    if (System.nanoTime() - lastSightingNanos > 1_000_000_000L) { // Seen over a second ago: unknown
+      lipDistM = Double.NaN;
+      clusterDistM = Double.NaN;
+    }
+  }
+
+  private String distanceText() {
+    if (Double.isNaN(lipDistM)) {
+      return "no Cell tags seen";
+    }
+    return String.format("%.2f m to near lip (%.2f m to tags, %s)", lipDistM, clusterDistM, clusterName);
   }
 
   private void updateFeederAndIndexer(boolean feeding) {
@@ -169,8 +247,17 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     telemetry.addData("Ready to feed", readyToFeed ? "YES (right bumper)" : "no");
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addLine();
-    telemetry.addData("Shot", shotCount);
-    telemetry.addData("WRITE DOWN", "rpm %.0f, hoodDeg %.1f", lastShotRpm, lastShotHoodDeg);
+    telemetry.addData("Distance", distanceText());
+    if (!Double.isNaN(lipDistM)) {
+      Shot shot = ShootOnTheMove.calculate(lipDistM, 0, 0);
+      telemetry.addData("Table says (Y)", shot.valid
+          ? String.format("rpm %.0f, hood %.1f deg (lift %.1f)", shot.targetRpm, shot.hoodDeg,
+              HoodSubsystem.ZERO_ANGLE_DEG - shot.hoodDeg)
+          : "no shot: " + shot.reason);
+    }
+    telemetry.addData("Shot", "%d fired, %d scored (X marks last as in)", shotCount, scoredCount);
+    telemetry.addData("Last shot", "rpm %.0f, hoodDeg %.1f, lip %.2f m%s",
+        lastShotRpm, lastShotHoodDeg, lastShotLipDistM, lastShotScored ? "  IN" : "");
     telemetry.update();
   }
 
