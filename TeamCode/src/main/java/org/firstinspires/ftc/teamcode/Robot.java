@@ -30,6 +30,7 @@ import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.utils.PoseHistory;
+import org.firstinspires.ftc.teamcode.utils.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.ShooterTuning;
@@ -125,6 +126,9 @@ public class Robot {
   private double rpmTrim = 0; // Driver's, for the rest of the match
   private boolean flywheelSpinUpOn = false;
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
+  // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
+  private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate();
+  private double cellSeenAgoS = Double.POSITIVE_INFINITY;
   private boolean intakeOn = false;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
@@ -249,7 +253,9 @@ public class Robot {
     // time they dip would pull the next ball back out.
     boolean manualReady = manualFeedGate.update(aiming && aim == null && !shooter.isStalled(),
         shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE));
-    updateIntakeFeederIndexer(aiming, ready || manualReady);
+    boolean aimedFeed = aimedFeedGate.update(clock.seconds(), aiming && aim != null, ready,
+        shooter.getRpm(), shooter.getTargetRpm());
+    updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
     stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
@@ -310,10 +316,12 @@ public class Robot {
         tracker.update(sighting);
       }
     }
+    cellSeenAgoS = tracker.secondsSinceSeen(nowNanos);
     if (!tracker.knowsCell(nowNanos)) {
       return null;
     }
-    return ShootOnTheMove.aim(pose, velocity[0], velocity[1], tracker.getCellX(), tracker.getCellY());
+    return ShootOnTheMove.aim(pose, velocity[0], velocity[1], tracker.getCellX(), tracker.getCellY(),
+        ShootOnTheMoveConstants.BACKWARD_SHOTS_ON);
   }
 
   /** Also rumbles once each time the shot becomes ready. */
@@ -413,7 +421,9 @@ public class Robot {
     }
 
     if (aiming) {
-      if (validShot) { // Otherwise the hood holds its last angle
+      if (validShot && aim.backward) {
+        hood.setTargetTicks(0); // Rests unpowered on the lower stop; trim doesn't apply
+      } else if (validShot) { // Otherwise the hood holds its last angle
         hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.shot.hoodDeg - hoodLiftTrimDeg));
       }
     } else if (driver.dpad_up) {
@@ -479,6 +489,7 @@ public class Robot {
     Logger.recordOutput("SOTM/KnowsCell", aim != null);
     Logger.recordOutput("SOTM/CellX", tracker.getCellX());
     Logger.recordOutput("SOTM/CellY", tracker.getCellY());
+    Logger.recordOutput("SOTM/CellSeenAgoS", cellSeenAgoS);
     Logger.recordOutput("SOTM/RpmTrim", rpmTrim);
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
     Logger.recordOutput("Robot/FlywheelSpinUpOn", flywheelSpinUpOn);
@@ -487,6 +498,7 @@ public class Robot {
       return;
     }
     Logger.recordOutput("SOTM/Valid", aim.shot.valid);
+    Logger.recordOutput("SOTM/Backward", aim.backward);
     Logger.recordOutput("SOTM/Reason", aim.shot.reason.name());
     Logger.recordOutput("SOTM/DistanceToLipM", aim.shot.distanceToLipM);
     Logger.recordOutput("SOTM/SpeedTowardCellMps", aim.shot.speedTowardCellMps);
@@ -544,7 +556,14 @@ public class Robot {
   private void addTelemetry(Aim aim, Pose pose) {
     telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet"));
     telemetry.addData("Aim", aimState);
-    if (aim != null) {
+    if (aim == null) {
+      telemetry.addData("Distance", Double.isInfinite(cellSeenAgoS)
+          ? "Cell not seen yet: point the cameras at it"
+          : String.format("Cell forgotten (seen %.0f s ago): point the cameras at it", cellSeenAgoS));
+    } else {
+      telemetry.addData("Distance", String.format("%.2f m to lip  %s  (%s)", aim.shot.distanceToLipM,
+          aim.backward ? "BACKWARD, hood down" : "FRONT, hooded",
+          cellSeenAgoS < 0.5 ? "camera sees Cell" : String.format("odometry, seen %.1f s ago", cellSeenAgoS)));
       telemetry.addData("Shot", aim.shot.valid ? "OK" : aim.shot.reason);
       telemetry.addData("Dist", String.format("%.2f m  toward %.2f  sideways %.2f m/s",
           aim.shot.distanceToLipM, aim.shot.speedTowardCellMps, aim.shot.sidewaysSpeedMps));

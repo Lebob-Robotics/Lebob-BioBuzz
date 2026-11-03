@@ -196,4 +196,47 @@ public class ShootOnTheMoveTest {
     assertEquals(-0.5, ShootOnTheMove.normalizeAngle(-0.5 - 4 * Math.PI), 1e-12);
     assertEquals(Math.PI - 0.1, ShootOnTheMove.normalizeAngle(-Math.PI - 0.1), 1e-12);
   }
+
+  // ---- Backward shot ----
+
+  @Test public void backwardRpmIsTheCalibratedPointAndStraightBetween() {
+    assertEquals(3400, ShootOnTheMove.calculateBackward(0.95, 0, 0).targetRpm, 1e-6);
+    assertEquals(3700, ShootOnTheMove.calculateBackward(1.8, 0, 0).targetRpm, 1e-6);
+    assertEquals(4200, ShootOnTheMove.calculateBackward(2.3, 0, 0).targetRpm, 1e-6);
+    assertEquals(3950, ShootOnTheMove.calculateBackward(2.05, 0, 0).targetRpm, 1e-6);
+    assertEquals(ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
+  }
+
+  @Test public void backwardRefusesOutsideTheCalibratedDistances() {
+    assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(0.9, 0, 0).reason);
+    assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(2.4, 0, 0).reason);
+    assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(Double.NaN, 0, 0).reason);
+  }
+
+  @Test public void backwardRefusesWhileMoving() {
+    assertEquals(Shot.Reason.CLOSING_TOO_FAST, ShootOnTheMove.calculateBackward(1.5, 0.5, 0).reason);
+    assertEquals(Shot.Reason.BACKING_TOO_FAST, ShootOnTheMove.calculateBackward(1.5, -0.5, 0).reason);
+    assertEquals(Shot.Reason.SIDEWAYS_TOO_FAST, ShootOnTheMove.calculateBackward(1.5, 0, 0.5).reason);
+  }
+
+  @Test public void backwardInRangePointsTheRobotsFrontAtTheCell() {
+    double clusterX = 1.8 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, clusterX, 0, true);
+    assertTrue(aim.backward);
+    assertTrue(aim.shot.valid);
+    assertEquals(0, aim.targetHeadingRad, 1e-9); // Front toward +x, where the Cell is
+    assertEquals(3700, aim.shot.targetRpm, 1e-6);
+  }
+
+  @Test public void beyondTheBackwardTableUsesTheHoodedShotOutOfTheBack() {
+    double clusterX = 2.6 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, clusterX, 0, true);
+    assertFalse(aim.backward);
+    assertEquals(Math.PI, Math.abs(aim.targetHeadingRad), 1e-9);
+  }
+
+  @Test public void withoutBackwardAllowedItIsAlwaysTheHoodedShot() {
+    double clusterX = 1.8 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    assertFalse(ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, clusterX, 0).backward);
+  }
 }

@@ -60,6 +60,15 @@ public final class ShootOnTheMove {
 
   /** Where to point the robot and what shot to take. Everything is in the field frame. */
   public static Aim aim(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+    return aim(robot, velocityXMps, velocityYMps, cellX, cellY, false);
+  }
+
+  /**
+   * As {@link #aim(Pose, double, double, double, double)}, but with {@code allowBackward} a backward shot
+   * is taken whenever the backward table has one, and the hooded shot only otherwise.
+   */
+  public static Aim aim(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY,
+      boolean allowBackward) {
     double predictedX = robot.xM + velocityXMps * FEED_DELAY_S; // Where the robot will be when the ball leaves
     double predictedY = robot.yM + velocityYMps * FEED_DELAY_S;
 
@@ -78,10 +87,44 @@ public final class ShootOnTheMove {
     double speedTowardCellMps = velocityXMps * unitToCellX + velocityYMps * unitToCellY;
     double sidewaysSpeedMps = -velocityXMps * unitToCellY + velocityYMps * unitToCellX;
 
-    Shot shot = calculate(distanceToClusterM - CLUSTER_TO_NEAR_LIP_M, speedTowardCellMps, sidewaysSpeedMps);
+    double distanceToLipM = distanceToClusterM - CLUSTER_TO_NEAR_LIP_M;
+    if (allowBackward) {
+      Shot backward = calculateBackward(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
+      if (backward.valid) {
+        double robotHeadingRad = normalizeAngle(directionToCellRad - BACKWARD_DIRECTION_RAD);
+        return new Aim(backward, robotHeadingRad, headingTolerance(distanceToClusterM), true);
+      }
+    }
+    Shot shot = calculate(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
     double shooterHeadingRad = directionToCellRad + shot.turningRad;
     double robotHeadingRad = normalizeAngle(shooterHeadingRad - SHOOTER_DIRECTION_RAD);
-    return new Aim(shot, robotHeadingRad, headingTolerance(distanceToClusterM));
+    return new Aim(shot, robotHeadingRad, headingTolerance(distanceToClusterM), false);
+  }
+
+  /**
+   * The backward shot: hood on its lower stop, RPM read straight between the calibrated distances.
+   * Calibrated standing still, so it is refused while the robot is moving.
+   */
+  public static Shot calculateBackward(double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
+    double[] distances = BACKWARD_DIST_M;
+    Shot.Reason reason = null;
+    if (!(distanceToLipM >= distances[0] && distanceToLipM <= distances[distances.length - 1])) {
+      reason = Shot.Reason.OUT_OF_RANGE;
+    } else if (speedTowardCellMps > BACKWARD_MAX_SPEED_MPS) {
+      reason = Shot.Reason.CLOSING_TOO_FAST;
+    } else if (speedTowardCellMps < -BACKWARD_MAX_SPEED_MPS) {
+      reason = Shot.Reason.BACKING_TOO_FAST;
+    } else if (Math.abs(sidewaysSpeedMps) > BACKWARD_MAX_SPEED_MPS) {
+      reason = Shot.Reason.SIDEWAYS_TOO_FAST;
+    }
+    if (reason != null) {
+      return Shot.impossible(reason, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
+    }
+    int i = Math.min(TableLookup.indexAtOrBelow(distances, distanceToLipM), distances.length - 2);
+    double fraction = (distanceToLipM - distances[i]) / (distances[i + 1] - distances[i]);
+    double rpm = BACKWARD_RPM[i] + fraction * (BACKWARD_RPM[i + 1] - BACKWARD_RPM[i]);
+    return new Shot(Shot.Reason.OK, rpm, BACKWARD_LAUNCH_DEG, Double.NaN, 0.0,
+        distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
   }
 
   /** True when the shot is valid, the flywheels and hood are on target, and the heading is close enough. */

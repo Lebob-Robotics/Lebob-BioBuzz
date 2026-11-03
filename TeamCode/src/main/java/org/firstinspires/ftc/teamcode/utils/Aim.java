@@ -5,8 +5,10 @@ public final class Aim {
   public final Shot shot;
   public final double targetHeadingRad; // Field heading for the robot
   public final double headingToleranceRad; // How far off the target heading still scores
+  public final boolean backward; // Out of the robot's front with the hood down, from the backward table
 
-  Aim(Shot shot, double targetHeadingRad, double headingToleranceRad) {
+  Aim(Shot shot, double targetHeadingRad, double headingToleranceRad, boolean backward) {
+    this.backward = backward;
     this.shot = shot;
     this.targetHeadingRad = targetHeadingRad;
     this.headingToleranceRad = headingToleranceRad;

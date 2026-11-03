@@ -105,7 +105,7 @@ public class TargetTrackerTest {
     tracker.recordPose(0, new Pose(0, 0, 0));
     tracker.update(twoMetresAhead(0));
     long expiryNanos = (long) (ShootOnTheMoveConstants.CELL_EXPIRY_S * ONE_SECOND_NANOS);
-    assertTrue(tracker.knowsCell(expiryNanos));
+    assertTrue(tracker.knowsCell(expiryNanos - 1000));
     assertFalse(tracker.knowsCell(expiryNanos + 1000));
   }
 

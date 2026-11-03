@@ -33,7 +33,9 @@ public final class ShootOnTheMoveConstants {
   public static double SIDE_MARGIN_M = 0.02; // Kept clear of each side of the opening
 
   // ---- Remembering the Cell --------------------------------------------
-  public static double CELL_EXPIRY_S = 3.0; // Forget the Cell this long after the last sighting
+  // Odometry corrected by the Hive tags carries the Cell's position between sightings, and a backward shot
+  // turns the cameras away from it, so it is kept well past one turn-around.
+  public static double CELL_EXPIRY_S = 30.0; // Forget the Cell this long after the last sighting
   public static double CELL_SMOOTHING = 0.3; // Share of the way the stored Cell moves toward each sighting. 1 is no smoothing
   public static final int POSE_HISTORY_SIZE = 100; // About two seconds of loops
 
@@ -88,9 +90,20 @@ public final class ShootOnTheMoveConstants {
   public static double MAX_HOOD_DIFFERENCE_TO_BLEND_DEG = 4;
 
   // ---- Fire check (match the tolerances in tools/shots/inputs.json) ----
-  public static double RPM_TOLERANCE = 50; // Per flywheel
+  public static double RPM_TOLERANCE = 75; // Per flywheel. The hub's speed reading steps by about 60 RPM
   public static double HOOD_TOLERANCE_DEG = 1.0;
   public static double MAX_HEADING_TOLERANCE_DEG = 5; // Otherwise it grows large at short range
+
+  // ---- Backward shot (tools/shots/backwards-calibration.json) ---------
+  // Out of the robot's front, the other way to the cameras: hood on its lower stop, so the ball leaves
+  // over the top. Taped from the flywheel axle to the near lip with the robot still, so there is no
+  // speed axis: it is only taken while the robot is nearly stopped.
+  public static boolean BACKWARD_SHOTS_ON = true;
+  public static double BACKWARD_DIRECTION_RAD = 0; // Relative to robot forward
+  public static double BACKWARD_LAUNCH_DEG = 99; // Hood on its lower stop (HoodSubsystem.ZERO_ANGLE_DEG)
+  public static final double[] BACKWARD_DIST_M = {0.95, 1.3, 1.8, 2.3};
+  public static final double[] BACKWARD_RPM = {3400, 3500, 3700, 4200};
+  public static double BACKWARD_MAX_SPEED_MPS = 0.3; // Toward or sideways
 
   // ---- Driver ----------------------------------------------------------
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming
