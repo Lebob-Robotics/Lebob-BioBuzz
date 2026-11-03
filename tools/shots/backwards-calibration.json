@@ -24,6 +24,23 @@
       "fired": 9,
       "scored": 7,
       "date": "2026-11-03"
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3600,
+      "hoodLiftDeg": 0,
+      "fired": 3,
+      "scored": 2,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3700,
+      "hoodLiftDeg": 0,
+      "fired": 9,
+      "scored": 2,
+      "date": "2026-11-03",
+      "note": "Most misses went right (mechanical spread), depth looked right; the last 3 balls dropped short."
     }
   ]
 }
