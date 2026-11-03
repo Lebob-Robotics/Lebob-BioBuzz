@@ -90,8 +90,15 @@ public class VisionCorrectorTest {
         right[1] * forward[2] - right[2] * forward[1],
         right[2] * forward[0] - right[0] * forward[2],
         right[0] * forward[1] - right[1] * forward[0]};
-    return new TagObservation(id, camera, dot(fromCamera, right), dot(fromCamera, forward),
-        dot(fromCamera, upAxis), 100, frameNanos);
+    // Rotate the physical right/up basis about the lens axis for rolled camera mounts.
+    double[] cameraRight = new double[3];
+    double[] cameraUp = new double[3];
+    for (int axis = 0; axis < 3; axis++) {
+      cameraRight[axis] = Math.cos(camera.rollRad) * right[axis] + Math.sin(camera.rollRad) * upAxis[axis];
+      cameraUp[axis] = -Math.sin(camera.rollRad) * right[axis] + Math.cos(camera.rollRad) * upAxis[axis];
+    }
+    return new TagObservation(id, camera, dot(fromCamera, cameraRight), dot(fromCamera, forward),
+        dot(fromCamera, cameraUp), 100, frameNanos);
   }
 
   private static double dot(double[] a, double[] b) {
