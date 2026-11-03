@@ -202,6 +202,12 @@ public class HoodSubsystem extends SubsystemBase {
     if (!enabled) {
       return;
     }
+    if (target == 0) { // Rest on the lower stop unpowered; holding just above it only stalls the motor
+      if (driving) {
+        cut();
+      }
+      return;
+    }
 
     boolean moveDone = driving && atRest
         && Math.abs(lastMotorTarget - motorPosition) <= GUARD_BUSY_MOTOR_TICKS;
@@ -295,7 +301,11 @@ public class HoodSubsystem extends SubsystemBase {
     return angleToTicks(MIN_ANGLE_DEG + STOP_MARGIN_DEG);
   }
 
+  /** Kept inside the margins, except that a target at or below the lower stop rests on it (0). */
   static int clampTarget(int ticks) {
+    if (ticks <= 0) {
+      return 0;
+    }
     return Math.max(minTargetTicks(), Math.min(maxTargetTicks(), ticks));
   }
 
