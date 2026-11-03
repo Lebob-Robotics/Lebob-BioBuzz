@@ -31,6 +31,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * <li>D-pad up/down: target RPM. Right raises the hood 2 degrees per press; left lowers it 2.</li>
  * <li>Right bumper, held: fire one ball at a time, each once the wheels are back at speed.</li>
  * <li>B, held: run the feeder and indexer backward to clear a jam.</li>
+ * <li>Left bumper, held: index. The indexer moves balls up; the feeder holds them out of the wheels.</li>
  * <li>Y: load the shot table's RPM and hood angle for the distance the cameras see.</li>
  * <li>X: mark the last shot as scored (logged with its distance, RPM and hood angle).</li>
  * </ul>
@@ -233,6 +234,9 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     } else if (feeding) {
       feeder.setFeederState(FeederState.FEED);
       indexer.setIndexerState(IndexerState.FEED);
+    } else if (gamepad1.left_bumper) { // Index: queue balls up to the feeder, which holds them back
+      feeder.setFeederState(FeederState.HOLD);
+      indexer.setIndexerState(IndexerState.FEED);
     } else {
       feeder.setFeederState(FeederState.STOP);
       indexer.setIndexerState(IndexerState.STOP);
@@ -248,6 +252,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
         hoodDeg, HoodSubsystem.ticksToAngle(hood.getPosition()));
     telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: stop and check wiring, then re-INIT at lower stop" : "ok");
     telemetry.addData("Ready to feed", readyToFeed ? "YES (right bumper)" : "no");
+    telemetry.addData("Index", "hold left bumper");
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addLine();
     telemetry.addData("Distance", distanceText());

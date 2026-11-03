@@ -1,0 +1,7 @@
+{
+  "note": "Shooting out of the back (more compression), hood on its lower stop, flywheel speed only. distM is flywheel axle to the Cell's near lip, measured by tape.",
+  "points": [
+    { "distM": 0.95, "rpm": 3400, "hoodLiftDeg": 0, "fired": 13, "scored": 10, "date": "2026-11-03" },
+    { "distM": 0.95, "rpm": 3500, "hoodLiftDeg": 0, "fired": 9, "scored": 4, "date": "2026-11-03" }
+  ]
+}
