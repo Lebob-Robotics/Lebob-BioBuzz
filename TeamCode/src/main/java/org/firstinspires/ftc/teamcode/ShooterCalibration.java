@@ -13,6 +13,7 @@ import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
+import org.firstinspires.ftc.teamcode.utils.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.Shot;
@@ -28,7 +29,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * <ul>
  * <li>A: flywheels on or off, held at the target RPM.</li>
  * <li>D-pad up/down: target RPM. Right raises the hood 2 degrees per press; left lowers it 2.</li>
- * <li>Right bumper, held: feed. Only feeds while both wheels are within RPM_TOLERANCE.</li>
+ * <li>Right bumper, held: fire one ball at a time, each once the wheels are back at speed.</li>
  * <li>B, held: run the feeder and indexer backward to clear a jam.</li>
  * <li>Y: load the shot table's RPM and hood angle for the distance the cameras see.</li>
  * <li>X: mark the last shot as scored (logged with its distance, RPM and hood angle).</li>
@@ -45,7 +46,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private static final double START_RPM = 3500;
   private static final double RPM_STEP = 100;
   private static final double START_HOOD_DEG = HoodSubsystem.ZERO_ANGLE_DEG;
-  private static final double RPM_TOLERANCE = 50;
+  private static final double RPM_TOLERANCE = 75; // The speed reading steps by about 60 RPM
   private static final double TRIGGER_PRESSED = 0.5;
 
   private ShooterSubsystem shooter;
@@ -56,7 +57,8 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private double targetRpm = START_RPM;
   private double hoodDeg = START_HOOD_DEG;
   private boolean flywheelsOn = false;
-  private boolean wasFeeding = false;
+  private final OneBallFeedGate feedGate = new OneBallFeedGate();
+  private final com.qualcomm.robotcore.util.ElapsedTime clock = new com.qualcomm.robotcore.util.ElapsedTime();
   private int shotCount = 0;
   private double lastShotRpm = Double.NaN;
   private double lastShotHoodDeg = Double.NaN;
@@ -121,13 +123,16 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     shooter.setTargetRpm(targetRpm);
     hood.setTargetTicks(HoodSubsystem.angleToTicks(hoodDeg));
 
-    boolean feedHeld = gamepad1.right_bumper;
     boolean readyToFeed = shooter.atSpeed(RPM_TOLERANCE) && hood.atTarget();
-    boolean feeding = feedHeld && readyToFeed;
-    if (feeding && !wasFeeding) {
-      recordShot();
+    boolean feeding = feedGate.update(clock.seconds(), gamepad1.right_bumper, readyToFeed,
+        shooter.getRpm(), targetRpm);
+    if (feedGate.feedStarted()) {
+      recordShot(); // Speed and angle as the ball is fed, before it slows the wheels
     }
-    wasFeeding = feeding;
+    if (feedGate.ballLeft()) {
+      shotCount++;
+      lastShotScored = false;
+    }
     updateFeederAndIndexer(feeding);
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
@@ -185,11 +190,9 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
 
   /** Takes the speed and angle the moment feeding starts, before the ball slows the wheel. */
   private void recordShot() {
-    shotCount++;
     lastShotRpm = shooter.getRpm();
     lastShotHoodDeg = HoodSubsystem.ticksToAngle(hood.getPosition());
     lastShotLipDistM = lipDistM;
-    lastShotScored = false;
   }
 
   /** Nearest Cell cluster in this loop's new frames, from the shooter, along the floor. */
