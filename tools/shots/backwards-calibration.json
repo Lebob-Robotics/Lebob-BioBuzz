@@ -58,6 +58,31 @@
       "scored": 8,
       "date": "2026-11-03",
       "note": "4 went in, 4 had the right depth but went sideways from mechanical spread; counted as in. Battery 12.66 V falling to 12.36 V over the run."
+    },
+    {
+      "distM": 2.3,
+      "rpm": 4000,
+      "hoodLiftDeg": 0,
+      "fired": 2,
+      "scored": 1,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 2.3,
+      "rpm": 4100,
+      "hoodLiftDeg": 0,
+      "fired": 3,
+      "scored": 1,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 2.3,
+      "rpm": 4200,
+      "hoodLiftDeg": 0,
+      "fired": 13,
+      "scored": 11,
+      "date": "2026-11-03",
+      "note": "Battery 12.2 V, dipping to 11.9 V per ball."
     }
   ]
 }
