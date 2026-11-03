@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
@@ -49,6 +50,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private static final double START_HOOD_DEG = HoodSubsystem.ZERO_ANGLE_DEG;
   private static final double RPM_TOLERANCE = 75; // The speed reading steps by about 60 RPM
   private static final double TRIGGER_PRESSED = 0.5;
+  private static final double BATTERY_SAMPLE_PERIOD_S = 0.1; // Each read is a hub round trip
 
   private ShooterSubsystem shooter;
   private HoodSubsystem hood;
@@ -63,6 +65,10 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private int shotCount = 0;
   private double lastShotRpm = Double.NaN;
   private double lastShotHoodDeg = Double.NaN;
+  private double lastShotBatteryVolts = Double.NaN;
+  private VoltageSensor battery;
+  private double batteryVolts = Double.NaN;
+  private double lastBatterySampleS = Double.NEGATIVE_INFINITY;
 
   private VisionSubsystem vision;
   private double lipDistM = Double.NaN;
@@ -100,6 +106,9 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     hood.init();
     shooter.setShooterState(ShooterState.STOP);
     vision = new VisionSubsystem(hardwareMap);
+    // Both hubs read the same battery, so one sensor is enough.
+    battery = hardwareMap.voltageSensor.iterator().hasNext()
+        ? hardwareMap.voltageSensor.iterator().next() : null;
   }
 
   @Override
@@ -117,6 +126,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
 
   @Override
   protected void onPsiKitLoop() {
+    updateBattery();
     updateDistance();
     updateTargets();
 
@@ -147,6 +157,8 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     Logger.recordOutput("Calibration/LipDistM", lipDistM);
     Logger.recordOutput("Calibration/ClusterDistM", clusterDistM);
     Logger.recordOutput("Calibration/ClusterName", clusterName);
+    Logger.recordOutput("Calibration/BatteryVolts", batteryVolts);
+    Logger.recordOutput("Calibration/LastShotBatteryVolts", lastShotBatteryVolts);
     addTelemetry(readyToFeed);
   }
 
@@ -194,6 +206,16 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     lastShotRpm = shooter.getRpm();
     lastShotHoodDeg = HoodSubsystem.ticksToAngle(hood.getPosition());
     lastShotLipDistM = lipDistM;
+    lastShotBatteryVolts = batteryVolts;
+  }
+
+  /** Samples the battery every {@link #BATTERY_SAMPLE_PERIOD_S}; it sags as the wheels spin up and with each ball. */
+  private void updateBattery() {
+    double now = clock.seconds();
+    if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
+      lastBatterySampleS = now;
+      batteryVolts = battery.getVoltage();
+    }
   }
 
   /** Nearest Cell cluster in this loop's new frames, from the shooter, along the floor. */
@@ -245,6 +267,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
 
   private void addTelemetry(boolean readyToFeed) {
     telemetry.addData("Flywheels", flywheelsOn ? "ON" : "off  (A)");
+    telemetry.addData("Battery", "%.2f V", batteryVolts);
     telemetry.addData("RPM", "target %.0f, actual %.0f", targetRpm, shooter.getRpm());
     telemetry.addData("Hood lift (deg)", "target %.1f, actual %.1f",
         HoodSubsystem.ZERO_ANGLE_DEG - hoodDeg, hood.getLiftDegrees());
@@ -264,8 +287,8 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
           : "no shot: " + shot.reason);
     }
     telemetry.addData("Shot", "%d fired, %d scored (X marks last as in)", shotCount, scoredCount);
-    telemetry.addData("Last shot", "rpm %.0f, hoodDeg %.1f, lip %.2f m%s",
-        lastShotRpm, lastShotHoodDeg, lastShotLipDistM, lastShotScored ? "  IN" : "");
+    telemetry.addData("Last shot", "rpm %.0f, hoodDeg %.1f, lip %.2f m, %.2f V%s",
+        lastShotRpm, lastShotHoodDeg, lastShotLipDistM, lastShotBatteryVolts, lastShotScored ? "  IN" : "");
     telemetry.update();
   }
 
