@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
@@ -21,7 +22,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * <p>The hood must rest on its lower stop at INIT, as in the TeleOp. Controls:
  * <ul>
  * <li>A: flywheels on or off, held at the target RPM.</li>
- * <li>D-pad up and down: target RPM. Left and right: hood angle.</li>
+ * <li>D-pad up/down: target RPM. Right raises the hood 2 degrees per press; left lowers it 2.</li>
  * <li>Right bumper, held: feed. Only feeds while both wheels are within RPM_TOLERANCE.</li>
  * <li>B, held: run the feeder and indexer backward to clear a jam.</li>
  * </ul>
@@ -33,8 +34,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 public class ShooterCalibration extends PsiKitIterativeOpMode {
   private static final double START_RPM = 3500;
   private static final double RPM_STEP = 250;
-  private static final double START_HOOD_DEG = 75;
-  private static final double HOOD_STEP_DEG = 5;
+  private static final double START_HOOD_DEG = HoodSubsystem.ZERO_ANGLE_DEG;
   private static final double RPM_TOLERANCE = 50;
   private static final double TRIGGER_PRESSED = 0.5;
 
@@ -54,12 +54,11 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private boolean wasA;
   private boolean wasDpadUp;
   private boolean wasDpadDown;
-  private boolean wasDpadLeft;
-  private boolean wasDpadRight;
+  private final HoodStepControl hoodSteps = new HoodStepControl();
 
   @Override
   protected int getRlogPort() {
-    return Main.LIVE_LOGGING ? 5800 : 0;
+    return Main.LIVE_LOGGING ? Main.RLOG_PORT : 0;
   }
 
   @Override
@@ -80,6 +79,8 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
 
   @Override
   protected void onPsiKitInitLoop() {
+    hood.periodic(); // STOW target: log both zeroed encoders without requesting hood travel.
+    telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT" : "ok");
     telemetry.addLine("Hood must rest on its lower stop now. Robot does not drive.");
     telemetry.update();
   }
@@ -128,17 +129,13 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     if (justPressed(gamepad1.dpad_down, wasDpadDown)) {
       targetRpm = Math.max(RPM_STEP, targetRpm - RPM_STEP);
     }
-    if (justPressed(gamepad1.dpad_left, wasDpadLeft)) {
-      hoodDeg = Math.max(HoodSubsystem.MIN_ANGLE_DEG, hoodDeg - HOOD_STEP_DEG);
-    }
-    if (justPressed(gamepad1.dpad_right, wasDpadRight)) {
-      hoodDeg = Math.min(HoodSubsystem.ZERO_ANGLE_DEG, hoodDeg + HOOD_STEP_DEG);
-    }
+    double lift = hoodSteps.update(HoodSubsystem.ZERO_ANGLE_DEG - hoodDeg,
+        gamepad1.dpad_right, gamepad1.dpad_left,
+        HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG);
+    hoodDeg = HoodSubsystem.ZERO_ANGLE_DEG - lift;
     wasA = gamepad1.a;
     wasDpadUp = gamepad1.dpad_up;
     wasDpadDown = gamepad1.dpad_down;
-    wasDpadLeft = gamepad1.dpad_left;
-    wasDpadRight = gamepad1.dpad_right;
   }
 
   /** Takes the speed and angle the moment feeding starts, before the ball slows the wheel. */
@@ -164,8 +161,11 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private void addTelemetry(boolean readyToFeed) {
     telemetry.addData("Flywheels", flywheelsOn ? "ON" : "off  (A)");
     telemetry.addData("RPM", "target %.0f, actual %.0f", targetRpm, shooter.getRpm());
-    telemetry.addData("Hood (deg)", "target %.1f, actual %.1f",
+    telemetry.addData("Hood lift (deg)", "target %.1f, actual %.1f",
+        HoodSubsystem.ZERO_ANGLE_DEG - hoodDeg, hood.getLiftDegrees());
+    telemetry.addData("Launch angle (deg)", "target %.1f, actual %.1f",
         hoodDeg, HoodSubsystem.ticksToAngle(hood.getPosition()));
+    telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: stop and check wiring, then re-INIT at lower stop" : "ok");
     telemetry.addData("Ready to feed", readyToFeed ? "YES (right bumper)" : "no");
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addLine();

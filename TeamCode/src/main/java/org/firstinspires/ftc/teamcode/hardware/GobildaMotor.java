@@ -118,12 +118,13 @@ public class GobildaMotor {
 
   /** Velocity PIDF used in RUN_USING_ENCODER. */
   public PIDFCoefficients getVelocityPidf() {
-    return motor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+    return HubMotors.unwrap(motor).getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER); // The logging wrapper reads zeros
   }
 
   /** Sets the velocity PIDF used in RUN_USING_ENCODER. */
   public void setVelocityPidf(double p, double i, double d, double f) {
-    motor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(p, i, d, f));
+    // The logging wrapper drops PIDF writes, so they go to the hub's motor behind it.
+    HubMotors.unwrap(motor).setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(p, i, d, f));
   }
 
   public void stop() {

@@ -26,6 +26,7 @@ import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.ManualFeedGate;
+import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.utils.PoseHistory;
@@ -57,7 +58,8 @@ import java.util.List;
  *       balls short of the shooter. Both stop at 4 balls once the beam breaks are wired.</li>
  *   <li>B: eject. X: stop the shooter (also ends spin-up, and resets a stall trip). A: tell the robot
  *       it is facing away from the driver's wall (use it if the heading drifts).</li>
- *   <li>D-pad: hood presets, or while aiming, up and down trim the RPM.</li>
+ *   <li>D-pad right/left: raise/lower hood 2 degrees per press (hood trim while aiming).
+ *       Up/down: hood presets, or RPM trim while aiming.</li>
  *   <li>During INIT, X picks blue and B picks red.</li>
  * </ul>
  *
@@ -118,6 +120,8 @@ public class Robot {
 
   private AimState aimState = AimState.OFF;
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
+  private final HoodStepControl hoodSteps = new HoodStepControl();
+  private double hoodLiftTrimDeg = 0;
   private double rpmTrim = 0; // Driver's, for the rest of the match
   private boolean flywheelSpinUpOn = false;
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
@@ -176,9 +180,13 @@ public class Robot {
     refreshDriver();
     pollAlliance();
     shooter.periodic();
+    vision.periodic(); // Read and log tags in INIT without running any mechanism commands.
     updateBattery();
     telemetry.addData("Alliance", alliance + "  (X = BLUE, B = RED)");
     telemetry.addData("Shooter stall", shooter.getStallStatus());
+    telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT at lower stop" : "ok");
+    telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
+    telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
     telemetry.update();
   }
 
@@ -406,16 +414,19 @@ public class Robot {
 
     if (aiming) {
       if (validShot) { // Otherwise the hood holds its last angle
-        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.shot.hoodDeg));
+        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.shot.hoodDeg - hoodLiftTrimDeg));
       }
     } else if (driver.dpad_up) {
       hood.setPreset(HoodPreset.FAR);
-    } else if (driver.dpad_right) {
-      hood.setPreset(HoodPreset.MID);
     } else if (driver.dpad_down) {
       hood.setPreset(HoodPreset.CLOSE);
-    } else if (driver.dpad_left) {
-      hood.setPreset(HoodPreset.STOW);
+    }
+    double lift = hood.getTargetLiftDegrees();
+    double steppedLift = hoodSteps.update(lift, driver.dpad_right, driver.dpad_left,
+        HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG);
+    if (steppedLift != lift) {
+      if (aiming) { hoodLiftTrimDeg += steppedLift - lift; }
+      hood.setTargetLiftDegrees(steppedLift);
     }
   }
 
@@ -469,6 +480,7 @@ public class Robot {
     Logger.recordOutput("SOTM/CellX", tracker.getCellX());
     Logger.recordOutput("SOTM/CellY", tracker.getCellY());
     Logger.recordOutput("SOTM/RpmTrim", rpmTrim);
+    Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
     Logger.recordOutput("Robot/FlywheelSpinUpOn", flywheelSpinUpOn);
     Logger.recordOutput("Robot/IntakeOn", intakeOn);
     if (aim == null) {
@@ -547,8 +559,10 @@ public class Robot {
         pose.xM, pose.yM, Math.toDegrees(pose.headingRad),
         Math.toDegrees(pose.headingRad - alliance.forwardHeadingRad())));
     telemetry.addData("Vision", visionLine());
+    telemetry.addData("Hood lift (deg)", "target %.1f, actual %.1f", hood.getTargetLiftDegrees(), hood.getLiftDegrees());
     telemetry.addData("Shooter", shooter.getShooterState() + (flywheelSpinUpOn ? "  (spin-up on)" : ""));
     telemetry.addData("Shooter stall", shooter.getStallStatus());
+    telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT at lower stop" : "ok");
     telemetry.addData("Intake", intakeOn ? "ON (toggle)" : intake.getIntakeState());
     telemetry.addData("Indexer", indexer.getIndexerState());
     telemetry.addData("Feeder", feeder.getFeederState());
