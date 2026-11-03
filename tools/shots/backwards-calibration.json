@@ -41,6 +41,23 @@
       "scored": 2,
       "date": "2026-11-03",
       "note": "Most misses went right (mechanical spread), depth looked right; the last 3 balls dropped short."
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3500,
+      "hoodLiftDeg": 0,
+      "fired": 3,
+      "scored": 1,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3700,
+      "hoodLiftDeg": 0,
+      "fired": 8,
+      "scored": 8,
+      "date": "2026-11-03",
+      "note": "4 went in, 4 had the right depth but went sideways from mechanical spread; counted as in. Battery 12.66 V falling to 12.36 V over the run."
     }
   ]
 }
