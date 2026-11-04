@@ -15,7 +15,7 @@ public final class OneBallFeedGate {
   public static double READY_SECONDS = 0.10;
   public static double DIP_RPM = 200;
 
-  private enum State { WAITING, FEEDING, RECOVERING }
+  private enum State { WAITING, FEEDING, RECOVERING, DONE } // DONE: one-ball mode, until released
 
   private State state = State.WAITING;
   private double readySinceS = Double.NaN;
@@ -30,6 +30,16 @@ public final class OneBallFeedGate {
    * @return whether to run the feeder and indexer this loop
    */
   public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm) {
+    return update(nowS, held, atSpeed, rpm, targetRpm, false);
+  }
+
+  /**
+   * As above.
+   *
+   * @param oneBall stop after the first ball until {@code held} is released, so each press shoots one
+   */
+  public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm,
+      boolean oneBall) {
     ballLeft = false;
     feedStarted = false;
     if (!atSpeed) {
@@ -53,10 +63,12 @@ public final class OneBallFeedGate {
         break;
       case FEEDING:
         if (rpm < targetRpm - DIP_RPM) {
-          state = State.RECOVERING;
+          state = oneBall ? State.DONE : State.RECOVERING;
           ballLeft = true;
           readySinceS = Double.NaN;
         }
+        break;
+      case DONE:
         break;
     }
     return state == State.FEEDING;

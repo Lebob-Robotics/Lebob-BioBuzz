@@ -52,8 +52,8 @@ import java.util.List;
  *       flywheels from the shot table, then feeds each ball once the shot is ready. The left stick
  *       still drives. Without RT, once the Cell is known the hood already follows the shot RT would
  *       take, so it is there when RT is pressed (hood presets then do nothing).</li>
- *   <li>Right bumper: toggle flywheel spin-up. Keeps the flywheels at the table's RPM so the first
- *       aimed shot is ready sooner.</li>
+ *   <li>Right bumper held: as RT, but shoots one ball per press. Release and press again for the next.
+ *       The flywheels already track the shot's RPM whenever the Cell is known, so there's no spin-up toggle.</li>
  *   <li>Y held: manual shot at full power, without aiming or waiting. A fallback for when the camera
  *       can't see the Cell.</li>
  *   <li>Left trigger held, or left bumper to toggle: intake. The feeder runs backward to queue the
@@ -127,7 +127,6 @@ public class Robot {
   private final HoodStepControl hoodSteps = new HoodStepControl();
   private double hoodLiftTrimDeg = 0;
   private double rpmTrim = 0; // Driver's, for the rest of the match
-  private boolean flywheelSpinUpOn = false;
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
   private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate();
@@ -142,7 +141,6 @@ public class Robot {
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
   private boolean wasLeftBumper = false;
-  private boolean wasRightBumper = false;
   private boolean shooterWasStalled = false;
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driver) {
@@ -250,7 +248,9 @@ public class Robot {
       pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
     }
 
-    boolean aiming = driver.right_trigger > TRIGGER_PRESSED;
+    boolean shootAll = driver.right_trigger > TRIGGER_PRESSED;
+    boolean oneBall = driver.right_bumper && !shootAll; // RT wins when both are held
+    boolean aiming = shootAll || driver.right_bumper;
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     boolean ready = aim != null && ShootOnTheMove.readyToFire(aim,
         shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE),
@@ -266,10 +266,13 @@ public class Robot {
     // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
     // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
     // time they dip would pull the next ball back out.
-    boolean manualReady = manualFeedGate.update(aiming && aim == null && !shooter.isStalled(),
+    boolean manualReady = manualFeedGate.update(shootAll && aim == null && !shooter.isStalled(),
         shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE));
-    boolean aimedFeed = aimedFeedGate.update(clock.seconds(), aiming && aim != null, ready,
-        shooter.getRpm(), shooter.getTargetRpm());
+    // One ball also without the Cell in view, at full speed, so a press never empties the robot
+    boolean oneBallReady = aim != null ? ready
+        : shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
+    boolean aimedFeed = aimedFeedGate.update(clock.seconds(), (shootAll && aim != null) || oneBall,
+        oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall);
     updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
@@ -406,18 +409,11 @@ public class Robot {
     wasDpadDown = driver.dpad_down;
   }
 
-  /** Right bumper toggles flywheel spin-up, left bumper toggles the intake. X ends spin-up. */
+  /** Left bumper toggles the intake. */
   private void updateToggles() {
-    if (justPressed(driver.right_bumper, wasRightBumper)) {
-      flywheelSpinUpOn = !flywheelSpinUpOn;
-    }
-    if (driver.x) {
-      flywheelSpinUpOn = false;
-    }
     if (justPressed(driver.left_bumper, wasLeftBumper)) {
       intakeOn = !intakeOn;
     }
-    wasRightBumper = driver.right_bumper;
     wasLeftBumper = driver.left_bumper;
   }
 
@@ -462,9 +458,6 @@ public class Robot {
       }
     } else if (driver.b) {
       shooter.setShooterState(ShooterState.EJECT);
-    } else if (flywheelSpinUpOn) {
-      shooter.setShooterState(ShooterState.AIM);
-      shooter.setTargetRpm(aimRpm + rpmTrim);
     } else if (driver.x) {
       shooter.setShooterState(ShooterState.STOP);
     } else if (validShot && ShootOnTheMoveConstants.PRESPIN_ON) {
@@ -552,7 +545,7 @@ public class Robot {
     Logger.recordOutput("SOTM/CellSeenAgoS", cellSeenAgoS);
     Logger.recordOutput("SOTM/RpmTrim", rpmTrim);
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
-    Logger.recordOutput("Robot/FlywheelSpinUpOn", flywheelSpinUpOn);
+    Logger.recordOutput("Robot/OneBallShot", driver.right_bumper && driver.right_trigger <= TRIGGER_PRESSED);
     Logger.recordOutput("Robot/IntakeOn", intakeOn);
     if (aim == null) {
       return;
@@ -644,7 +637,7 @@ public class Robot {
         Math.toDegrees(pose.headingRad - alliance.forwardHeadingRad())));
     telemetry.addData("Vision", visionLine());
     telemetry.addData("Hood lift (deg)", "target %.1f, actual %.1f", hood.getTargetLiftDegrees(), hood.getLiftDegrees());
-    telemetry.addData("Shooter", shooter.getShooterState() + (flywheelSpinUpOn ? "  (spin-up on)" : ""));
+    telemetry.addData("Shooter", shooter.getShooterState());
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT at lower stop" : "ok");
     telemetry.addData("Intake", intakeOn ? "ON (toggle)" : intake.getIntakeState());

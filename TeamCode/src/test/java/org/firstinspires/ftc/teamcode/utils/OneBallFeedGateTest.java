@@ -37,6 +37,19 @@ public class OneBallFeedGateTest {
     assertTrue(gate.feedStarted());
   }
 
+  @Test public void oneBallModeStopsAfterOneBallUntilReleased() {
+    OneBallFeedGate gate = new OneBallFeedGate();
+    gate.update(0.00, true, true, 3505, TARGET, true);
+    assertTrue(gate.update(0.10, true, true, 3505, TARGET, true));
+    assertFalse(gate.update(0.15, true, false, 3075, TARGET, true)); // The ball left
+    assertTrue(gate.ballLeft());
+    assertFalse(gate.update(0.40, true, true, 3505, TARGET, true));
+    assertFalse(gate.update(1.00, true, true, 3505, TARGET, true)); // Still held: no second ball
+    assertFalse(gate.update(1.05, false, true, 3505, TARGET, true)); // Released
+    gate.update(1.10, true, true, 3505, TARGET, true);
+    assertTrue(gate.update(1.20, true, true, 3505, TARGET, true)); // Pressed again: the next ball
+  }
+
   @Test public void releasingStopsAtOnce() {
     OneBallFeedGate gate = new OneBallFeedGate();
     gate.update(0.00, true, true, 3505, TARGET);
