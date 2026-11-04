@@ -25,8 +25,8 @@ import org.psilynx.psikit.core.wpi.math.Rotation2d;
  */
 public class OdometrySubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
-  // The SDK javadoc only says "X (forward) velocity", so the frame is unconfirmed.
-  private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // TODO verify
+  // The SDK javadoc only says "X (forward) velocity".
+  private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // Checked 4 Nov: facing 180, field-frame velocity matched the pose change to 4 in/s, robot frame was 30 out
 
   private static final Pose2D ZERO_POSE =
       new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0);
