@@ -19,6 +19,7 @@ public final class TargetTracker {
   private double cellY;
   private long lastSeenNanos;
   private boolean cellSeen;
+  private String cellName = "";
 
   public TargetTracker(int poseHistorySize) {
     poseTimesNanos = new long[poseHistorySize];
@@ -49,16 +50,28 @@ public final class TargetTracker {
     }
 
     Pose pose = poseNearestTo(sighting.frameTimeNanos);
+    boolean sameCell = sighting.clusterName.equals(cellName);
+    if (cellSeen && !sameCell) {
+      // Another of our Cells in view: keep the one we have unless the new one is clearly nearer or
+      // ours hasn't been seen for a while (the Hive tipped), so the aim doesn't flip between Cells.
+      boolean heldStale = (sighting.frameTimeNanos - lastSeenNanos) * 1e-9 > CELL_SWITCH_AFTER_S;
+      double heldDistM = Math.hypot(cellX - pose.xM, cellY - pose.yM);
+      double newDistM = Math.hypot(robotForwardM, robotLeftM);
+      if (!heldStale && newDistM > heldDistM - CELL_SWITCH_MARGIN_M) {
+        return false;
+      }
+    }
     double cosHeading = Math.cos(pose.headingRad);
     double sinHeading = Math.sin(pose.headingRad);
     double sightedX = pose.xM + robotForwardM * cosHeading - robotLeftM * sinHeading;
     double sightedY = pose.yM + robotForwardM * sinHeading + robotLeftM * cosHeading;
 
-    double moveShare = cellSeen ? CELL_SMOOTHING : 1.0; // The first sighting is taken as it is
+    double moveShare = cellSeen && sameCell ? CELL_SMOOTHING : 1.0; // A new Cell is taken as it is
     cellX += (sightedX - cellX) * moveShare;
     cellY += (sightedY - cellY) * moveShare;
     lastSeenNanos = Math.max(lastSeenNanos, sighting.frameTimeNanos);
     cellSeen = true;
+    cellName = sighting.clusterName;
     return true;
   }
 

@@ -171,4 +171,35 @@ public class TargetTrackerTest {
     assertEquals(0, tracker.getCellX(), TOLERANCE);
     assertEquals(0, tracker.getCellY(), TOLERANCE);
   }
+
+  private static CellSighting ahead(String cluster, long frameTimeNanos, double forwardM) {
+    return new CellSighting(cluster, LEVEL_FORWARD_AT_CELL_HEIGHT, frameTimeNanos, 0, forwardM, 0);
+  }
+
+  @Test
+  public void keepsTheNearerCellWhenAFartherOneIsSeen() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    assertTrue(tracker.update(ahead("RED SCORING", 0, 2)));
+    assertFalse(tracker.update(ahead("RED AUDIENCE", ONE_SECOND_NANOS / 10, 3)));
+    assertEquals(2, tracker.getCellX(), TOLERANCE);
+  }
+
+  @Test
+  public void switchesToAClearlyNearerCellWithoutSmoothing() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    tracker.update(ahead("RED AUDIENCE", 0, 3));
+    assertTrue(tracker.update(ahead("RED SCORING", ONE_SECOND_NANOS / 10, 2)));
+    assertEquals(2, tracker.getCellX(), TOLERANCE);
+  }
+
+  @Test
+  public void switchesOnceTheHeldCellIsUnseenForASecond() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(0, 0, 0));
+    tracker.update(ahead("RED SCORING", 0, 2));
+    assertTrue(tracker.update(ahead("RED AUDIENCE", 2 * ONE_SECOND_NANOS, 3)));
+    assertEquals(3, tracker.getCellX(), TOLERANCE);
+  }
 }

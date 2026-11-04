@@ -35,7 +35,9 @@ public final class ShootOnTheMoveConstants {
   // ---- Remembering the Cell --------------------------------------------
   // Odometry corrected by the Hive tags carries the Cell's position between sightings, and a backward shot
   // turns the cameras away from it, so it is kept well past one turn-around.
-  public static double CELL_EXPIRY_S = 30.0; // Forget the Cell this long after the last sighting
+  public static double CELL_EXPIRY_S = 150.0; // Forget the Cell this long after the last sighting. A whole match: odometry carries it
+  public static double CELL_SWITCH_AFTER_S = 1.0; // Switch to another of our Cells once the held one is unseen this long
+  public static double CELL_SWITCH_MARGIN_M = 0.3; // ...or sooner if the other is at least this much nearer
   public static double CELL_SMOOTHING = 0.3; // Share of the way the stored Cell moves toward each sighting. 1 is no smoothing
   public static final int POSE_HISTORY_SIZE = 100; // About two seconds of loops
 
