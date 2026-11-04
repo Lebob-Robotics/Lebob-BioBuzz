@@ -104,6 +104,15 @@
       "scored": 11,
       "date": "2026-11-04",
       "note": "Table shot (Y) from the five-distance fit, no adjustment."
+    },
+    {
+      "distM": 2.8,
+      "rpm": 4300,
+      "hoodLiftDeg": 46.0,
+      "fired": 8,
+      "scored": 8,
+      "date": "2026-11-04",
+      "note": "Distance about 2.8 m by tape (cameras could not see); set by hand."
     }
   ]
 }
