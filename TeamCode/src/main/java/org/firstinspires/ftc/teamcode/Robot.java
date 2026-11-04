@@ -55,10 +55,8 @@ import java.util.List;
  *       aimed shot is ready sooner.</li>
  *   <li>Y held: manual shot at full power, without aiming or waiting. A fallback for when the camera
  *       can't see the Cell.</li>
- *   <li>Left trigger held: align to the Hive. The robot turns to the shot heading, as right trigger
- *       does, but doesn't spin up or feed. The left stick still drives. Needs the Cell seen recently.</li>
- *   <li>Left bumper: toggle intake. The feeder runs backward to queue the balls short of the shooter.
- *       Both stop at 4 balls once the beam breaks are wired.</li>
+ *   <li>Left trigger held, or left bumper to toggle: intake. The feeder runs backward to queue the
+ *       balls short of the shooter. Both stop at 4 balls once the beam breaks are wired.</li>
  *   <li>B: eject. X: stop the shooter (also ends spin-up, and resets a stall trip). A: tell the robot
  *       it is facing away from the driver's wall (use it if the heading drifts).</li>
  *   <li>D-pad right/left: raise/lower hood 2 degrees per press (hood trim while aiming).
@@ -132,8 +130,6 @@ public class Robot {
   private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate();
   private double cellSeenAgoS = Double.POSITIVE_INFINITY;
   private boolean intakeOn = false;
-  /** Left trigger held: turn to the Hive's shot heading without shooting. */
-  private boolean aligning = false;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
@@ -241,7 +237,6 @@ public class Robot {
 
     Aim aim = aimAtCell(pose, velocity, nowNanos);
     boolean aiming = driver.right_trigger > TRIGGER_PRESSED;
-    aligning = !aiming && driver.left_trigger > TRIGGER_PRESSED; // Turn to the shot heading only
     boolean ready = aim != null && ShootOnTheMove.readyToFire(aim,
         shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE),
         hood.atTarget(hoodToleranceTicks()),
@@ -386,7 +381,7 @@ public class Robot {
     double right = driver.left_stick_x;
     double forwardOffsetRad = alliance.forwardHeadingRad();
     double driverHeadingRad = pose.headingRad - forwardOffsetRad;
-    if ((aiming || aligning) && aim != null) { // Lines up even without a valid shot, so it's ready the moment one appears
+    if (aiming && aim != null) { // Lines up even without a valid shot, so it's ready the moment one appears
       // Target and heading both less the offset, so the error is the same and the driving is driver relative
       drive.driveHeadingLock(forward, right, aim.targetHeadingRad - forwardOffsetRad, driverHeadingRad,
           turnRateRadPerSec);
@@ -452,7 +447,7 @@ public class Robot {
    */
   private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
     boolean shooting = aiming || driver.y;
-    boolean intaking = intakeOn;
+    boolean intaking = driver.left_trigger > TRIGGER_PRESSED || intakeOn;
     boolean ejecting = driver.b;
     boolean full = intake.isFull();
     boolean loading = intaking && !full && !shooting;
@@ -499,7 +494,6 @@ public class Robot {
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
     Logger.recordOutput("Robot/FlywheelSpinUpOn", flywheelSpinUpOn);
     Logger.recordOutput("Robot/IntakeOn", intakeOn);
-    Logger.recordOutput("Robot/Aligning", aligning);
     if (aim == null) {
       return;
     }
@@ -561,7 +555,7 @@ public class Robot {
 
   private void addTelemetry(Aim aim, Pose pose) {
     telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet"));
-    telemetry.addData("Aim", aligning ? "ALIGNING to the Hive" : aimState);
+    telemetry.addData("Aim", aimState);
     if (aim == null) {
       telemetry.addData("Distance", Double.isInfinite(cellSeenAgoS)
           ? "Cell not seen yet: point the cameras at it"
