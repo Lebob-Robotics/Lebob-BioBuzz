@@ -39,6 +39,8 @@ import org.firstinspires.ftc.teamcode.utils.TargetTracker;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.firstinspires.ftc.teamcode.utils.VisionResult;
 import org.psilynx.psikit.core.Logger;
+import org.psilynx.psikit.core.wpi.math.Pose2d;
+import org.psilynx.psikit.core.wpi.math.Rotation2d;
 
 import java.util.List;
 
@@ -180,6 +182,15 @@ public class Robot {
     driver = Main.PANELS_ENABLED
         ? PanelsGamepad.INSTANCE.getFirstManager().asCombinedFTCGamepad(physicalDriver)
         : physicalDriver;
+    // What the code acts on, Driver Hub and Panels merged. PsiKit only logs the Driver Hub gamepad, so
+    // without this a run driven from Panels shows no input
+    Logger.recordOutput("Driver/LeftStick", new double[] {driver.left_stick_x, driver.left_stick_y});
+    Logger.recordOutput("Driver/RightStickX", driver.right_stick_x);
+    Logger.recordOutput("Driver/Triggers", new double[] {driver.left_trigger, driver.right_trigger});
+    if (Main.PANELS_ENABLED) {
+      com.bylazar.gamepad.GamepadManager panels = PanelsGamepad.INSTANCE.getFirstManager();
+      Logger.recordOutput("Driver/PanelsLeftStick", new double[] {panels.getLeftStickX(), panels.getLeftStickY()});
+    }
   }
 
   /**
@@ -551,6 +562,9 @@ public class Robot {
     Logger.recordOutput("SOTM/KnowsCell", aim != null);
     Logger.recordOutput("SOTM/CellX", tracker.getCellX());
     Logger.recordOutput("SOTM/CellY", tracker.getCellY());
+    // For AdvantageScope's field views: a line from the robot to the Cell it is aiming at, none when unknown
+    Logger.recordOutput("SOTM/Cell", aim == null ? new Pose2d[0]
+        : new Pose2d[] {new Pose2d(tracker.getCellX(), tracker.getCellY(), new Rotation2d())});
     Logger.recordOutput("SOTM/CellSeenAgoS", cellSeenAgoS);
     Logger.recordOutput("SOTM/RpmTrim", rpmTrim);
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
