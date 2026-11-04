@@ -222,17 +222,25 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private void updateDistance() {
     vision.periodic();
     double nearestM = Double.NaN;
+    String nearestName = "";
+    long nearestNanos = 0;
     for (CellSighting sighting : vision.takeNewCellSightings()) {
       double[] inRobot = sighting.camera.toRobotFrame(sighting.rightM, sighting.forwardM, sighting.upM);
       double distM = Math.hypot(inRobot[0] - ShootOnTheMoveConstants.SHOOTER_FORWARD_M,
           inRobot[1] - ShootOnTheMoveConstants.SHOOTER_LEFT_M);
       if (Double.isNaN(nearestM) || distM < nearestM) {
         nearestM = distM;
-        clusterName = sighting.clusterName;
-        lastSightingNanos = sighting.frameTimeNanos;
+        nearestName = sighting.clusterName;
+        nearestNanos = sighting.frameTimeNanos;
       }
     }
-    if (!Double.isNaN(nearestM)) {
+    // Each loop may see a different Cell. Stick with the one we have unless the new one is
+    // nearer or ours went stale, so the reading doesn't flip between two Cells.
+    boolean stale = System.nanoTime() - lastSightingNanos > 1_000_000_000L;
+    if (!Double.isNaN(nearestM) && (stale || nearestName.equals(clusterName)
+        || Double.isNaN(clusterDistM) || nearestM < clusterDistM)) {
+      clusterName = nearestName;
+      lastSightingNanos = nearestNanos;
       clusterDistM = nearestM;
       lipDistM = nearestM - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
     }

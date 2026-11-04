@@ -89,13 +89,14 @@ public class ShooterSubsystem extends SubsystemBase {
       VELOCITY_P = sdk.p;
     }
     if (Double.isNaN(VELOCITY_I)) {
-      VELOCITY_I = sdk.i;
+      VELOCITY_I = 1.0; // SDK's 3 winds up during a ball's dip and overshoots ~200 RPM for a second after
     }
     if (Double.isNaN(VELOCITY_D)) {
       VELOCITY_D = sdk.d;
     }
     if (Double.isNaN(VELOCITY_F)) {
-      VELOCITY_F = sdk.f;
+      // Feedforward so the I term doesn't have to hold the speed: full output (32767) at max velocity.
+      VELOCITY_F = 32767.0 / shooterRight.getMaxVelocity();
     }
     applyVelocityPidf();
 
