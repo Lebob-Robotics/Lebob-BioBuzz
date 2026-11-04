@@ -118,6 +118,48 @@ public class VisionInputs implements LoggableInputs {
     }
   }
 
+  /**
+   * Adds Cells worked out from this capture's single tags (see ClusterFromTags), as cluster detections,
+   * so they are logged and replayed like the SDK's. Live only, after capture.
+   */
+  public void addClusters(List<org.firstinspires.ftc.teamcode.utils.ClusterFromTags.Cluster> clusters) {
+    if (clusters.isEmpty()) {
+      return;
+    }
+    long frame = Long.MIN_VALUE;
+    for (long nanos : frameNanos) {
+      frame = Math.max(frame, nanos);
+    }
+    int n = tagIds.length;
+    int total = n + clusters.size();
+    tagIds = java.util.Arrays.copyOf(tagIds, total);
+    clusterNames = java.util.Arrays.copyOf(clusterNames, total);
+    range = java.util.Arrays.copyOf(range, total);
+    bearing = java.util.Arrays.copyOf(bearing, total);
+    elevation = java.util.Arrays.copyOf(elevation, total);
+    yaw = java.util.Arrays.copyOf(yaw, total);
+    x = java.util.Arrays.copyOf(x, total);
+    y = java.util.Arrays.copyOf(y, total);
+    z = java.util.Arrays.copyOf(z, total);
+    decisionMargin = java.util.Arrays.copyOf(decisionMargin, total);
+    frameNanos = java.util.Arrays.copyOf(frameNanos, total);
+    for (int k = 0; k < clusters.size(); k++) {
+      org.firstinspires.ftc.teamcode.utils.ClusterFromTags.Cluster c = clusters.get(k);
+      int i = n + k;
+      tagIds[i] = CLUSTER_ID;
+      clusterNames[i] = c.name;
+      x[i] = c.xIn;
+      y[i] = c.yIn;
+      z[i] = c.zIn;
+      range[i] = Math.sqrt(c.xIn * c.xIn + c.yIn * c.yIn + c.zIn * c.zIn);
+      bearing[i] = Math.toDegrees(Math.atan2(-c.xIn, c.yIn)); // As the SDK's ftcPose
+      elevation[i] = Math.toDegrees(Math.atan2(c.zIn, c.yIn));
+      yaw[i] = Double.NaN;
+      decisionMargin[i] = Double.NaN;
+      frameNanos[i] = frame;
+    }
+  }
+
   /** Short telemetry string, e.g. "id 20 @ 42.1 in, id 24 @ 60.0 in". */
   public String describe() {
     if (!available) {

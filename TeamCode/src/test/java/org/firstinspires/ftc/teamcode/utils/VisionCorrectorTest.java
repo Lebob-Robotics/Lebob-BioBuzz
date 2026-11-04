@@ -360,11 +360,11 @@ public class VisionCorrectorTest {
   public void rejectsAStaleFrame() {
     TagObservation tag = observe(31, Cell.AUDIENCE, TRUE_POSE); // Frame at T0 + 50 ms
     VisionResult stale = corrector.process(list(tag), stillHistory(TRUE_POSE), TRUE_POSE, 0, 0, 0, true,
-        T0 + 50 * MS + 350 * MS);
+        T0 + 50 * MS + 550 * MS);
     assertEquals(Reason.NO_VALID_TAGS, stale.reason);
     assertEquals(TagReject.FRAME_TOO_OLD, stale.firstTagReject);
     assertTrue(corrector.process(list(tag), stillHistory(TRUE_POSE), TRUE_POSE, 0, 0, 0, true,
-        T0 + 50 * MS + 250 * MS).accepted);
+        T0 + 50 * MS + 450 * MS).accepted);
   }
 
   @Test

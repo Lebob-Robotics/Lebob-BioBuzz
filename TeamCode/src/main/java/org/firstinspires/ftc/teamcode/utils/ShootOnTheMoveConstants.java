@@ -51,8 +51,12 @@ public final class ShootOnTheMoveConstants {
   // ---- Field frame -----------------------------------------------------
   // The odometry heading is in the field frame (0 along +x, anticlockwise positive), so the camera can
   // use the tags' field positions. The drive stays driver relative: heading minus the forward below.
-  public static double ALLIANCE_FORWARD_RED_RAD = Math.PI / 2; // Heading the driver calls "forward", standing at their wall. TODO verify
-  public static double ALLIANCE_FORWARD_BLUE_RAD = -Math.PI / 2; // TODO verify
+  // Heading the driver calls "forward", standing at their wall. The tags now set the field heading, so
+  // these must match the real field. 4 Nov: the robot sat facing the red driver and the tags read 169
+  // degrees, so the red driver faces +x (the audience Cells, blue tags on the left). Blue assumes the
+  // same wall, as the Hive tags are mirrored across x. TODO confirm blue on the field.
+  public static double ALLIANCE_FORWARD_RED_RAD = 0;
+  public static double ALLIANCE_FORWARD_BLUE_RAD = 0;
 
   // ---- Vision pose correction (from Sean's feature/sotm) -----------------
   // The Hive tags give the robot's field position. Only each tag's ftcPose x/y/z is used, not the SDK's
@@ -68,6 +72,12 @@ public final class ShootOnTheMoveConstants {
       6.25, 10.0, 15.5, 19.25,
       19.25, 15.5, 10.0, 6.25};
   public static final double IN_TO_M = 0.0254;
+  // Where the SDK cluster detector puts a Cell, from the centre of its line of tags: up, and toward the
+  // camera (negative is away). Measured 4 Nov against the SDK on the same frames; see ClusterFromTags.
+  public static double CELL_REF_UP_UP_IN = 8.0; // Cell up
+  public static double CELL_REF_UP_TOWARD_IN = 4.2;
+  public static double CELL_REF_DOWN_UP_IN = 0.5; // Cell down
+  public static double CELL_REF_DOWN_TOWARD_IN = -7.1;
 
   public static double Z_TOL_M = 0.10; // A tag's measured height must be this close to the up or down cluster height
   public static int TIP_CONFIRM_FRAMES = 3; // Frames in a row voting for a flip before a Hive's up Cell changes
@@ -76,7 +86,7 @@ public final class ShootOnTheMoveConstants {
   public static double MAX_TAG_RANGE_M = 3.0;
   public static double MAX_SPEED_FOR_VISION_MPS = 1.0; // Faster than this the frame's pose is too uncertain
   public static double MAX_OMEGA_FOR_VISION_RAD_S = 1.0;
-  public static double MAX_FRAME_AGE_S = 0.3;
+  public static double MAX_FRAME_AGE_S = 0.5; // Pose history covers it. One detector pass ran 0.3 s behind on average (4 Nov)
   public static double MAX_SPREAD_M = 0.10; // Most any tag's correction may differ from the median
   public static double MAX_JUMP_M = 0.5; // Largest correction once the pose is trusted. The first fix may be any size
   public static double FIELD_HALF_SIZE_M = 1.83;

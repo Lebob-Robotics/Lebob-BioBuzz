@@ -15,6 +15,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.utils.CameraMount;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
+import org.firstinspires.ftc.teamcode.utils.ClusterFromTags;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.TagObservation;
 import org.firstinspires.ftc.vision.VisionPortal;
@@ -39,13 +40,20 @@ public class VisionSubsystem extends SubsystemBase {
   /** Live camera controls for tuning tag contrast. Exposure is in milliseconds. */
   public static int EXPOSURE_MS = 6;
   public static int GAIN = 60;
-  public static float DECIMATION = 1;
+  public static float DECIMATION = 2; // Halves the detection work; 3.25-inch tags still read at 2+ m. 1 for range
   /**
    * Also run a single-tag detector on each camera, so every Hive tag in view (red and blue) reaches the
    * odometry correction. The cluster detector only reports whole Cells, which the correction can't use.
    * Costs a second detection pass per frame; read at INIT.
    */
   public static boolean SINGLE_TAGS_FOR_POSE = true;
+  /**
+   * Run only the single-tag detector and work the Cells out from its tags (ClusterFromTags), instead of
+   * a second full detection pass for the SDK clusters. Two passes dropped the camera to 1-2 FPS with
+   * frames a second old. Read at INIT.
+   */
+  public static boolean CLUSTERS_FROM_TAGS = true;
+  private boolean clustersFromTags;
 
   public enum Side {
     LEFT, RIGHT
@@ -96,8 +104,10 @@ public class VisionSubsystem extends SubsystemBase {
       tags.addTag(id, "BIOBUZZ " + id, 3.25, DistanceUnit.INCH);
     }
     AprilTagLibrary singleLibrary = tags.build();
-    AprilTagLibrary library = individualTags ? singleLibrary : clusterLibrary;
-    AprilTagLibrary extraLibrary = !individualTags && SINGLE_TAGS_FOR_POSE ? singleLibrary : null;
+    clustersFromTags = !individualTags && CLUSTERS_FROM_TAGS;
+    AprilTagLibrary library = individualTags || clustersFromTags ? singleLibrary : clusterLibrary;
+    AprilTagLibrary extraLibrary = !individualTags && !clustersFromTags && SINGLE_TAGS_FOR_POSE
+        ? singleLibrary : null;
     setUpCamera(hardwareMap, Side.LEFT, "CameraL", LENS_LEFT, viewIds == null ? -1 : viewIds[0], library, extraLibrary);
     setUpCamera(hardwareMap, Side.RIGHT, "CameraR", LENS_RIGHT, viewIds == null ? -1 : viewIds[1], library, extraLibrary);
   }
@@ -153,6 +163,9 @@ public class VisionSubsystem extends SubsystemBase {
       if (!Logger.isReplay()) {
         applyCameraControls(side);
         in.capture(processors[side.ordinal()], singleTagProcessors[side.ordinal()], portals[side.ordinal()]);
+        if (clustersFromTags) {
+          in.addClusters(ClusterFromTags.build(in.tagIds, in.x, in.y, in.z, mountOf(side)));
+        }
       }
       String prefix = side == Side.LEFT ? "Vision/Left" : "Vision/Right";
       Logger.processInputs(prefix, in);
