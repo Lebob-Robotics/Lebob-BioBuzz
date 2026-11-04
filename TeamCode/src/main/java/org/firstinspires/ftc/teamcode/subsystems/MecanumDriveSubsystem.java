@@ -25,9 +25,13 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   public static double HEADING_KS = 0.12;
   public static double HEADING_KS_ABOVE_RAD = Math.toRadians(1.5);
   public static double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
-  // Stick response: output = stick^STICK_EXPONENT (sign kept). 1 is linear; 2 halves the speed at
-  // half stick, so small moves are gentle and full stick is still full speed.
+  // Stick response. Inside STICK_DEADBAND the output is 0. Past it the output starts at STICK_MIN_POWER,
+  // about where the wheels start to turn, and curves up to 1 by STICK_EXPONENT. Without the start power,
+  // stick^2 stayed under the ~0.2-0.3 the wheels need until about half stick, then lurched (4 Nov logs:
+  // wheels mostly still below 0.25 power).
   public static double STICK_EXPONENT = 2.0;
+  public static double STICK_DEADBAND = 0.05;
+  public static double STICK_MIN_POWER = 0.18;
   /**
    * Speed control needs every drive encoder counting the same way as its motor. On 27 Oct DriveFL's
    * counted backward, which under speed control makes the wheel run away at full speed. Set true
@@ -112,9 +116,17 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     backRight.setPower(wheelPowers[3]);
   }
 
-  /** Curves one stick axis so it is gentle near the middle. Sign kept; 1 stays 1. */
+  /**
+   * Curves one stick axis: 0 inside the deadband, then from STICK_MIN_POWER up to 1, gentle at first.
+   * Sign kept; 1 stays 1.
+   */
   public static double shapeStick(double stick) {
-    return Math.copySign(Math.pow(Math.min(1.0, Math.abs(stick)), STICK_EXPONENT), stick);
+    double pushed = Math.min(1.0, Math.abs(stick));
+    if (pushed <= STICK_DEADBAND) {
+      return 0.0;
+    }
+    double past = (pushed - STICK_DEADBAND) / (1.0 - STICK_DEADBAND); // 0 at the deadband, 1 at full stick
+    return Math.copySign(STICK_MIN_POWER + (1.0 - STICK_MIN_POWER) * Math.pow(past, STICK_EXPONENT), stick);
   }
 
   /**
