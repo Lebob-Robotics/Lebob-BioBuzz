@@ -29,7 +29,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * RPM with slow motion video (tools/shots/fit-speed.js turns the readings into exitSpeedPerRpm).
  * The robot only turns, to face the Cell while left trigger is held.
  *
- * <p>The hood must rest on its lower stop at INIT, as in the TeleOp. Controls:
+ * <p>The hood drives itself down onto its lower stop at INIT and zeroes there. Controls:
  * <ul>
  * <li>A: flywheels on or off, held at the target RPM.</li>
  * <li>D-pad up/down: target RPM. Right raises the hood 2 degrees per press; left lowers it 2.</li>
@@ -127,11 +127,12 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
 
   @Override
   protected void onPsiKitInitLoop() {
-    hood.periodic(); // STOW target: log both zeroed encoders without requesting hood travel.
+    hood.periodic(); // Drives the hood down onto its stop and zeroes it there
     updateDistance();
     telemetry.addData("Distance", distanceText());
+    telemetry.addData("Hood", hood.getHomeResult());
     telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT" : "ok");
-    telemetry.addLine("Hood must rest on its lower stop now. Left trigger turns the robot to the Cell.");
+    telemetry.addLine("The hood lowers itself onto its stop now. Left trigger turns the robot to the Cell.");
     telemetry.update();
   }
 

@@ -190,11 +190,13 @@ public class Robot {
     refreshDriver();
     pollAlliance();
     shooter.periodic();
+    hood.periodic(); // Drives the hood down onto its stop and zeroes it there; nothing else moves
     vision.periodic(); // Read and log tags in INIT without running any mechanism commands.
     updateBattery();
     telemetry.addData("Alliance", alliance + "  (X = BLUE, B = RED)");
     telemetry.addData("Shooter stall", shooter.getStallStatus());
-    telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT at lower stop" : "ok");
+    telemetry.addData("Hood", hood.getHomeResult());
+    telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT" : "ok");
     telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
     telemetry.update();

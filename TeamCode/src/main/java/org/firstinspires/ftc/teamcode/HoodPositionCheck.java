@@ -59,8 +59,8 @@ public class HoodPositionCheck extends PsiKitIterativeOpMode {
     motor = hardwareMap.get(DcMotorEx.class, "HoodMotor");
   }
   @Override protected void onPsiKitInitLoop() {
-    hood.periodic(); // No target yet, so this only reads and guards
-    telemetry.addLine("Hood on its LOWER STOP, hands clear, flywheels off. Steps 3-4-6-16-6-5-3 deg lift per gain set.");
+    hood.periodic(); // Drives the hood down onto its stop and zeroes it there
+    telemetry.addLine("Hood homes to its lower stop, hands clear, flywheels off. Steps 3-4-6-16-6-5-3 deg lift per gain set.");
     telemetry.addData("Lift", "%.2f", hood.getLiftDegrees());
     telemetry.update();
   }

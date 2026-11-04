@@ -78,6 +78,14 @@ public class HoodSubsystem extends SubsystemBase {
   private int revZero;
   private int motorZero;
   private boolean zeroed;
+  // Homing at INIT: drive down gently until the motor stalls on the lower stop, then zero there.
+  public static double HOME_POWER = 0.25;
+  public static double HOME_STILL_S = 0.3; // Stalled this long on the stop counts as down
+  public static double HOME_TIMEOUT_S = 3.0; // Zeroes where it is after this, in case it never reads still
+  private boolean homing;
+  private double homeStartS;
+  private double homeStillSinceS = Double.NaN;
+  private String homeResult = "not started";
   private boolean enabled; // Set by the first target after init()
   private boolean driving; // In RUN_TO_POSITION
   private int lastMotorTarget = Integer.MIN_VALUE;
@@ -126,10 +134,51 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /**
-   * Called once from the OpMode's init(). Zeroes the encoders, so the hood must
-   * be resting at its lower hard stop when this runs. The hood stays undriven until a target is set.
+   * Called once from the OpMode's init(). Drives the hood down onto its lower hard stop and zeroes the
+   * encoders there (see {@link #periodic()}), so it no longer has to be lowered by hand. Until that is
+   * done the hood is not zeroed and won't take targets.
    */
   public void init() {
+    initAtRest();
+    homing = true;
+    zeroed = false;
+    homeStartS = clock.seconds();
+    homeStillSinceS = Double.NaN;
+    homeResult = "homing";
+    hoodMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    hoodMotor.setPower(-HOME_POWER); // Positive raises the hood
+  }
+
+  /** True while the hood is still driving down to zero itself. */
+  public boolean isHoming() {
+    return homing;
+  }
+
+  /** Short status for telemetry: homing, homed on the stop, or timed out. */
+  public String getHomeResult() {
+    return homeResult;
+  }
+
+  private void updateHoming() {
+    double nowS = clock.seconds();
+    boolean still = nowS - homeStartS > 0.2 // Give it a moment to start moving
+        && Math.abs(hoodMotor.getVelocity()) < AT_REST_TICKS_PER_SEC;
+    if (!still) {
+      homeStillSinceS = Double.NaN;
+    } else if (Double.isNaN(homeStillSinceS)) {
+      homeStillSinceS = nowS;
+    }
+    boolean stalled = !Double.isNaN(homeStillSinceS) && nowS - homeStillSinceS >= HOME_STILL_S;
+    boolean timedOut = nowS - homeStartS >= HOME_TIMEOUT_S;
+    if (stalled || timedOut) {
+      initAtRest(); // Cuts power and zeroes both encoders here, on the stop
+      homing = false;
+      homeResult = stalled ? "homed on the lower stop" : "timed out, zeroed where it stopped";
+    }
+  }
+
+  /** Zeroes the encoders where the hood is now, which must be its lower hard stop. */
+  private void initAtRest() {
     cut();
     revZero = revEncoderInput.getCurrentPosition();
     motorZero = hoodMotor.getCurrentPosition();
@@ -153,7 +202,13 @@ public class HoodSubsystem extends SubsystemBase {
 
   @Override
   public void periodic() {
-    runPositionLoop();
+    if (homing) {
+      updateHoming();
+    } else {
+      runPositionLoop();
+    }
+    Logger.recordOutput("Hood/Homing", homing);
+    Logger.recordOutput("Hood/HomeResult", homeResult);
 
     Logger.recordOutput("Hood/Preset", preset);
     Logger.recordOutput("Hood/DirectMode", directMode);
