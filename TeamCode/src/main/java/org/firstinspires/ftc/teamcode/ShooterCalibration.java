@@ -10,8 +10,6 @@ import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
-import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.IntakeState;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
@@ -34,7 +32,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * <li>D-pad up/down: target RPM. Right raises the hood 2 degrees per press; left lowers it 2.</li>
  * <li>Right bumper, held: fire one ball at a time, each once the wheels are back at speed.</li>
  * <li>B, held: run the feeder and indexer backward to clear a jam.</li>
- * <li>Left bumper, held: index. The intake and indexer move balls up; the feeder holds them out of the wheels.</li>
+ * <li>Left bumper, held: index. The indexer moves balls up; the feeder holds them out of the wheels.</li>
  * <li>Y: load the shot table's RPM and hood angle for the distance the cameras see.</li>
  * <li>X: mark the last shot as scored (logged with its distance, RPM and hood angle).</li>
  * </ul>
@@ -58,7 +56,6 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private HoodSubsystem hood;
   private FeederSubsystem feeder;
   private IndexerSubsystem indexer;
-  private IntakeSubsystem intake; // Pushes the last ball into the indexer
 
   private double targetRpm = START_RPM;
   private double hoodDeg = START_HOOD_DEG;
@@ -106,7 +103,6 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     hood = new HoodSubsystem(hardwareMap);
     feeder = new FeederSubsystem(hardwareMap);
     indexer = new IndexerSubsystem(hardwareMap);
-    intake = new IntakeSubsystem(hardwareMap);
     hood.init();
     shooter.setShooterState(ShooterState.STOP);
     vision = new VisionSubsystem(hardwareMap);
@@ -257,19 +253,15 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     if (gamepad1.b) {
       feeder.setFeederState(FeederState.EJECT);
       indexer.setIndexerState(IndexerState.EJECT);
-      intake.setIntakeState(IntakeState.EJECT);
     } else if (feeding) {
       feeder.setFeederState(FeederState.FEED);
       indexer.setIndexerState(IndexerState.FEED);
-      intake.setIntakeState(IntakeState.INTAKE);
     } else if (gamepad1.left_bumper || gamepad1.right_bumper) { // Index (and between balls while firing): queue balls up to the feeder, which holds them back
       feeder.setFeederState(FeederState.HOLD);
       indexer.setIndexerState(IndexerState.FEED);
-      intake.setIntakeState(IntakeState.INTAKE);
     } else {
       feeder.setFeederState(FeederState.STOP);
       indexer.setIndexerState(IndexerState.STOP);
-      intake.setIntakeState(IntakeState.STOP);
     }
   }
 
