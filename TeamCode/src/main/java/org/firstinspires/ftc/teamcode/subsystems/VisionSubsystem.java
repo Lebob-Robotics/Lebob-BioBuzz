@@ -40,6 +40,12 @@ public class VisionSubsystem extends SubsystemBase {
   public static int EXPOSURE_MS = 6;
   public static int GAIN = 60;
   public static float DECIMATION = 1;
+  /**
+   * Also run a single-tag detector on each camera, so every Hive tag in view (red and blue) reaches the
+   * odometry correction. The cluster detector only reports whole Cells, which the correction can't use.
+   * Costs a second detection pass per frame; read at INIT.
+   */
+  public static boolean SINGLE_TAGS_FOR_POSE = true;
 
   public enum Side {
     LEFT, RIGHT
@@ -56,6 +62,7 @@ public class VisionSubsystem extends SubsystemBase {
   private static final double[] LENS_RIGHT = {885.382, 885.080, 677.418, 365.001};
 
   private final AprilTagProcessor[] processors = new AprilTagProcessor[2];
+  private final AprilTagProcessor[] singleTagProcessors = new AprilTagProcessor[2]; // Null when not running
   private final VisionPortal[] portals = new VisionPortal[2];
   private final VisionInputs[] inputs = {new VisionInputs(), new VisionInputs()};
   private final String[] cameraStatus = {"not opened", "not opened"};
@@ -81,27 +88,33 @@ public class VisionSubsystem extends SubsystemBase {
       // Fall back to portals without a shared live view.
     }
 
-    AprilTagLibrary library = AprilTagGameDatabase.getCurrentGameTagLibrary();
-    if (individualTags) {
-      // BIOBUZZ cluster members are 3.25-inch tags. Leave out cluster metadata so the SDK
-      // returns each visible tag centre, rather than a virtual cluster reference point.
-      AprilTagLibrary.Builder tags = new AprilTagLibrary.Builder().addTags(library);
-      for (int id = 30; id <= 45; id++) {
-        tags.addTag(id, "BIOBUZZ " + id, 3.25, DistanceUnit.INCH);
-      }
-      library = tags.build();
+    AprilTagLibrary clusterLibrary = AprilTagGameDatabase.getCurrentGameTagLibrary();
+    // BIOBUZZ cluster members are 3.25-inch tags. Leave out cluster metadata so the SDK
+    // returns each visible tag centre, rather than a virtual cluster reference point.
+    AprilTagLibrary.Builder tags = new AprilTagLibrary.Builder().addTags(clusterLibrary);
+    for (int id = 30; id <= 45; id++) {
+      tags.addTag(id, "BIOBUZZ " + id, 3.25, DistanceUnit.INCH);
     }
-    setUpCamera(hardwareMap, Side.LEFT, "CameraL", LENS_LEFT, viewIds == null ? -1 : viewIds[0], library);
-    setUpCamera(hardwareMap, Side.RIGHT, "CameraR", LENS_RIGHT, viewIds == null ? -1 : viewIds[1], library);
+    AprilTagLibrary singleLibrary = tags.build();
+    AprilTagLibrary library = individualTags ? singleLibrary : clusterLibrary;
+    AprilTagLibrary extraLibrary = !individualTags && SINGLE_TAGS_FOR_POSE ? singleLibrary : null;
+    setUpCamera(hardwareMap, Side.LEFT, "CameraL", LENS_LEFT, viewIds == null ? -1 : viewIds[0], library, extraLibrary);
+    setUpCamera(hardwareMap, Side.RIGHT, "CameraR", LENS_RIGHT, viewIds == null ? -1 : viewIds[1], library, extraLibrary);
   }
 
-  private void setUpCamera(HardwareMap hardwareMap, Side side, String name, double[] lens, int viewId, AprilTagLibrary library) {
+  private static AprilTagProcessor buildProcessor(AprilTagLibrary library, double[] lens) {
+    return new AprilTagProcessor.Builder()
+        .setTagLibrary(library)
+        .setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES)
+        .setLensIntrinsics(lens[0], lens[1], lens[2], lens[3])
+        .build();
+  }
+
+  private void setUpCamera(HardwareMap hardwareMap, Side side, String name, double[] lens, int viewId,
+      AprilTagLibrary library, AprilTagLibrary extraLibrary) {
     try {
-      AprilTagProcessor processor = new AprilTagProcessor.Builder()
-          .setTagLibrary(library)
-          .setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES)
-          .setLensIntrinsics(lens[0], lens[1], lens[2], lens[3])
-          .build();
+      AprilTagProcessor processor = buildProcessor(library, lens);
+      AprilTagProcessor singleTagProcessor = extraLibrary == null ? null : buildProcessor(extraLibrary, lens);
 
       VisionPortal.Builder builder = new VisionPortal.Builder()
           .setCamera(hardwareMap.get(WebcamName.class, name))
@@ -109,18 +122,23 @@ public class VisionSubsystem extends SubsystemBase {
           // Compressed, so two 720p streams fit through the hub's USB
           .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
           .addProcessor(processor);
+      if (singleTagProcessor != null) {
+        builder.addProcessor(singleTagProcessor);
+      }
       if (viewId >= 0) {
         builder.setLiveViewContainerId(viewId);
       }
 
       portals[side.ordinal()] = builder.build();
       processors[side.ordinal()] = processor;
+      singleTagProcessors[side.ordinal()] = singleTagProcessor;
       cameraStatus[side.ordinal()] = "opening";
     } catch (RuntimeException e) {
       cameraStatus[side.ordinal()] = e.toString();
       RobotLog.ee("BioBuzzVision", e, "Failed to open %s", name);
       portals[side.ordinal()] = null;
       processors[side.ordinal()] = null;
+      singleTagProcessors[side.ordinal()] = null;
     }
   }
 
@@ -134,7 +152,7 @@ public class VisionSubsystem extends SubsystemBase {
       VisionInputs in = inputs[side.ordinal()];
       if (!Logger.isReplay()) {
         applyCameraControls(side);
-        in.capture(processors[side.ordinal()], portals[side.ordinal()]);
+        in.capture(processors[side.ordinal()], singleTagProcessors[side.ordinal()], portals[side.ordinal()]);
       }
       String prefix = side == Side.LEFT ? "Vision/Left" : "Vision/Right";
       Logger.processInputs(prefix, in);
@@ -157,6 +175,9 @@ public class VisionSubsystem extends SubsystemBase {
     }
     if (appliedDecimation[i] != DECIMATION) {
       processors[i].setDecimation(Math.max(1, DECIMATION));
+      if (singleTagProcessors[i] != null) {
+        singleTagProcessors[i].setDecimation(Math.max(1, DECIMATION));
+      }
       appliedDecimation[i] = DECIMATION;
     }
     if (appliedExposure[i] == EXPOSURE_MS && appliedGain[i] == GAIN) {
@@ -283,6 +304,7 @@ public class VisionSubsystem extends SubsystemBase {
         portals[i].close();
         portals[i] = null;
         processors[i] = null;
+        singleTagProcessors[i] = null;
       }
     }
   }

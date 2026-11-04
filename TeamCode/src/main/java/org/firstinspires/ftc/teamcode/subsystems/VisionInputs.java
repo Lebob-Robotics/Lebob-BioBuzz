@@ -8,7 +8,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 import org.psilynx.psikit.core.LogTable;
 import org.psilynx.psikit.core.LoggableInputs;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -42,13 +42,33 @@ public class VisionInputs implements LoggableInputs {
 
   /** Copies the processor's current detections into this object. Live only. */
   public void capture(AprilTagProcessor processor, VisionPortal portal) {
+    capture(processor, null, portal);
+  }
+
+  /**
+   * As above, adding the single-tag processor's detections when there is one. Its single tags replace
+   * the main processor's, so a tag outside any cluster isn't listed twice.
+   */
+  public void capture(AprilTagProcessor processor, AprilTagProcessor singleTagProcessor, VisionPortal portal) {
     available = processor != null;
     fps = portal == null ? 0.0 : portal.getFps();
     captureNanos = System.nanoTime();
 
-    List<AprilTagDetection> detections = processor == null
-        ? Collections.<AprilTagDetection>emptyList()
-        : processor.getDetections();
+    List<AprilTagDetection> detections = new ArrayList<>();
+    if (processor != null) {
+      for (AprilTagDetection detection : processor.getDetections()) {
+        if (singleTagProcessor == null || !(detection instanceof AprilTagSingleDetection)) {
+          detections.add(detection);
+        }
+      }
+    }
+    if (singleTagProcessor != null) {
+      for (AprilTagDetection detection : singleTagProcessor.getDetections()) {
+        if (detection instanceof AprilTagSingleDetection) {
+          detections.add(detection);
+        }
+      }
+    }
     int n = detections.size();
     tagIds = new int[n];
     clusterNames = new String[n];
