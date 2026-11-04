@@ -10,6 +10,8 @@ import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
+import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
@@ -18,13 +20,14 @@ import org.firstinspires.ftc.teamcode.utils.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.Shot;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
 /**
  * Holds one flywheel RPM and one hood angle and fires single balls, for measuring ball speed per
  * RPM with slow motion video (tools/shots/fit-speed.js turns the readings into exitSpeedPerRpm).
- * The robot does not drive.
+ * The robot only turns, to face the Cell while left trigger is held.
  *
  * <p>The hood must rest on its lower stop at INIT, as in the TeleOp. Controls:
  * <ul>
@@ -34,6 +37,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
  * <li>B, held: run the feeder and indexer backward to clear a jam.</li>
  * <li>Left bumper, held: index. The indexer moves balls up; the feeder holds them out of the wheels.</li>
  * <li>Y: load the shot table's RPM and hood angle for the distance the cameras see.</li>
+ * <li>Left trigger, held: turn on the spot so the shooter faces the Cell the cameras see.</li>
  * <li>X: mark the last shot as scored (logged with its distance, RPM and hood angle).</li>
  * </ul>
  *
@@ -56,6 +60,13 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private HoodSubsystem hood;
   private FeederSubsystem feeder;
   private IndexerSubsystem indexer;
+  private MecanumDriveSubsystem drive;
+  private OdometrySubsystem odometry; // Heading for the left trigger align
+  /** Field heading that puts the shooter on the Cell, from the latest sighting. NaN until one. */
+  private double alignHeadingRad = Double.NaN;
+  private final long[] headingTimesNanos = new long[32];
+  private final double[] headings = new double[32];
+  private int headingSlot;
 
   private double targetRpm = START_RPM;
   private double hoodDeg = START_HOOD_DEG;
@@ -103,6 +114,9 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     hood = new HoodSubsystem(hardwareMap);
     feeder = new FeederSubsystem(hardwareMap);
     indexer = new IndexerSubsystem(hardwareMap);
+    drive = new MecanumDriveSubsystem(hardwareMap);
+    odometry = new OdometrySubsystem(hardwareMap);
+    odometry.init();
     hood.init();
     shooter.setShooterState(ShooterState.STOP);
     vision = new VisionSubsystem(hardwareMap);
@@ -117,7 +131,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     updateDistance();
     telemetry.addData("Distance", distanceText());
     telemetry.addData("Hood encoders", hood.hasEncoderFault() ? "FAULT: check wiring and re-INIT" : "ok");
-    telemetry.addLine("Hood must rest on its lower stop now. Robot does not drive.");
+    telemetry.addLine("Hood must rest on its lower stop now. Left trigger turns the robot to the Cell.");
     telemetry.update();
   }
 
@@ -127,8 +141,10 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   @Override
   protected void onPsiKitLoop() {
     updateBattery();
+    recordHeading();
     updateDistance();
     updateTargets();
+    updateAlign();
 
     shooter.setShooterState(flywheelsOn ? ShooterState.AIM : ShooterState.STOP);
     shooter.setTargetRpm(targetRpm);
@@ -224,6 +240,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     double nearestM = Double.NaN;
     String nearestName = "";
     long nearestNanos = 0;
+    double nearestBearingRad = Double.NaN; // From the shooter, CCW from robot forward
     for (CellSighting sighting : vision.takeNewCellSightings()) {
       double[] inRobot = sighting.camera.toRobotFrame(sighting.rightM, sighting.forwardM, sighting.upM);
       double distM = Math.hypot(inRobot[0] - ShootOnTheMoveConstants.SHOOTER_FORWARD_M,
@@ -232,6 +249,8 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
         nearestM = distM;
         nearestName = sighting.clusterName;
         nearestNanos = sighting.frameTimeNanos;
+        nearestBearingRad = Math.atan2(inRobot[1] - ShootOnTheMoveConstants.SHOOTER_LEFT_M,
+            inRobot[0] - ShootOnTheMoveConstants.SHOOTER_FORWARD_M);
       }
     }
     // Each loop may see a different Cell. Stick with the one we have unless the new one is
@@ -242,12 +261,50 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
       clusterName = nearestName;
       lastSightingNanos = nearestNanos;
       clusterDistM = nearestM;
+      // Heading when the frame was taken, so the camera's delay doesn't make the turn overshoot
+      alignHeadingRad = AngleUnit.normalizeRadians(headingAt(nearestNanos) + nearestBearingRad
+          - ShootOnTheMoveConstants.SHOOTER_DIRECTION_RAD);
       lipDistM = nearestM - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
     }
     if (System.nanoTime() - lastSightingNanos > 1_000_000_000L) { // Seen over a second ago: unknown
       lipDistM = Double.NaN;
       clusterDistM = Double.NaN;
     }
+  }
+
+  private double heading() {
+    return odometry.getPose().getHeading(AngleUnit.RADIANS);
+  }
+
+  private void recordHeading() {
+    headingTimesNanos[headingSlot] = System.nanoTime();
+    headings[headingSlot] = heading();
+    headingSlot = (headingSlot + 1) % headings.length;
+  }
+
+  /** The recorded heading nearest in time, so a late camera frame is placed where the robot was. */
+  private double headingAt(long timeNanos) {
+    int nearest = 0;
+    for (int i = 1; i < headings.length; i++) {
+      if (Math.abs(headingTimesNanos[i] - timeNanos) < Math.abs(headingTimesNanos[nearest] - timeNanos)) {
+        nearest = i;
+      }
+    }
+    return headingTimesNanos[nearest] == 0 ? heading() : headings[nearest];
+  }
+
+  /** Left trigger held: turn on the spot to the Cell. Otherwise the wheels stay still. */
+  private void updateAlign() {
+    boolean aligning = gamepad1.left_trigger > 0.5 && !Double.isNaN(alignHeadingRad); // Odometry holds it once unseen
+    if (aligning) {
+      drive.driveHeadingLock(0, 0, alignHeadingRad, heading(), odometry.getVelocityMetersPerSec()[2]);
+    } else {
+      drive.stop();
+    }
+    Logger.recordOutput("Calibration/Aligning", aligning);
+    Logger.recordOutput("Calibration/AlignErrorDeg",
+        Double.isNaN(alignHeadingRad) ? Double.NaN
+            : Math.toDegrees(AngleUnit.normalizeRadians(alignHeadingRad - heading())));
   }
 
   private String distanceText() {
@@ -276,6 +333,8 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
   private void addTelemetry(boolean readyToFeed) {
     telemetry.addData("Flywheels", flywheelsOn ? "ON" : "off  (A)");
     telemetry.addData("Battery", "%.2f V", batteryVolts);
+    telemetry.addData("Align (LT)", Double.isNaN(alignHeadingRad) ? "no Cell seen yet"
+        : String.format("%.1f deg to go", Math.toDegrees(AngleUnit.normalizeRadians(alignHeadingRad - heading()))));
     telemetry.addData("RPM", "target %.0f, actual %.0f", targetRpm, shooter.getRpm());
     telemetry.addData("Hood lift (deg)", "target %.1f, actual %.1f",
         HoodSubsystem.ZERO_ANGLE_DEG - hoodDeg, hood.getLiftDegrees());
