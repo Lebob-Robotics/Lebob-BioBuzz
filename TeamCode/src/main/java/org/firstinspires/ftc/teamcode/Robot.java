@@ -133,6 +133,9 @@ public class Robot {
   private boolean intakeOn = false;
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
+  private static final double PREPOSITION_SETTLE_S = 0.5;
+  private boolean prepositionBackward = false;
+  private double prepositionSwitchSinceS = Double.NaN;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
@@ -335,7 +338,19 @@ public class Robot {
         && turnTo(backward, pose) < turnTo(hooded, pose);
     if (!aiming) {
       aimBackwardLatched = null;
-      return pickBackward ? backward : hooded; // The shot RT would pick now, so the hood can get there first
+      // The shot RT would pick, so the hood can get there first. Only switched once the other one has
+      // been the pick for PREPOSITION_SETTLE_S, so turning past the switch point doesn't swing the hood
+      // through its whole travel each time (the belt skipped doing that, 4 Nov).
+      double nowS = nowNanos * 1e-9;
+      if (pickBackward == prepositionBackward) {
+        prepositionSwitchSinceS = Double.NaN;
+      } else if (Double.isNaN(prepositionSwitchSinceS)) {
+        prepositionSwitchSinceS = nowS;
+      } else if (nowS - prepositionSwitchSinceS >= PREPOSITION_SETTLE_S) {
+        prepositionBackward = pickBackward;
+        prepositionSwitchSinceS = Double.NaN;
+      }
+      return prepositionBackward ? backward : hooded;
     }
     if (aimBackwardLatched == null) {
       aimBackwardLatched = pickBackward;
