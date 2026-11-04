@@ -41,8 +41,10 @@ public class DriveCheck extends OpMode {
     pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
     pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+    // X (forward) pod counts backward: TeleOp log 3 Nov 22:22, wheels driving the robot backward moved
+    // the pose forward (30 of 31 samples). Y (strafe) not yet checked.
     pinpoint.setEncoderDirections(
-        GoBildaPinpointDriver.EncoderDirection.FORWARD,
+        GoBildaPinpointDriver.EncoderDirection.REVERSED,
         GoBildaPinpointDriver.EncoderDirection.FORWARD);
     // Robot must be stationary during this call.
     pinpoint.resetPosAndIMU();
