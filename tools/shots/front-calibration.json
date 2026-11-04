@@ -41,6 +41,24 @@
       "scored": 7,
       "date": "2026-11-04",
       "note": "Table shot (Y) from the refit model, no adjustment."
+    },
+    {
+      "distM": 1.78,
+      "rpm": 3890,
+      "hoodLiftDeg": 46.0,
+      "fired": 2,
+      "scored": 0,
+      "date": "2026-11-04",
+      "note": "Table shot (Y)."
+    },
+    {
+      "distM": 1.78,
+      "rpm": 3790,
+      "hoodLiftDeg": 46.0,
+      "fired": 12,
+      "scored": 12,
+      "date": "2026-11-04",
+      "note": "Table shot less 100 RPM."
     }
   ]
 }
