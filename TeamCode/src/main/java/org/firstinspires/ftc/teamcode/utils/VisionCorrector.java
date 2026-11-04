@@ -27,6 +27,8 @@ public final class VisionCorrector {
   private Cell upCellRed = Cell.AUDIENCE; // Starts red AUDIENCE, blue SCORING. Vision flips them
   private Cell upCellBlue = Cell.SCORING;
   private final int[] flipVotes = new int[2]; // Frames in a row voting against the current up Cell: red, blue
+  private int headingDisagreeFrames = 0; // Frames in a row whose heading fix was too big to trust, and agreed
+  private double lastDisagreeRad = 0;
 
   /** The up Cell of an alliance's Hive. */
   public Cell upCell(Alliance alliance) {
@@ -214,7 +216,18 @@ public final class VisionCorrector {
       }
       dHeading = median(fixes);
       boolean believable = !headingValid || Math.abs(dHeading) <= Math.toRadians(MAX_HEADING_JUMP_DEG);
-      headingGain = !believable ? 0 : headingValid ? HEADING_GAIN : 1.0;
+      boolean override = false;
+      if (believable) {
+        headingDisagreeFrames = 0;
+      } else {
+        // A big fix the tags keep giving means odometry has lost its heading, so take it once it repeats
+        boolean agrees = headingDisagreeFrames > 0 && Math.abs(ShootOnTheMove.normalizeAngle(dHeading - lastDisagreeRad))
+            <= Math.toRadians(HEADING_OVERRIDE_AGREE_DEG);
+        headingDisagreeFrames = agrees ? headingDisagreeFrames + 1 : 1;
+        lastDisagreeRad = dHeading;
+        override = headingDisagreeFrames >= HEADING_OVERRIDE_FRAMES; // Stays on until a fix is believable again
+      }
+      headingGain = override || !headingValid ? 1.0 : believable ? HEADING_GAIN : 0;
     }
 
     // Robot position is the tag position less its offset, turned by the heading correction about the robot

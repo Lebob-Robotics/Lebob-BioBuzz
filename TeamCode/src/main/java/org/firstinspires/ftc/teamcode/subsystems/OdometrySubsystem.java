@@ -33,6 +33,8 @@ public class OdometrySubsystem extends SubsystemBase {
 
   /** Null when "pinpoint" is not in the config: the pose then stays at zero. */
   private final GoBildaPinpointDriver pinpoint;
+  /** The last pose read while the Pinpoint said READY. */
+  private Pose2D lastGoodPose = ZERO_POSE;
 
   public OdometrySubsystem(HardwareMap hardwareMap) {
     GoBildaPinpointDriver found = null;
@@ -108,8 +110,24 @@ public class OdometrySubsystem extends SubsystemBase {
     Logger.recordOutput("Odometry/DeviceStatus", String.valueOf(pinpoint.getDeviceStatus()));
   }
 
+  /**
+   * The pose. When the Pinpoint's last read was bad this is the last good pose instead: a NOT_READY read
+   * comes back as all zeros, and writing a correction based on it into the Pinpoint loses the heading
+   * (4 Nov, 357 s: heading -172 went to 0).
+   */
   public Pose2D getPose() {
-    return pinpoint == null ? ZERO_POSE : pinpoint.getPosition();
+    if (pinpoint == null) {
+      return ZERO_POSE;
+    }
+    if (isReadGood()) {
+      lastGoodPose = pinpoint.getPosition();
+    }
+    return lastGoodPose;
+  }
+
+  /** False when the Pinpoint's last update did not read it as READY, so its pose must not be used or written back. */
+  public boolean isReadGood() {
+    return pinpoint == null || pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY;
   }
 
   /**
@@ -151,7 +169,7 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return;
     }
-    Pose2D current = pinpoint.getPosition();
+    Pose2D current = getPose(); // Not a bad read's zeros
     pinpoint.setPosition(new Pose2D(
         DistanceUnit.MM, current.getX(DistanceUnit.MM), current.getY(DistanceUnit.MM),
         AngleUnit.RADIANS, headingRad));

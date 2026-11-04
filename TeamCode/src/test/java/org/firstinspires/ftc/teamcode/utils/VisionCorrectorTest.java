@@ -556,6 +556,29 @@ public class VisionCorrectorTest {
   }
 
   @Test
+  public void aBigHeadingFixThatKeepsRepeatingReplacesATrustedHeading() {
+    // Logged 4 Nov: a bad Pinpoint read left the trusted heading 172 degrees out, and the tags kept saying so
+    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(172));
+    for (int frame = 1; frame < ShootOnTheMoveConstants.HEADING_OVERRIDE_FRAMES; frame++) {
+      assertEquals(0, runHeading(fourRedTags(TRUE_POSE), odometry, true).headingGain, TOLERANCE);
+    }
+    VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
+    assertEquals(1.0, result.headingGain, TOLERANCE);
+    assertTrue(result.accepted);
+    assertEquals(TRUE_POSE.headingRad, result.newPose.headingRad, 1e-6);
+  }
+
+  @Test
+  public void bigHeadingFixesThatDisagreeNeverReplaceATrustedHeading() {
+    Pose plus = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(90));
+    Pose minus = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad - Math.toRadians(90));
+    for (int frame = 0; frame < 3 * ShootOnTheMoveConstants.HEADING_OVERRIDE_FRAMES; frame++) {
+      Pose odometry = frame % 2 == 0 ? plus : minus;
+      assertEquals(0, runHeading(fourRedTags(TRUE_POSE), odometry, true).headingGain, TOLERANCE);
+    }
+  }
+
+  @Test
   public void oneTagOrTagsTooCloseLeaveTheHeadingAlone() {
     Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
     VisionResult one = runHeading(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false);

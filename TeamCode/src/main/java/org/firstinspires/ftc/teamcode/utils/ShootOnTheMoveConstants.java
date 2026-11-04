@@ -97,6 +97,10 @@ public final class ShootOnTheMoveConstants {
   public static double MIN_HEADING_BASELINE_M = 0.2; // Tags closer together than this give too noisy a heading
   public static double HEADING_GAIN = 0.2; // Share of each heading correction applied. The first applies all of it
   public static double MAX_HEADING_JUMP_DEG = 20; // Larger corrections once the heading is trusted are ignored
+  // ...unless this many frames in a row agree on it (within HEADING_OVERRIDE_AGREE_DEG): then the odometry
+  // heading is the wrong one (4 Nov: a bad Pinpoint read left it 172 degrees out), so it is replaced in full
+  public static int HEADING_OVERRIDE_FRAMES = 5;
+  public static double HEADING_OVERRIDE_AGREE_DEG = 15;
 
   // ---- Shot checks -----------------------------------------------------
   public static double MAX_TURNING_DEG = 30; // Above this, the ball's sideways error grows too fast

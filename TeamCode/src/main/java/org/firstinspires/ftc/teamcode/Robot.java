@@ -246,7 +246,9 @@ public class Robot {
       pose = new Pose(pose.xM, pose.yM, alliance.forwardHeadingRad());
     }
 
-    pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
+    if (odometry.isReadGood()) { // A correction from a bad read would write that read back into the Pinpoint
+      pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
+    }
 
     boolean aiming = driver.right_trigger > TRIGGER_PRESSED;
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
