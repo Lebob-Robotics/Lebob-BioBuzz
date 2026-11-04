@@ -23,6 +23,8 @@ import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
+import com.bylazar.field.FieldManager;
+import com.bylazar.field.PanelsField;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.ManualFeedGate;
@@ -300,6 +302,7 @@ public class Robot {
     long tLog = System.nanoTime();
     updateBattery();
     logAim(aim);
+    drawField(pose, aim);
     addTelemetry(aim, pose);
     telemetry.update();
     long tEnd = System.nanoTime();
@@ -556,6 +559,37 @@ public class Robot {
 
   private static int hoodToleranceTicks() {
     return (int) Math.round(ShootOnTheMoveConstants.HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
+  }
+
+  /**
+   * The robot, where it points, and the Cell it is aiming at, on the Panels Field tab. Inches, field
+   * centre at the origin, x toward the audience Cells. Panels sends it at most every 100 ms. Off with
+   * Main.PANELS_ENABLED.
+   */
+  private void drawField(Pose pose, Aim aim) {
+    if (!Main.PANELS_ENABLED) {
+      return;
+    }
+    FieldManager field = PanelsField.INSTANCE.getField();
+    field.setOffsets(PanelsField.INSTANCE.getPresets().getDEFAULT_FTC());
+    double x = pose.xM / ShootOnTheMoveConstants.IN_TO_M;
+    double y = pose.yM / ShootOnTheMoveConstants.IN_TO_M;
+    String colour = alliance == Alliance.RED ? "red" : "blue";
+    if (aim != null) {
+      double cellX = tracker.getCellX() / ShootOnTheMoveConstants.IN_TO_M;
+      double cellY = tracker.getCellY() / ShootOnTheMoveConstants.IN_TO_M;
+      field.setStyle("transparent", "yellow", 0.5);
+      field.moveCursor(x, y);
+      field.line(cellX, cellY);
+      field.setStyle("yellow", "black", 0.5);
+      field.moveCursor(cellX, cellY);
+      field.circle(3);
+    }
+    field.setStyle("transparent", colour, 1.5); // Robot: 18 in square, drawn as its 9 in circle
+    field.moveCursor(x, y);
+    field.circle(9);
+    field.line(x + 12 * Math.cos(pose.headingRad), y + 12 * Math.sin(pose.headingRad)); // Front
+    field.update();
   }
 
   /** Everything shoot on the move worked out this loop, for AdvantageScope. */
