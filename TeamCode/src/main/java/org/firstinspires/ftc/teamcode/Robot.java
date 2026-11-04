@@ -298,7 +298,7 @@ public class Robot {
       double dHeading = result.appliedDHeadingRad();
       poseHistory.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
       tracker.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
-      poseValid = true; // The first fix is applied in full, so after it the pose is on the field
+      poseValid |= result.gain > 0; // The first position fix is applied in full, so after it the pose is on the field
       headingValid |= result.headingGain > 0; // Likewise the first heading fix
       pose = result.newPose; // The Pinpoint may not report the new pose until its next update
     }

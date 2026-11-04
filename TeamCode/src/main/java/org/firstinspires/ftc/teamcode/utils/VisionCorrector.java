@@ -258,6 +258,17 @@ public final class VisionCorrector {
     } else if (poseValid && Math.hypot(medianDx, medianDy) > MAX_JUMP_M) {
       reason = Reason.JUMP;
     }
+    boolean headingStillGood = reason == Reason.OUT_OF_FIELD || reason == Reason.JUMP; // Not about the heading
+    if (reason != Reason.ACCEPTED && headingStillGood && headingGain > 0) {
+      // The heading from tag pairs doesn't depend on where the robot is, so keep it
+      Pose turned = new Pose(now.xM, now.yM, ShootOnTheMove.normalizeAngle(now.headingRad + headingGain * dHeading));
+      VisionResult headingOnly = new VisionResult(Reason.HEADING_ONLY, firstReject, 0, 0, 0, turned, used,
+          rejected, spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
+      headingOnly.dHeadingRad = dHeading;
+      headingOnly.headingGain = headingGain;
+      headingOnly.headingPairs = headingFixes.size();
+      return headingOnly;
+    }
     if (reason != Reason.ACCEPTED) {
       VisionResult rejectedResult = new VisionResult(reason, firstReject, 0, 0, 0, null, used, rejected,
           spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);

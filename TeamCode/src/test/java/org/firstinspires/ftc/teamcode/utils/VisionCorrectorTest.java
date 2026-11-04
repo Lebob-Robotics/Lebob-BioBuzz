@@ -565,4 +565,20 @@ public class VisionCorrectorTest {
         observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false); // 3.75 inches apart
     assertEquals(0, close.headingPairs);
   }
+
+  @Test
+  public void anOffFieldPositionStillFixesTheHeading() {
+    // Logged 4 Nov: placed facing the driver (180 degrees off), and the tags put it past the field edge
+    Pose truth = new Pose(-1.75, -0.5, Math.PI);
+    Pose odometry = new Pose(0, 0, 0);
+    ShootOnTheMoveConstants.FIELD_HALF_SIZE_M = 1.83;
+    ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M = 0.15;
+    VisionResult result = corrector.process(fourRedTags(truth), stillHistory(odometry), odometry, 0, 0, 0,
+        false, false, T0 + 100 * MS);
+    assertEquals(Reason.HEADING_ONLY, result.reason);
+    assertTrue(result.accepted);
+    assertEquals(0, result.gain, TOLERANCE); // Position left alone
+    assertEquals(0, result.newPose.xM, TOLERANCE);
+    assertEquals(Math.PI, Math.abs(result.newPose.headingRad), 1e-6);
+  }
 }

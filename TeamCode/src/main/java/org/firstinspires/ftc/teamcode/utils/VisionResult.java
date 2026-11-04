@@ -5,6 +5,7 @@ public final class VisionResult {
   /** Why the pose was or was not corrected. */
   public enum Reason {
     ACCEPTED,
+    HEADING_ONLY, // The position was rejected (off the field or too big a jump), but the tag pairs fixed the heading
     NO_OBSERVATIONS,
     TOO_FAST,
     TOO_FAST_TURNING,
@@ -48,7 +49,7 @@ public final class VisionResult {
   VisionResult(Reason reason, TagReject firstTagReject, double dxM, double dyM, double gain,
       Pose newPose, int tagsUsed, int tagsRejected, double spreadM, boolean redFlipped,
       boolean blueFlipped, int[] usedIds, double[] usedDxM, double[] usedDyM) {
-    this.accepted = reason == Reason.ACCEPTED;
+    this.accepted = reason == Reason.ACCEPTED || reason == Reason.HEADING_ONLY;
     this.reason = reason;
     this.firstTagReject = firstTagReject;
     this.dxM = dxM;
