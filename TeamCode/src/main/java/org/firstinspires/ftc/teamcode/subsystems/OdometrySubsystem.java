@@ -63,10 +63,10 @@ public class OdometrySubsystem extends SubsystemBase {
     pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     // X (forward) pod counts backward: TeleOp log 3 Nov 22:22, wheels driving the robot backward moved
-    // the pose forward (30 of 31 samples). Y (strafe) not yet checked.
+    // the pose forward (30 of 31 samples). Y (strafe) counted backward too: pushing the robot right raised Y (4 Nov).
     pinpoint.setEncoderDirections(
         GoBildaPinpointDriver.EncoderDirection.REVERSED,
-        GoBildaPinpointDriver.EncoderDirection.FORWARD);
+        GoBildaPinpointDriver.EncoderDirection.REVERSED);
 
     // Robot must be stationary during this call.
     pinpoint.resetPosAndIMU();
