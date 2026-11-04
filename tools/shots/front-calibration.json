@@ -113,6 +113,15 @@
       "scored": 8,
       "date": "2026-11-04",
       "note": "Distance about 2.8 m by tape (cameras could not see); set by hand."
+    },
+    {
+      "distM": 1.76,
+      "rpm": 3810,
+      "hoodLiftDeg": 46,
+      "fired": 4,
+      "scored": 4,
+      "date": "2026-11-04",
+      "note": "4-ball burst, camera distance. Flywheel PIDF [10,2,0,12.9]. Balls 1+2 went together (dip to 3167), ball 4 took 1.9 s to reach the feeder."
     }
   ]
 }
