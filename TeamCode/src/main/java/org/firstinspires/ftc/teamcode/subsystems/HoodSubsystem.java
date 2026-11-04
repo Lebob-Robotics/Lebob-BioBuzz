@@ -175,6 +175,7 @@ public class HoodSubsystem extends SubsystemBase {
     Logger.recordOutput("Hood/VelocityPIDF", appliedVelocityPidf);
     Logger.recordOutput("Hood/AtTarget", lastAtTarget);
     Logger.recordOutput("Hood/EncoderGuard/Tripped", encoderGuard.isTripped());
+    Logger.recordOutput("Hood/EncoderGuard/Slips", encoderGuard.getSlipCount());
     Logger.recordOutput("Hood/EncoderGuard/DifferencePinionTurns", Math.abs(
         lastPosition / HoodEncoderGuard.REV_COUNTS_PER_TURN
         - lastMotorPosition / HoodEncoderGuard.MOTOR_COUNTS_PER_TURN));
@@ -198,6 +199,15 @@ public class HoodSubsystem extends SubsystemBase {
       lastAtTarget = false;
       cut(); // A fault must remove drive power; RUN_TO_POSITION would keep pushing.
       return;
+    }
+    if (encoderGuard.takeRebase()) { // Belt skipped: the REV is the hood, so move the motor's zero to match it
+      int motorFromRev = (int) Math.round(position / HoodEncoderGuard.REV_COUNTS_PER_TURN
+          * HoodEncoderGuard.MOTOR_COUNTS_PER_TURN);
+      motorZero += motorPosition - motorFromRev;
+      motorPosition = motorFromRev;
+      lastMotorPosition = motorPosition;
+      lastMotorTarget = Integer.MIN_VALUE; // Resend the target against the new zero
+      targeting.reset();
     }
     if (!enabled) {
       return;
