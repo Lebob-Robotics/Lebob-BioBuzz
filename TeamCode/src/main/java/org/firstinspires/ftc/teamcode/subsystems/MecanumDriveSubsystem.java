@@ -20,6 +20,10 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   // Heading lock gains. The rotate sign is to be verified on the robot.
   public static double HEADING_KP = 1.0; // TODO tune on robot
   public static double HEADING_KD = 0.05; // TODO tune on robot
+  // Least turn power while off by more than HEADING_KS_ABOVE_RAD: KP alone gave 0.19 at 11 degrees off,
+  // which didn't move the robot (TeleOp 4 Nov), so it sat outside the 5 degree shot tolerance.
+  public static double HEADING_KS = 0.12;
+  public static double HEADING_KS_ABOVE_RAD = Math.toRadians(1.5);
   public static double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
   /**
    * Speed control needs every drive encoder counting the same way as its motor. On 27 Oct DriveFL's
@@ -147,6 +151,9 @@ public class MecanumDriveSubsystem extends SubsystemBase {
       double currentHeadingRad, double headingRateRadPerSec) {
     double error = AngleUnit.normalizeRadians(targetHeadingRad - currentHeadingRad);
     double ccw = HEADING_KP * error - HEADING_KD * headingRateRadPerSec;
+    if (Math.abs(error) > HEADING_KS_ABOVE_RAD && Math.abs(ccw) < HEADING_KS && Math.signum(ccw) == Math.signum(error)) {
+      ccw = Math.copySign(HEADING_KS, error);
+    }
     ccw = Math.max(-HEADING_MAX_ROTATE, Math.min(HEADING_MAX_ROTATE, ccw));
 
     // drive()'s rotate is clockwise positive, the opposite of heading.
