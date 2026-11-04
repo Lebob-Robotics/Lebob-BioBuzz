@@ -50,7 +50,8 @@ import java.util.List;
  *   <li>Left stick: drive (field centric, forward is away from the driver's wall). Right stick X: turn.</li>
  *   <li>Right trigger held: aim and shoot. The robot turns to the shot heading and sets the hood and
  *       flywheels from the shot table, then feeds each ball once the shot is ready. The left stick
- *       still drives.</li>
+ *       still drives. Without RT, once the Cell is known the hood already follows the shot RT would
+ *       take, so it is there when RT is pressed (hood presets then do nothing).</li>
  *   <li>Right bumper: toggle flywheel spin-up. Keeps the flywheels at the table's RPM so the first
  *       aimed shot is ready sooner.</li>
  *   <li>Y held: manual shot at full power, without aiming or waiting. A fallback for when the camera
@@ -328,16 +329,16 @@ public class Robot {
     }
     double cellX = tracker.getCellX();
     double cellY = tracker.getCellY();
-    if (!aiming) {
-      aimBackwardLatched = null;
-      return ShootOnTheMove.aim(pose, velocity[0], velocity[1], cellX, cellY,
-          ShootOnTheMoveConstants.BACKWARD_SHOTS_ON);
-    }
     Aim hooded = ShootOnTheMove.aimHooded(pose, velocity[0], velocity[1], cellX, cellY);
     Aim backward = ShootOnTheMove.aimBackward(pose, velocity[0], velocity[1], cellX, cellY);
+    boolean pickBackward = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON && backward.shot.valid
+        && turnTo(backward, pose) < turnTo(hooded, pose);
+    if (!aiming) {
+      aimBackwardLatched = null;
+      return pickBackward ? backward : hooded; // The shot RT would pick now, so the hood can get there first
+    }
     if (aimBackwardLatched == null) {
-      aimBackwardLatched = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON && backward.shot.valid
-          && turnTo(backward, pose) < turnTo(hooded, pose);
+      aimBackwardLatched = pickBackward;
     }
     return aimBackwardLatched ? backward : hooded;
   }
@@ -442,7 +443,10 @@ public class Robot {
       shooter.setShooterState(ShooterState.IDLE);
     }
 
-    if (aiming) {
+    // Not aiming but the Cell is known: move the hood to the shot RT would take now, while driving,
+    // so it is already there when RT is pressed. Presets are for when the Cell isn't known.
+    boolean prepositioning = !aiming && validShot && !driver.y && !driver.b;
+    if (aiming || prepositioning) {
       if (validShot && aim.backward) {
         hood.setTargetTicks(0); // Rests unpowered on the lower stop; trim doesn't apply
       } else if (validShot) { // Otherwise the hood holds its last angle
@@ -457,7 +461,7 @@ public class Robot {
     double steppedLift = hoodSteps.update(lift, driver.dpad_right, driver.dpad_left,
         HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG);
     if (steppedLift != lift) {
-      if (aiming) { hoodLiftTrimDeg += steppedLift - lift; }
+      if (aiming || prepositioning) { hoodLiftTrimDeg += steppedLift - lift; }
       hood.setTargetLiftDegrees(steppedLift);
     }
   }
