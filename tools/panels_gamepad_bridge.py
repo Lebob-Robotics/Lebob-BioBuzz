@@ -93,7 +93,7 @@ async def send(robot, pad):
     url = f"ws://{robot}:8002"
     while True:
         try:
-            async with websockets.connect(url, max_size=None, open_timeout=3) as ws:
+            async with websockets.connect(url, max_size=None, open_timeout=3, ping_interval=None)  # Panels never answers pings as ws:
                 print(f"Connected to {url}. Driving.")
                 last_print = 0.0
                 while True:

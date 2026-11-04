@@ -515,7 +515,7 @@ public class Robot {
 
   /**
    * Shooting runs the indexer and feeder into the shooter with the intake off. An aimed shot holds the
-   * feeder backward until READY, so the indexer queues balls against it. Loading runs the intake and
+   * feeder backward and stops the indexer until READY, so no ball is pushed through early. Loading runs the intake and
    * indexer with the feeder backward, so balls stop short of the shooter. Shooting wins over loading.
    */
   private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
@@ -537,9 +537,12 @@ public class Robot {
       indexer.setIndexerState(IndexerState.EJECT);
       feeder.setFeederState(FeederState.EJECT);
     } else if (shooting) {
+      // While an aimed shot waits, the indexer stops too: pushing the stack against the held feeder forced
+      // a ball through before the aim was ready (4 Nov, 084004: 18 deg off, overshot)
+      boolean feeding = !aiming || ready;
       intake.setIntakeState(IntakeState.STOP);
-      indexer.setIndexerState(IndexerState.FEED);
-      feeder.setFeederState(!aiming || ready ? FeederState.FEED : FeederState.HOLD);
+      indexer.setIndexerState(feeding ? IndexerState.FEED : IndexerState.STOP);
+      feeder.setFeederState(feeding ? FeederState.FEED : FeederState.HOLD);
     } else if (loading) {
       intake.setIntakeState(IntakeState.INTAKE);
       indexer.setIndexerState(IndexerState.FEED);
