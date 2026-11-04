@@ -46,10 +46,20 @@ public final class PoseHistory {
 
   /** Moves every stored pose, for example after a vision correction. */
   public void shift(double dxM, double dyM) {
+    transform(0, 0, 0, dxM, dyM);
+  }
+
+  /** Turns every pose by a heading correction about a pivot (the robot), then shifts them. */
+  public void transform(double pivotXM, double pivotYM, double dHeadingRad, double dxM, double dyM) {
+    double cos = Math.cos(dHeadingRad);
+    double sin = Math.sin(dHeadingRad);
     for (int k = 0; k < count; k++) {
       int slot = slotOf(k);
-      xM[slot] += dxM;
-      yM[slot] += dyM;
+      double x = xM[slot] - pivotXM;
+      double y = yM[slot] - pivotYM;
+      xM[slot] = pivotXM + x * cos - y * sin + dxM;
+      yM[slot] = pivotYM + x * sin + y * cos + dyM;
+      headingsRad[slot] = ShootOnTheMove.normalizeAngle(headingsRad[slot] + dHeadingRad);
     }
   }
 

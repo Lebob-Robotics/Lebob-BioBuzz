@@ -41,6 +41,9 @@ public final class VisionResult {
   public final int[] usedIds; // Each used tag's id and correction
   public final double[] usedDxM;
   public final double[] usedDyM;
+  public double dHeadingRad; // Median heading correction from tag pairs, before the gain. Zero if none
+  public double headingGain; // Share of it to apply. Zero when no heading correction is applied
+  public int headingPairs; // Tag pairs that gave a heading
 
   VisionResult(Reason reason, TagReject firstTagReject, double dxM, double dyM, double gain,
       Pose newPose, int tagsUsed, int tagsRejected, double spreadM, boolean redFlipped,
@@ -60,6 +63,11 @@ public final class VisionResult {
     this.usedIds = usedIds;
     this.usedDxM = usedDxM;
     this.usedDyM = usedDyM;
+  }
+
+  /** The turn to apply to the heading, and to anything stored in the same frame (about the robot). */
+  public double appliedDHeadingRad() {
+    return headingGain * dHeadingRad;
   }
 
   /** The shift to apply to the pose, and to anything stored in the same frame. */

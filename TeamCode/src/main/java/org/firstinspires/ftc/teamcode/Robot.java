@@ -117,6 +117,8 @@ public class Robot {
   private final VisionCorrector visionCorrector = new VisionCorrector();
   private long lastHistoryNanos = Long.MIN_VALUE;
   private boolean poseValid = false; // True once a tag fix has placed the robot on the field. Nothing is gated on it yet
+  // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
+  private boolean headingValid = false;
   private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
   private long lastVisionNanos = 0;
 
@@ -204,7 +206,8 @@ public class Robot {
 
   /**
    * Called once when the OpMode starts. Sets the heading to the alliance's forward heading, which
-   * assumes the robot is placed square to its wall, facing away from it. A resets it later.
+   * assumes the robot is placed square to its wall, facing away from it. From then on two Hive tags
+   * seen together correct it automatically; A resets it by hand.
    */
   public void start() {
     pollAlliance();
@@ -214,6 +217,7 @@ public class Robot {
     visionCorrector.reset();
     lastHistoryNanos = Long.MIN_VALUE;
     poseValid = false;
+    headingValid = false;
     lastVision = null;
   }
 
@@ -237,6 +241,7 @@ public class Robot {
     if (driver.a) {
       odometry.setHeading(alliance.forwardHeadingRad());
       tracker.clear(); // The frame just turned, so the stored Cell and poses no longer apply
+      headingValid = true; // The driver says this is right, so vision only trims it from here
       poseHistory.clear();
       pose = new Pose(pose.xM, pose.yM, alliance.forwardHeadingRad());
     }
@@ -286,12 +291,15 @@ public class Robot {
   private Pose correctPoseFromVision(Pose pose, double[] velocity, long nowNanos) {
     List<TagObservation> observations = vision.takeNewTagObservations();
     VisionResult result = visionCorrector.process(observations, poseHistory, pose,
-        velocity[0], velocity[1], velocity[2], poseValid, nowNanos);
+        velocity[0], velocity[1], velocity[2], poseValid, headingValid, nowNanos);
     if (result.accepted) {
       odometry.setPose(result.newPose.xM, result.newPose.yM, result.newPose.headingRad);
-      poseHistory.shift(result.appliedDxM(), result.appliedDyM());
-      tracker.shift(result.appliedDxM(), result.appliedDyM());
+      // Turn about the robot by the heading fix, then shift, so stored poses and the Cell stay put relative to it
+      double dHeading = result.appliedDHeadingRad();
+      poseHistory.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
+      tracker.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
       poseValid = true; // The first fix is applied in full, so after it the pose is on the field
+      headingValid |= result.headingGain > 0; // Likewise the first heading fix
       pose = result.newPose; // The Pinpoint may not report the new pose until its next update
     }
     if (result.reason != VisionResult.Reason.NO_OBSERVATIONS) {
@@ -578,6 +586,10 @@ public class Robot {
     Logger.recordOutput("Vision/Correction/RedFlipped", result.redFlipped);
     Logger.recordOutput("Vision/Correction/BlueFlipped", result.blueFlipped);
     Logger.recordOutput("Vision/Correction/PoseValid", poseValid);
+    Logger.recordOutput("Vision/Correction/HeadingValid", headingValid);
+    Logger.recordOutput("Vision/Correction/DHeadingDeg", Math.toDegrees(result.dHeadingRad));
+    Logger.recordOutput("Vision/Correction/HeadingGain", result.headingGain);
+    Logger.recordOutput("Vision/Correction/HeadingPairs", result.headingPairs);
   }
 
   /** For example "✓ 6 tags Δ3cm (0.1s ago) | up AUDIENCE", or the reason the last tags were not used. */
@@ -600,7 +612,8 @@ public class Robot {
   }
 
   private void addTelemetry(Aim aim, Pose pose) {
-    telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet"));
+    telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet")
+        + (headingValid ? ", heading set" : ", heading from start"));
     telemetry.addData("Aim", aimState);
     if (aim == null) {
       telemetry.addData("Distance", Double.isInfinite(cellSeenAgoS)

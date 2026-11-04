@@ -15,8 +15,9 @@ import java.util.List;
  * Ported from Sean's VisionCorrector on feature/sotm. It only works out a correction: the caller
  * applies it, and keeps everything stored in the odometry frame in step.
  *
- * <p>The odometry heading must be in the field frame, because the tags have field positions. Only x
- * and y are corrected: the heading always comes from the Pinpoint. Robot frame is x forward, y left,
+ * <p>The odometry heading must be in the field frame, because the tags have field positions. x and y
+ * are corrected from every tag; the heading is corrected when two tags far enough apart are seen at
+ * once, from the line between them, so the driver no longer has to reset it by hand. Robot frame is x forward, y left,
  * z up. Keep one corrector for the OpMode, since it holds the tip votes.
  */
 public final class VisionCorrector {
@@ -101,6 +102,17 @@ public final class VisionCorrector {
   public VisionResult process(List<TagObservation> observations, PoseHistory history, Pose now,
       double velocityXMps, double velocityYMps, double turnRateRadPerSec, boolean poseValid,
       long nowNanos) {
+    return process(observations, history, now, velocityXMps, velocityYMps, turnRateRadPerSec, poseValid,
+        poseValid, nowNanos);
+  }
+
+  /**
+   * As above, with the heading trusted separately: false means the next heading fix may be any size
+   * and is applied in full.
+   */
+  public VisionResult process(List<TagObservation> observations, PoseHistory history, Pose now,
+      double velocityXMps, double velocityYMps, double turnRateRadPerSec, boolean poseValid,
+      boolean headingValid, long nowNanos) {
     if (observations == null || observations.isEmpty()) {
       return fail(Reason.NO_OBSERVATIONS, TagReject.NONE, 0, false, false);
     }
@@ -112,8 +124,7 @@ public final class VisionCorrector {
     }
 
     int[][] votes = new int[2][2]; // [Hive][Cell]: tags with a believable height saying that Cell is up
-    List<Double> dxs = new ArrayList<>();
-    List<Double> dys = new ArrayList<>();
+    List<double[]> usedTags = new ArrayList<>(); // Per tag: field x, y; offset from robot in the field frame; robot x, y at the frame
     List<Integer> ids = new ArrayList<>();
     TagReject firstReject = TagReject.NONE;
     int rejected = 0;
@@ -169,14 +180,51 @@ public final class VisionCorrector {
         continue;
       }
 
-      // Robot position is the tag position less the tag's offset from the robot, turned into the field frame
+      // The tag's offset from the robot, turned into the field frame by the odometry heading at the frame
       double cosHeading = Math.cos(atFrame.headingRad);
       double sinHeading = Math.sin(atFrame.headingRad);
       double offsetX = inRobot[0] * cosHeading - inRobot[1] * sinHeading;
       double offsetY = inRobot[0] * sinHeading + inRobot[1] * cosHeading;
-      dxs.add(tagField[0] - offsetX - atFrame.xM);
-      dys.add(tagField[1] - offsetY - atFrame.yM);
+      usedTags.add(new double[] {tagField[0], tagField[1], offsetX, offsetY, atFrame.xM, atFrame.yM});
       ids.add(tag.id);
+    }
+
+    // Heading: for each pair of tags, the turn that lines up where odometry puts them with the field
+    List<Double> headingFixes = new ArrayList<>();
+    for (int i = 0; VISION_HEADING && i < usedTags.size(); i++) {
+      for (int j = i + 1; j < usedTags.size(); j++) {
+        double[] a = usedTags.get(i);
+        double[] b = usedTags.get(j);
+        double fieldX = b[0] - a[0];
+        double fieldY = b[1] - a[1];
+        if (Math.hypot(fieldX, fieldY) < MIN_HEADING_BASELINE_M) {
+          continue;
+        }
+        double seenX = (b[4] + b[2]) - (a[4] + a[2]);
+        double seenY = (b[5] + b[3]) - (a[5] + a[3]);
+        headingFixes.add(ShootOnTheMove.normalizeAngle(Math.atan2(fieldY, fieldX) - Math.atan2(seenY, seenX)));
+      }
+    }
+    double dHeading = 0;
+    double headingGain = 0;
+    if (!headingFixes.isEmpty()) {
+      double[] fixes = new double[headingFixes.size()];
+      for (int k = 0; k < fixes.length; k++) {
+        fixes[k] = headingFixes.get(k);
+      }
+      dHeading = median(fixes);
+      boolean believable = !headingValid || Math.abs(dHeading) <= Math.toRadians(MAX_HEADING_JUMP_DEG);
+      headingGain = !believable ? 0 : headingValid ? HEADING_GAIN : 1.0;
+    }
+
+    // Robot position is the tag position less its offset, turned by the heading correction about the robot
+    double cosFix = Math.cos(headingGain * dHeading);
+    double sinFix = Math.sin(headingGain * dHeading);
+    List<Double> dxs = new ArrayList<>();
+    List<Double> dys = new ArrayList<>();
+    for (double[] t : usedTags) {
+      dxs.add(t[0] - (t[2] * cosFix - t[3] * sinFix) - t[4]);
+      dys.add(t[1] - (t[2] * sinFix + t[3] * cosFix) - t[5]);
     }
 
     boolean redFlipped = applyVotes(0, votes[0], Alliance.RED);
@@ -211,14 +259,22 @@ public final class VisionCorrector {
       reason = Reason.JUMP;
     }
     if (reason != Reason.ACCEPTED) {
-      return new VisionResult(reason, firstReject, 0, 0, 0, null, used, rejected, spread,
-          redFlipped, blueFlipped, usedIds, usedDx, usedDy);
+      VisionResult rejectedResult = new VisionResult(reason, firstReject, 0, 0, 0, null, used, rejected,
+          spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
+      rejectedResult.dHeadingRad = dHeading;
+      rejectedResult.headingPairs = headingFixes.size();
+      return rejectedResult;
     }
 
     double gain = poseValid ? CORRECTION_GAIN : 1.0;
-    Pose newPose = new Pose(now.xM + gain * medianDx, now.yM + gain * medianDy, now.headingRad);
-    return new VisionResult(reason, firstReject, medianDx, medianDy, gain, newPose, used, rejected,
-        spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
+    Pose newPose = new Pose(now.xM + gain * medianDx, now.yM + gain * medianDy,
+        ShootOnTheMove.normalizeAngle(now.headingRad + headingGain * dHeading));
+    VisionResult result = new VisionResult(reason, firstReject, medianDx, medianDy, gain, newPose, used,
+        rejected, spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
+    result.dHeadingRad = dHeading;
+    result.headingGain = headingGain;
+    result.headingPairs = headingFixes.size();
+    return result;
   }
 
   private static VisionResult fail(Reason reason, TagReject firstReject, int rejected,

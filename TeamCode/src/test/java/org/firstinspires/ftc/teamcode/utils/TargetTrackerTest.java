@@ -202,4 +202,14 @@ public class TargetTrackerTest {
     assertTrue(tracker.update(ahead("RED AUDIENCE", 2 * ONE_SECOND_NANOS, 3)));
     assertEquals(3, tracker.getCellX(), TOLERANCE);
   }
+
+  @Test
+  public void aHeadingFixTurnsTheStoredCellAboutTheRobot() {
+    TargetTracker tracker = new TargetTracker(10);
+    tracker.recordPose(0, new Pose(1, 0, 0));
+    tracker.update(twoMetresAhead(0)); // Cell at (3, 0)
+    tracker.transform(1, 0, Math.PI / 2, 0.1, 0); // Robot at (1, 0) turned a quarter turn, then shifted
+    assertEquals(1.1, tracker.getCellX(), TOLERANCE);
+    assertEquals(2, tracker.getCellY(), TOLERANCE);
+  }
 }

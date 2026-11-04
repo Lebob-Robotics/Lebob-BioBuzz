@@ -82,6 +82,11 @@ public final class ShootOnTheMoveConstants {
   public static double FIELD_HALF_SIZE_M = 1.83;
   public static double ROBOT_HALF_SIZE_M = 0.15;
   public static double CORRECTION_GAIN = 0.5; // Share of each correction applied. The first fix applies all of it
+  // Heading from the tags: two tags seen at once give the robot's heading from the line between them.
+  public static boolean VISION_HEADING = true;
+  public static double MIN_HEADING_BASELINE_M = 0.2; // Tags closer together than this give too noisy a heading
+  public static double HEADING_GAIN = 0.2; // Share of each heading correction applied. The first applies all of it
+  public static double MAX_HEADING_JUMP_DEG = 20; // Larger corrections once the heading is trusted are ignored
 
   // ---- Shot checks -----------------------------------------------------
   public static double MAX_TURNING_DEG = 30; // Above this, the ball's sideways error grows too fast

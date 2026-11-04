@@ -32,11 +32,13 @@ public class VisionCorrectorTest {
 
   private double[] savedConstants; // The constants are live-tunable statics, so tests put them back
   private int savedConfirmFrames;
+  private boolean savedVisionHeading;
   private VisionCorrector corrector;
 
   @Before
   public void setUp() {
     savedConfirmFrames = ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES;
+    savedVisionHeading = ShootOnTheMoveConstants.VISION_HEADING;
     savedConstants = new double[] {
         ShootOnTheMoveConstants.MIN_DECISION_MARGIN, ShootOnTheMoveConstants.MAX_TAG_RANGE_M,
         ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS, ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S,
@@ -50,6 +52,7 @@ public class VisionCorrectorTest {
   @After
   public void restoreConstants() {
     ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = savedConfirmFrames;
+    ShootOnTheMoveConstants.VISION_HEADING = savedVisionHeading;
     ShootOnTheMoveConstants.MIN_DECISION_MARGIN = savedConstants[0];
     ShootOnTheMoveConstants.MAX_TAG_RANGE_M = savedConstants[1];
     ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS = savedConstants[2];
@@ -380,7 +383,8 @@ public class VisionCorrectorTest {
   @Test
   public void takesTheMedianOfOddAndEvenCounts() {
     // Each tag is seen from a robot a little off the true pose, so its correction equals that offset.
-    // Three tags: the median of {0, 0.02, 0.08} is 0.02
+    // Three tags: the median of {0, 0.02, 0.08} is 0.02. Tags from different poses would also turn the heading
+    ShootOnTheMoveConstants.VISION_HEADING = false;
     VisionResult odd = run(list(
         observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.00, 0.0)),
         observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.02, 0.01)),
@@ -505,5 +509,60 @@ public class VisionCorrectorTest {
     Pose inside = new Pose(1.6, -0.9, -Math.PI / 2);
     assertTrue(run(list(observe(31, Cell.AUDIENCE, inside)), inside, true).accepted);
     assertEquals(Reason.OUT_OF_FIELD, run(list(observe(31, Cell.AUDIENCE, out)), out, false).reason); // Still checked for the first fix
+  }
+
+  // ---- Heading ----------------------------------------------------------
+
+  private VisionResult runHeading(List<TagObservation> observations, Pose odometry, boolean headingValid) {
+    return corrector.process(observations, stillHistory(odometry), odometry, 0, 0, 0, true, headingValid,
+        T0 + 100 * MS);
+  }
+
+  private static List<TagObservation> fourRedTags(Pose truth) {
+    return list(observe(30, Cell.AUDIENCE, truth), observe(33, Cell.AUDIENCE, truth),
+        observe(34, Cell.AUDIENCE, truth), observe(37, Cell.AUDIENCE, truth));
+  }
+
+  @Test
+  public void twoTagsFixAWrongStartHeadingInFull() {
+    // Placed 25 degrees off square, and odometry also 0.1 m out
+    Pose odometry = new Pose(TRUE_POSE.xM + 0.1, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(25));
+    VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, false);
+    assertTrue(result.accepted);
+    assertEquals(1.0, result.headingGain, TOLERANCE);
+    assertEquals(TRUE_POSE.headingRad, result.newPose.headingRad, 1e-6);
+    // With the heading fixed, the tags agree on the position too
+    assertTrue(result.spreadM < MM_TOLERANCE);
+    assertEquals(-0.1, result.dxM, MM_TOLERANCE);
+  }
+
+  @Test
+  public void aTrustedHeadingIsTrimmedByTheGain() {
+    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(5));
+    VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
+    assertTrue(result.accepted);
+    assertEquals(Math.toRadians(-5), result.dHeadingRad, 1e-6);
+    assertEquals(ShootOnTheMoveConstants.HEADING_GAIN, result.headingGain, TOLERANCE);
+    assertEquals(odometry.headingRad + ShootOnTheMoveConstants.HEADING_GAIN * Math.toRadians(-5),
+        result.newPose.headingRad, 1e-6);
+  }
+
+  @Test
+  public void aBigHeadingJumpIsIgnoredOnceTrusted() {
+    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(40));
+    VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
+    assertEquals(0, result.headingGain, TOLERANCE);
+    assertTrue(result.newPose == null || result.newPose.headingRad == odometry.headingRad);
+  }
+
+  @Test
+  public void oneTagOrTagsTooCloseLeaveTheHeadingAlone() {
+    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
+    VisionResult one = runHeading(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false);
+    assertEquals(0, one.headingPairs);
+    assertEquals(odometry.headingRad, one.newPose.headingRad, TOLERANCE);
+    VisionResult close = runHeading(list(observe(30, Cell.AUDIENCE, TRUE_POSE),
+        observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false); // 3.75 inches apart
+    assertEquals(0, close.headingPairs);
   }
 }

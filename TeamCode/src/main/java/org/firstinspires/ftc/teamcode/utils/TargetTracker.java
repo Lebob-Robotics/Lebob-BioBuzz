@@ -90,13 +90,28 @@ public final class TargetTracker {
    * so the Cell stays where it was relative to the robot and the aim does not jump.
    */
   public void shift(double dxM, double dyM) {
+    transform(0, 0, 0, dxM, dyM);
+  }
+
+  /**
+   * Turns the stored Cell and poses by a heading correction about a pivot (the robot), then shifts
+   * them. Keeps them in step with a corrected pose that also turned.
+   */
+  public void transform(double pivotXM, double pivotYM, double dHeadingRad, double dxM, double dyM) {
+    double cos = Math.cos(dHeadingRad);
+    double sin = Math.sin(dHeadingRad);
     if (cellSeen) {
-      cellX += dxM;
-      cellY += dyM;
+      double x = cellX - pivotXM;
+      double y = cellY - pivotYM;
+      cellX = pivotXM + x * cos - y * sin + dxM;
+      cellY = pivotYM + x * sin + y * cos + dyM;
     }
     for (int slot = 0; slot < poseCount; slot++) {
       Pose pose = poses[slot];
-      poses[slot] = new Pose(pose.xM + dxM, pose.yM + dyM, pose.headingRad);
+      double x = pose.xM - pivotXM;
+      double y = pose.yM - pivotYM;
+      poses[slot] = new Pose(pivotXM + x * cos - y * sin + dxM, pivotYM + x * sin + y * cos + dyM,
+          ShootOnTheMove.normalizeAngle(pose.headingRad + dHeadingRad));
     }
   }
 
