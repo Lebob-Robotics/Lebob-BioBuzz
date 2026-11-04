@@ -400,8 +400,9 @@ public class Robot {
 
   /** The stick directions are from the driver's wall, so the drive gets the heading less the alliance's forward. */
   private void updateDrive(boolean aiming, Aim aim, Pose pose, double turnRateRadPerSec) {
-    double forward = -driver.left_stick_y;
-    double right = driver.left_stick_x;
+    double[] translation = MecanumDriveSubsystem.shapeTranslation(-driver.left_stick_y, driver.left_stick_x);
+    double forward = translation[0];
+    double right = translation[1];
     double forwardOffsetRad = alliance.forwardHeadingRad();
     double driverHeadingRad = pose.headingRad - forwardOffsetRad;
     if (aiming && aim != null) { // Lines up even without a valid shot, so it's ready the moment one appears
@@ -409,7 +410,7 @@ public class Robot {
       drive.driveHeadingLock(forward, right, aim.targetHeadingRad - forwardOffsetRad, driverHeadingRad,
           turnRateRadPerSec);
     } else {
-      drive.drive(forward, right, driver.right_stick_x, true, driverHeadingRad);
+      drive.drive(forward, right, MecanumDriveSubsystem.shapeStick(driver.right_stick_x), true, driverHeadingRad);
     }
   }
 

@@ -34,4 +34,18 @@ public class MecanumDriveMixTest {
     // Forward plus strafe right gives FL and BR 2, FR and BL 0.
     assertArrayEquals(new double[] {1, 0, 0, 1}, mix(1, 1, 0), EPS);
   }
+
+  @Test
+  public void stickCurveIsGentleNearTheMiddleAndFullAtTheEnd() {
+    org.junit.Assert.assertEquals(0.25, MecanumDriveSubsystem.shapeStick(0.5), 1e-9);
+    org.junit.Assert.assertEquals(-0.25, MecanumDriveSubsystem.shapeStick(-0.5), 1e-9);
+    org.junit.Assert.assertEquals(1.0, MecanumDriveSubsystem.shapeStick(1.0), 1e-9);
+  }
+
+  @Test
+  public void translationCurveKeepsTheStickDirection() {
+    double[] out = MecanumDriveSubsystem.shapeTranslation(0.3, 0.4); // Half stick at 53 degrees
+    org.junit.Assert.assertEquals(0.15, out[0], 1e-9);
+    org.junit.Assert.assertEquals(0.20, out[1], 1e-9);
+  }
 }

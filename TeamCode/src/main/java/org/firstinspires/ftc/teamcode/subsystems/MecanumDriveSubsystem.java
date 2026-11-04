@@ -25,6 +25,9 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   public static double HEADING_KS = 0.12;
   public static double HEADING_KS_ABOVE_RAD = Math.toRadians(1.5);
   public static double HEADING_MAX_ROTATE = 0.8; // TODO tune on robot
+  // Stick response: output = stick^STICK_EXPONENT (sign kept). 1 is linear; 2 halves the speed at
+  // half stick, so small moves are gentle and full stick is still full speed.
+  public static double STICK_EXPONENT = 2.0;
   /**
    * Speed control needs every drive encoder counting the same way as its motor. On 27 Oct DriveFL's
    * counted backward, which under speed control makes the wheel run away at full speed. Set true
@@ -107,6 +110,24 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     frontRight.setPower(wheelPowers[1]);
     backLeft.setPower(wheelPowers[2]);
     backRight.setPower(wheelPowers[3]);
+  }
+
+  /** Curves one stick axis so it is gentle near the middle. Sign kept; 1 stays 1. */
+  public static double shapeStick(double stick) {
+    return Math.copySign(Math.pow(Math.min(1.0, Math.abs(stick)), STICK_EXPONENT), stick);
+  }
+
+  /**
+   * Curves the drive stick by how far it is pushed, not per axis, so the direction of travel stays the
+   * one the stick points. Returns {forward, right}.
+   */
+  public static double[] shapeTranslation(double forward, double right) {
+    double magnitude = Math.hypot(forward, right);
+    if (magnitude < 1e-9) {
+      return new double[] {0, 0};
+    }
+    double scale = shapeStick(Math.min(1.0, magnitude)) / magnitude;
+    return new double[] {forward * scale, right * scale};
   }
 
   /**
