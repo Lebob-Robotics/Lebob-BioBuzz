@@ -77,6 +77,14 @@ public class VisionSubsystem extends SubsystemBase {
   private final int[] appliedExposure = {-1, -1};
   private final int[] appliedGain = {-1, -1};
   private final float[] appliedDecimation = {Float.NaN, Float.NaN};
+  /**
+   * A camera that says it is streaming but gives no frames this long is stopped and started again. On
+   * 4 Nov camera R hit a USB error starting its stream and sat at 0 FPS for a whole match.
+   */
+  public static double RESTART_AFTER_NO_FRAMES_S = 2.0;
+  private final long[] noFramesSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
+  private final boolean[] resumePending = new boolean[2];
+  private final int[] restarts = new int[2];
 
   public VisionSubsystem(HardwareMap hardwareMap) {
     this(hardwareMap, false);
@@ -170,6 +178,7 @@ public class VisionSubsystem extends SubsystemBase {
       String prefix = side == Side.LEFT ? "Vision/Left" : "Vision/Right";
       Logger.processInputs(prefix, in);
       Logger.recordOutput(prefix + "/Status", cameraStatus[side.ordinal()]);
+      Logger.recordOutput(prefix + "/Restarts", restarts[side.ordinal()]);
     }
   }
 
@@ -180,10 +189,19 @@ public class VisionSubsystem extends SubsystemBase {
     if (portal == null) {
       return;
     }
-    if (portal.getCameraState() != VisionPortal.CameraState.STREAMING) {
+    VisionPortal.CameraState state = portal.getCameraState();
+    if (resumePending[i] && state == VisionPortal.CameraState.CAMERA_DEVICE_READY) {
+      portal.resumeStreaming(); // Second half of a restart
+      resumePending[i] = false;
+    }
+    if (state != VisionPortal.CameraState.STREAMING) {
       appliedExposure[i] = -1;
       appliedGain[i] = -1;
-      cameraStatus[i] = portal.getCameraState().name();
+      noFramesSinceNanos[i] = Long.MIN_VALUE;
+      cameraStatus[i] = state.name() + (restarts[i] > 0 ? " (restarts " + restarts[i] + ")" : "");
+      return;
+    }
+    if (restartIfNoFrames(i, portal)) {
       return;
     }
     if (appliedDecimation[i] != DECIMATION) {
@@ -214,6 +232,29 @@ public class VisionSubsystem extends SubsystemBase {
     }
     appliedExposure[i] = EXPOSURE_MS;
     appliedGain[i] = GAIN;
+  }
+
+  /** Stops a streaming camera that gives no frames; the next loops start it again. True if it did. */
+  private boolean restartIfNoFrames(int i, VisionPortal portal) {
+    long now = System.nanoTime();
+    if (portal.getFps() >= 0.5f) {
+      noFramesSinceNanos[i] = Long.MIN_VALUE;
+      return false;
+    }
+    if (noFramesSinceNanos[i] == Long.MIN_VALUE) {
+      noFramesSinceNanos[i] = now;
+      return false;
+    }
+    if ((now - noFramesSinceNanos[i]) * 1e-9 < RESTART_AFTER_NO_FRAMES_S) {
+      return false;
+    }
+    RobotLog.ww("BioBuzzVision", "Camera %d streaming with no frames; restarting", i);
+    portal.stopStreaming();
+    resumePending[i] = true;
+    restarts[i]++;
+    noFramesSinceNanos[i] = Long.MIN_VALUE;
+    cameraStatus[i] = "no frames, restarting (" + restarts[i] + ")";
+    return true;
   }
 
   private static final double INCHES_TO_METRES = 0.0254; // The processor is set to inches
