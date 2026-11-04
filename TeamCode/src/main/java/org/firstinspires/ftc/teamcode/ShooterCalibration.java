@@ -256,7 +256,7 @@ public class ShooterCalibration extends PsiKitIterativeOpMode {
     } else if (feeding) {
       feeder.setFeederState(FeederState.FEED);
       indexer.setIndexerState(IndexerState.FEED);
-    } else if (gamepad1.left_bumper) { // Index: queue balls up to the feeder, which holds them back
+    } else if (gamepad1.left_bumper || gamepad1.right_bumper) { // Index (and between balls while firing): queue balls up to the feeder, which holds them back
       feeder.setFeederState(FeederState.HOLD);
       indexer.setIndexerState(IndexerState.FEED);
     } else {
