@@ -111,7 +111,10 @@ public final class ShootOnTheMoveConstants {
   public static double MAX_HOOD_DIFFERENCE_TO_BLEND_DEG = 4;
 
   // ---- Fire check (match the tolerances in tools/shots/inputs.json) ----
-  public static double RPM_TOLERANCE = 75; // Per flywheel. The hub's speed reading steps by about 60 RPM
+  // Per flywheel. The hub's speed reading steps by about 61 RPM, and the wheels settle a step or so above
+  // target (3605 read as 3628-3689, 4 Nov), so 75 held the shot back about 3 s. Two steps
+  public static double RPM_TOLERANCE = 125;
+  public static boolean PRESPIN_ON = true; // Flywheels track the aimed RPM whenever the Cell is known
   public static double HOOD_TOLERANCE_DEG = 1.0;
   public static double MAX_HEADING_TOLERANCE_DEG = 5; // Otherwise it grows large at short range
 

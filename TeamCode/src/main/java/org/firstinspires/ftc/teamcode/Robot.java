@@ -467,6 +467,10 @@ public class Robot {
       shooter.setTargetRpm(aimRpm + rpmTrim);
     } else if (driver.x) {
       shooter.setShooterState(ShooterState.STOP);
+    } else if (validShot && ShootOnTheMoveConstants.PRESPIN_ON) {
+      // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
+      shooter.setShooterState(ShooterState.AIM);
+      shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE : aimRpm + rpmTrim);
     } else {
       shooter.setShooterState(ShooterState.IDLE);
     }
