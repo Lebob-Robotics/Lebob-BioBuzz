@@ -32,6 +32,15 @@
       "fired": 14,
       "scored": 7,
       "date": "2026-11-04"
+    },
+    {
+      "distM": 1.29,
+      "rpm": 3640,
+      "hoodLiftDeg": 44.0,
+      "fired": 10,
+      "scored": 7,
+      "date": "2026-11-04",
+      "note": "Table shot (Y) from the refit model, no adjustment."
     }
   ]
 }
