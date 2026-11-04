@@ -229,6 +229,7 @@ public class Robot {
 
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {
+    long t0 = System.nanoTime(); // Section times, logged under Loop/, to find what slows the loop
     refreshDriver();
     Pose2D pinpointPose = odometry.getPose(); // PsiKit has already updated the Pinpoint this loop
     Pose pose = new Pose(pinpointPose.getX(DistanceUnit.METER), pinpointPose.getY(DistanceUnit.METER),
@@ -244,6 +245,7 @@ public class Robot {
       pose = new Pose(pose.xM, pose.yM, alliance.forwardHeadingRad());
     }
 
+    long tVision = System.nanoTime();
     if (odometry.isReadGood()) { // A correction from a bad read would write that read back into the Pinpoint
       pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
     }
@@ -275,6 +277,7 @@ public class Robot {
         oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall);
     updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
 
+    long tRun = System.nanoTime();
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
     stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
 
@@ -283,10 +286,16 @@ public class Robot {
     }
     shooterWasStalled = shooter.isStalled();
 
+    long tLog = System.nanoTime();
     updateBattery();
     logAim(aim);
     addTelemetry(aim, pose);
     telemetry.update();
+    long tEnd = System.nanoTime();
+    Logger.recordOutput("Loop/StartMs", (tVision - t0) * 1e-6);
+    Logger.recordOutput("Loop/VisionAndControlMs", (tRun - tVision) * 1e-6);
+    Logger.recordOutput("Loop/SubsystemsMs", (tLog - tRun) * 1e-6);
+    Logger.recordOutput("Loop/TelemetryMs", (tEnd - tLog) * 1e-6);
   }
 
   /**
