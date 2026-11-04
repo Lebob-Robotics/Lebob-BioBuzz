@@ -89,7 +89,7 @@ public class ShooterSubsystem extends SubsystemBase {
       VELOCITY_P = sdk.p;
     }
     if (Double.isNaN(VELOCITY_I)) {
-      VELOCITY_I = 2.0; // SDK's 3 winds up during a ball's dip and overshoots ~200 RPM for a second after
+      VELOCITY_I = 1.0; // Higher winds up during a ball's dip and overshoots ~200 RPM for a second after
     }
     if (Double.isNaN(VELOCITY_D)) {
       VELOCITY_D = sdk.d;
