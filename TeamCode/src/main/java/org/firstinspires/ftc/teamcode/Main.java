@@ -24,9 +24,18 @@ public class Main extends PsiKitIterativeOpMode {
 
   /**
    * Logs each motor's current. Adds a non-bulk hub read per motor every
-   * FtcLogTuning.motorCurrentReadPeriodSec.
+   * FtcLogTuning.motorCurrentReadPeriodSec: all 8 motors in one loop, about 20 ms. Off for loop speed
+   * (4 Nov). The shooter's stall guard still reads its own two.
    */
-  public static final boolean LOG_MOTOR_CURRENT = true;
+  public static final boolean LOG_MOTOR_CURRENT = false;
+
+  /**
+   * How often PsiKit re-reads the values the bulk read doesn't cover: each motor's power and target
+   * position, and each servo's settings. Each is its own hub call, about 2-3 ms, so reading them every
+   * loop made the motor logging 62 ms of a 138 ms loop (4 Nov). Our code doesn't read them back, so they
+   * are only for the log.
+   */
+  public static final double NON_BULK_READ_PERIOD_S = 0.5;
 
   /**
    * Allows Panels (live tuning web server). MUST be false at events: R704 D
@@ -59,6 +68,7 @@ public class Main extends PsiKitIterativeOpMode {
     // current), and without the Pinpoint in the log its pose cannot be replayed.
     FtcLogTuning.bulkOnlyLogging = false;
     FtcLogTuning.logMotorCurrent = LOG_MOTOR_CURRENT;
+    FtcLogTuning.nonBulkReadPeriodSec = NON_BULK_READ_PERIOD_S;
     // PsiKit does the one Pinpoint update per loop, before user code. Our code
     // must not call update() itself (see OdometrySubsystem).
     FtcLogTuning.pinpointLoggerCallsUpdate = true;
