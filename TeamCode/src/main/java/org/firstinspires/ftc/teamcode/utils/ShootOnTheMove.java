@@ -69,36 +69,63 @@ public final class ShootOnTheMove {
    */
   public static Aim aim(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY,
       boolean allowBackward) {
-    double predictedX = robot.xM + velocityXMps * FEED_DELAY_S; // Where the robot will be when the ball leaves
-    double predictedY = robot.yM + velocityYMps * FEED_DELAY_S;
-
-    double cosHeading = Math.cos(robot.headingRad);
-    double sinHeading = Math.sin(robot.headingRad);
-    double shooterX = predictedX + SHOOTER_FORWARD_M * cosHeading - SHOOTER_LEFT_M * sinHeading;
-    double shooterY = predictedY + SHOOTER_FORWARD_M * sinHeading + SHOOTER_LEFT_M * cosHeading;
-
-    double toCellX = cellX - shooterX;
-    double toCellY = cellY - shooterY;
-    double distanceToClusterM = Math.hypot(toCellX, toCellY);
-    double directionToCellRad = Math.atan2(toCellY, toCellX);
-
-    double unitToCellX = toCellX / distanceToClusterM;
-    double unitToCellY = toCellY / distanceToClusterM;
-    double speedTowardCellMps = velocityXMps * unitToCellX + velocityYMps * unitToCellY;
-    double sidewaysSpeedMps = -velocityXMps * unitToCellY + velocityYMps * unitToCellX;
-
-    double distanceToLipM = distanceToClusterM - CLUSTER_TO_NEAR_LIP_M;
     if (allowBackward) {
-      Shot backward = calculateBackward(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
-      if (backward.valid) {
-        double robotHeadingRad = normalizeAngle(directionToCellRad - BACKWARD_DIRECTION_RAD);
-        return new Aim(backward, robotHeadingRad, headingTolerance(distanceToClusterM), true);
+      Aim backward = aimBackward(robot, velocityXMps, velocityYMps, cellX, cellY);
+      if (backward.shot.valid) {
+        return backward;
       }
     }
-    Shot shot = calculate(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
-    double shooterHeadingRad = directionToCellRad + shot.turningRad;
+    return aimHooded(robot, velocityXMps, velocityYMps, cellX, cellY);
+  }
+
+  /** The hooded shot out of the shooter's side, whether or not the table has one. */
+  public static Aim aimHooded(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+    Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY);
+    Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
+    double shooterHeadingRad = g.directionToCellRad + shot.turningRad;
     double robotHeadingRad = normalizeAngle(shooterHeadingRad - SHOOTER_DIRECTION_RAD);
-    return new Aim(shot, robotHeadingRad, headingTolerance(distanceToClusterM), false);
+    return new Aim(shot, robotHeadingRad, headingTolerance(g.distanceToClusterM), false);
+  }
+
+  /**
+   * The backward shot, whether or not the backward table has one. Its heading is 180 degrees from the
+   * hooded shot's, so a caller that has picked it keeps it rather than falling back each loop.
+   */
+  public static Aim aimBackward(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+    Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY);
+    Shot shot = calculateBackward(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
+    double robotHeadingRad = normalizeAngle(g.directionToCellRad - BACKWARD_DIRECTION_RAD);
+    return new Aim(shot, robotHeadingRad, headingTolerance(g.distanceToClusterM), true);
+  }
+
+  /** Where the Cell is from the shooter when the ball leaves, and how the robot moves relative to it. */
+  private static final class Geometry {
+    final double distanceToClusterM;
+    final double distanceToLipM;
+    final double directionToCellRad;
+    final double speedTowardCellMps;
+    final double sidewaysSpeedMps;
+
+    Geometry(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+      double predictedX = robot.xM + velocityXMps * FEED_DELAY_S; // Where the robot will be when the ball leaves
+      double predictedY = robot.yM + velocityYMps * FEED_DELAY_S;
+
+      double cosHeading = Math.cos(robot.headingRad);
+      double sinHeading = Math.sin(robot.headingRad);
+      double shooterX = predictedX + SHOOTER_FORWARD_M * cosHeading - SHOOTER_LEFT_M * sinHeading;
+      double shooterY = predictedY + SHOOTER_FORWARD_M * sinHeading + SHOOTER_LEFT_M * cosHeading;
+
+      double toCellX = cellX - shooterX;
+      double toCellY = cellY - shooterY;
+      distanceToClusterM = Math.hypot(toCellX, toCellY);
+      directionToCellRad = Math.atan2(toCellY, toCellX);
+
+      double unitToCellX = toCellX / distanceToClusterM;
+      double unitToCellY = toCellY / distanceToClusterM;
+      speedTowardCellMps = velocityXMps * unitToCellX + velocityYMps * unitToCellY;
+      sidewaysSpeedMps = -velocityXMps * unitToCellY + velocityYMps * unitToCellX;
+      distanceToLipM = distanceToClusterM - CLUSTER_TO_NEAR_LIP_M;
+    }
   }
 
   /**

@@ -130,6 +130,8 @@ public class Robot {
   private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate();
   private double cellSeenAgoS = Double.POSITIVE_INFINITY;
   private boolean intakeOn = false;
+  /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
+  private Boolean aimBackwardLatched = null;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
@@ -235,8 +237,8 @@ public class Robot {
 
     pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
 
-    Aim aim = aimAtCell(pose, velocity, nowNanos);
     boolean aiming = driver.right_trigger > TRIGGER_PRESSED;
+    Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     boolean ready = aim != null && ShootOnTheMove.readyToFire(aim,
         shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE),
         hood.atTarget(hoodToleranceTicks()),
@@ -308,8 +310,12 @@ public class Robot {
     }
   }
 
-  /** Null when the Cell hasn't been seen recently. */
-  private Aim aimAtCell(Pose pose, double[] velocity, long nowNanos) {
+  /**
+   * Null when the Cell hasn't been seen recently. While aiming, the shot direction (hooded or backward)
+   * is picked once, as the one needing less turn, and kept until RT is let go: their headings are 180
+   * degrees apart, so switching between them each loop spins the robot back and forth.
+   */
+  private Aim aimAtCell(Pose pose, double[] velocity, long nowNanos, boolean aiming) {
     tracker.recordPose(nowNanos, pose);
     for (CellSighting sighting : vision.takeNewCellSightings()) {
       if (alliance.ownsCluster(sighting.clusterName)) {
@@ -320,8 +326,24 @@ public class Robot {
     if (!tracker.knowsCell(nowNanos)) {
       return null;
     }
-    return ShootOnTheMove.aim(pose, velocity[0], velocity[1], tracker.getCellX(), tracker.getCellY(),
-        ShootOnTheMoveConstants.BACKWARD_SHOTS_ON);
+    double cellX = tracker.getCellX();
+    double cellY = tracker.getCellY();
+    if (!aiming) {
+      aimBackwardLatched = null;
+      return ShootOnTheMove.aim(pose, velocity[0], velocity[1], cellX, cellY,
+          ShootOnTheMoveConstants.BACKWARD_SHOTS_ON);
+    }
+    Aim hooded = ShootOnTheMove.aimHooded(pose, velocity[0], velocity[1], cellX, cellY);
+    Aim backward = ShootOnTheMove.aimBackward(pose, velocity[0], velocity[1], cellX, cellY);
+    if (aimBackwardLatched == null) {
+      aimBackwardLatched = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON && backward.shot.valid
+          && turnTo(backward, pose) < turnTo(hooded, pose);
+    }
+    return aimBackwardLatched ? backward : hooded;
+  }
+
+  private static double turnTo(Aim aim, Pose pose) {
+    return Math.abs(AngleUnit.normalizeRadians(aim.targetHeadingRad - pose.headingRad));
   }
 
   /** Also rumbles once each time the shot becomes ready. */

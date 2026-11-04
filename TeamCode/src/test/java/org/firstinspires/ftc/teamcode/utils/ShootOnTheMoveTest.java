@@ -239,4 +239,19 @@ public class ShootOnTheMoveTest {
     double clusterX = 1.8 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
     assertFalse(ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, clusterX, 0).backward);
   }
+
+  @Test
+  public void aimBackwardKeepsItsHeadingWhenMovingTooFast() {
+    // Cell 1.5 m along +x; the robot drives toward it faster than the backward table allows
+    Aim aim = ShootOnTheMove.aimBackward(new Pose(0, 0, 0), 1.0, 0, 1.5, 0);
+    assertTrue(aim.backward);
+    assertFalse(aim.shot.valid);
+    assertEquals(ShootOnTheMoveConstants.BACKWARD_DIRECTION_RAD, aim.targetHeadingRad, 1e-6);
+  }
+
+  @Test
+  public void aimHoodedNeverPicksBackward() {
+    Aim aim = ShootOnTheMove.aimHooded(new Pose(0, 0, 0), 0, 0, 1.5, 0);
+    assertFalse(aim.backward);
+  }
 }
