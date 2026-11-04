@@ -292,7 +292,7 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /** Lowest target, in ticks: the stop margin above the lower stop. */
-  static int minTargetTicks() {
+  public static int minTargetTicks() {
     return (int) Math.round(STOP_MARGIN_DEG * TICKS_PER_DEG);
   }
 

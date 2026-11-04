@@ -449,7 +449,9 @@ public class Robot {
     boolean prepositioning = !aiming && validShot && !driver.y && !driver.b;
     if (aiming || prepositioning) {
       if (validShot && aim.backward) {
-        hood.setTargetTicks(0); // Rests unpowered on the lower stop; trim doesn't apply
+        // Driven down to just above the lower stop and held there. Target 0 cuts the motor to rest on the
+        // stop, but the hood doesn't fall by itself: it stayed ~36 degrees up and the shot never got ready.
+        hood.setTargetTicks(HoodSubsystem.minTargetTicks()); // Trim doesn't apply
       } else if (validShot) { // Otherwise the hood holds its last angle
         hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.shot.hoodDeg - hoodLiftTrimDeg));
       }
