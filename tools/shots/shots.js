@@ -202,8 +202,11 @@
       const err = Math.hypot(s.points[n][0] - ex, s.points[n][1] - ey);
       if (err > 0.001) fails.push('no-drag flight is ' + (err * 1000).toFixed(2) + ' mm off the parabola at t=' + t.toFixed(3) + ' s');
     }
-    // 2. Standing still, at the operator's inputs, a longer shot needs more RPM and at least one exists.
-    const g = solveGrid(Object.assign({}, base, { velMinMps: 0, velMaxMps: 0 }));
+    // 2. Standing still, a longer shot needs more RPM and at least one exists. Checked at a hood
+    // angle the table uses: the original tool's fixed launchAngleDeg plus the fitted launch offset
+    // can be near vertical, where nothing scores.
+    const checkAngleDeg = base.hoodMinDeg !== undefined ? base.hoodMinDeg + 5 : base.launchAngleDeg;
+    const g = solveGrid(Object.assign({}, base, { velMinMps: 0, velMaxMps: 0, launchAngleDeg: checkAngleDeg }));
     let last = -Infinity, any = false;
     for (let i = 0; i < g.dist.length; i++) {
       const r = g.rpm[i][0];
