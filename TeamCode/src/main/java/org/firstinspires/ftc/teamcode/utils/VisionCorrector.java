@@ -68,6 +68,14 @@ public final class VisionCorrector {
     flipVotes[1] = 0;
   }
 
+  private static double spreadOf(double[] dx, double[] dy, double medianDx, double medianDy) {
+    double spread = 0;
+    for (int i = 0; i < dx.length; i++) {
+      spread = Math.max(spread, Math.hypot(dx[i] - medianDx, dy[i] - medianDy));
+    }
+    return spread;
+  }
+
   // ---- Tag field ---------------------------------------------------------
 
   /** The alliance a tag belongs to, or null for an id that is not a Hive tag. */
@@ -236,7 +244,9 @@ public final class VisionCorrector {
     }
     double dHeading = 0;
     double headingGain = 0;
-    if (!headingFixes.isEmpty()) {
+    boolean steadyForHeading = Math.hypot(velocityXMps, velocityYMps) <= MAX_SPEED_FOR_VISION_HEADING_MPS
+        && Math.abs(turnRateRadPerSec) <= MAX_OMEGA_FOR_VISION_HEADING_RAD_S;
+    if (!headingFixes.isEmpty() && (steadyForHeading || !headingValid)) {
       double[] fixes = new double[headingFixes.size()];
       for (int k = 0; k < fixes.length; k++) {
         fixes[k] = headingFixes.get(k);
@@ -284,9 +294,32 @@ public final class VisionCorrector {
     }
     double medianDx = median(usedDx);
     double medianDy = median(usedDy);
-    double spread = 0;
-    for (int i = 0; i < used; i++) {
-      spread = Math.max(spread, Math.hypot(usedDx[i] - medianDx, usedDy[i] - medianDy));
+    double spread = spreadOf(usedDx, usedDy, medianDx, medianDy);
+    if (spread > MAX_SPREAD_M && headingGain > 0 && headingGain < 1.0 && steadyForHeading && used >= 3) {
+      // The tags only disagree because the heading is wrong if turning by all of the pairs' heading brings them
+      // together. Standing still, five tags agreed the heading was 13 degrees out and every frame was refused for
+      // spread, so the heading was never fixed (5 Nov, 080149). Jumps too big to believe still wait for the override
+      double cosAll = Math.cos(dHeading);
+      double sinAll = Math.sin(dHeading);
+      double[] turnedDx = new double[used];
+      double[] turnedDy = new double[used];
+      for (int i = 0; i < used; i++) {
+        double[] t = usedTags.get(i);
+        turnedDx[i] = t[0] - (t[2] * cosAll - t[3] * sinAll) - t[4];
+        turnedDy[i] = t[1] - (t[2] * sinAll + t[3] * cosAll) - t[5];
+      }
+      double turnedMedianDx = median(turnedDx);
+      double turnedMedianDy = median(turnedDy);
+      double turnedSpread = spreadOf(turnedDx, turnedDy, turnedMedianDx, turnedMedianDy);
+      if (turnedSpread <= MAX_SPREAD_M) {
+        headingGain = 1.0;
+        headingDisagreeFrames = 0;
+        usedDx = turnedDx;
+        usedDy = turnedDy;
+        medianDx = turnedMedianDx;
+        medianDy = turnedMedianDy;
+        spread = turnedSpread;
+      }
     }
 
     double limitM = FIELD_HALF_SIZE_M - ROBOT_HALF_SIZE_M; // Where vision says the robot is now must be on the field

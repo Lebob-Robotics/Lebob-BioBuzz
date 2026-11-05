@@ -46,6 +46,35 @@
     return table;
   }
 
+  // The robot blends the four cells around it. Checks the blend's worst points (each block's centre and edge
+  // midpoints) still score within the hood and RPM tolerances, and finds the widest hood spread in a block.
+  function blendCheck(table, p) {
+    const scores = (rpm, vel, dist, hood) =>
+      Shots.simulate(rpm, vel, dist, Object.assign({}, p, { launchAngleDeg: hood })).result === 'score';
+    let maxSpreadDeg = 0;
+    const misses = [];
+    for (let i = 0; i + 1 < table.dist.length; i++) {
+      for (let j = 0; j + 1 < table.vel.length; j++) {
+        const hs = [table.hood[i][j], table.hood[i][j + 1], table.hood[i + 1][j], table.hood[i + 1][j + 1]];
+        const rs = [table.rpm[i][j], table.rpm[i][j + 1], table.rpm[i + 1][j], table.rpm[i + 1][j + 1]];
+        if (hs.some(Number.isNaN)) continue; // The robot reports no shot next to an empty cell
+        maxSpreadDeg = Math.max(maxSpreadDeg, Math.max(...hs) - Math.min(...hs));
+        for (const [fu, fv] of [[0.5, 0.5], [0.5, 0], [0.5, 1], [0, 0.5], [1, 0.5]]) {
+          const mix = v => (v[0] * (1 - fv) + v[1] * fv) * (1 - fu) + (v[2] * (1 - fv) + v[3] * fv) * fu;
+          const hood = mix(hs), rpm = mix(rs);
+          const dist = table.dist[i] + fu * (table.dist[i + 1] - table.dist[i]);
+          const vel = table.vel[j] + fv * (table.vel[j + 1] - table.vel[j]);
+          let ok = true;
+          for (const dh of [-p.hoodTolDeg, 0, p.hoodTolDeg]) {
+            for (const dr of [-p.rpmToleranceRpm, 0, p.rpmToleranceRpm]) ok = ok && scores(rpm + dr, vel, dist, hood + dh);
+          }
+          if (!ok) { misses.push('dist ' + dist.toFixed(2) + ' vel ' + vel.toFixed(2)); break; }
+        }
+      }
+    }
+    return { maxSpreadDeg, misses };
+  }
+
   function javaNumber(v) { return Number.isNaN(v) ? 'NaN' : String(Math.round(v * 1000) / 1000); }
   function javaRow(values) { return '{' + values.map(javaNumber).join(', ') + '}'; }
   function javaGrid(rows, comment) {
@@ -78,5 +107,5 @@
       '}\n';
   }
 
-  return { MARGIN_LOST_PER_DEG_FROM_NEIGHBOURS, pickShot, build, toJava };
+  return { MARGIN_LOST_PER_DEG_FROM_NEIGHBOURS, pickShot, build, blendCheck, toJava };
 });

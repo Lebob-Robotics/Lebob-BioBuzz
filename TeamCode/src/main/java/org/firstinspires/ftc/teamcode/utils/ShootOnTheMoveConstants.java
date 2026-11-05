@@ -42,7 +42,9 @@ public final class ShootOnTheMoveConstants {
   public static double CELL_SWITCH_AFTER_S = 1.0; // Switch to another of our Cells once the held one is unseen this long
   // Aim at the up Cell's field position once the tags have placed the robot; the tracker's Cell before that
   public static boolean AIM_AT_FIELD_CELL = true;
-  public static double AIM_DRIVE_MAX_POWER = 0.5; // Drive power at full stick while RT or RB is held; 1 normally
+  // Drive power at full stick while RT or RB is held. Full: the hood, wheels and heading follow the shot's rates
+  // now, so the driver doesn't have to slow down to shoot
+  public static double AIM_DRIVE_MAX_POWER = 1.0;
   public static double CELL_SWITCH_MARGIN_M = 0.3; // ...or sooner if the other is at least this much nearer
   public static double CELL_SMOOTHING = 0.3; // Share of the way the stored Cell moves toward each sighting. 1 is no smoothing
   public static final int POSE_HISTORY_SIZE = 100; // About two seconds of loops
@@ -90,8 +92,15 @@ public final class ShootOnTheMoveConstants {
 
   public static double MIN_DECISION_MARGIN = 20; // Placeholder, tune
   public static double MAX_TAG_RANGE_M = 3.0;
-  public static double MAX_SPEED_FOR_VISION_MPS = 1.0; // Faster than this the frame's pose is too uncertain
-  public static double MAX_OMEGA_FOR_VISION_RAD_S = 1.0;
+  // Faster than this the frame's pose is too uncertain. Odometry held through the field test's moves (fixes of
+  // 1 mm still), while frames taken above 0.6 m/s or 35 deg/s were off by 5 cm and 2 degrees (median) and up to
+  // 13 cm and 11.5 degrees, which the aim then used (5 Nov field tests, 7381 fixes)
+  public static double MAX_SPEED_FOR_VISION_MPS = 0.6;
+  public static double MAX_OMEGA_FOR_VISION_RAD_S = 0.6;
+  // The heading from the tags only once nearly still: a frame's heading error grows with the turn rate, and the
+  // odometry's own heading turned 158 degrees on the spot without a degree of error. The first fix ignores this
+  public static double MAX_SPEED_FOR_VISION_HEADING_MPS = 0.3;
+  public static double MAX_OMEGA_FOR_VISION_HEADING_RAD_S = Math.toRadians(20);
   public static double MAX_FRAME_AGE_S = 0.5; // Pose history covers it. One detector pass ran 0.3 s behind on average (4 Nov)
   public static double MAX_SPREAD_M = 0.10; // Most any tag's correction may differ from the median
   public static double MAX_JUMP_M = 0.5; // Largest correction once the pose is trusted. The first fix may be any size
@@ -112,13 +121,24 @@ public final class ShootOnTheMoveConstants {
   public static int HEADING_OVERRIDE_FRAMES = 5;
   public static double HEADING_OVERRIDE_AGREE_DEG = 15;
 
+  // ---- Hood travel ------------------------------------------------------
+  // Launch angle on the hood's upper hard stop (Hood Tune RANGE). The hood's soft limit and the shots both come
+  // from it, so a shot flatter than the hood can reach is no shot rather than one fired at the stop's angle.
+  // 54.3: the second hard stop, 5 Nov (HoodTune 083632, lift 44.7); 58.5 the first; 51 before stops
+  public static double HOOD_TOP_STOP_DEG = 54.3;
+  public static double HOOD_STOP_MARGIN_DEG = 1.0; // Targets stay this far inside the stop
+
   // ---- Shot checks -----------------------------------------------------
-  public static double MAX_TURNING_DEG = 30; // Above this, the ball's sideways error grows too fast
+  // Above this, the ball's sideways error grows too fast. 40 keeps a shot strafing at 1.2 m/s from 0.7 m (30 needed
+  // 1.0 m); a 10% error in the ball's exit speed then misses sideways by about 6 cm of the opening's 20
+  public static double MAX_TURNING_DEG = 40;
   /**
    * Neighbouring table cells are only blended when their hood angles are this close. Further apart
-   * they are different kinds of shot, and a blend may miss, so the nearest cell is used.
+   * they are different kinds of shot, and a blend may miss, so the nearest cell is used. tools/shots/export.js
+   * checks every blend in the table scores and prints the widest spread (6 now). Below it, noise flips the
+   * nearest cell and the hood target jumps by whole degrees.
    */
-  public static double MAX_HOOD_DIFFERENCE_TO_BLEND_DEG = 4;
+  public static double MAX_HOOD_DIFFERENCE_TO_BLEND_DEG = 7;
 
   // ---- Fire check (match the tolerances in tools/shots/inputs.json) ----
   // Per flywheel. The hub's speed reading steps by about 61 RPM, and the wheels settle a step or so above
@@ -138,15 +158,45 @@ public final class ShootOnTheMoveConstants {
   public static double RPM_TREND_WINDOW_S = 0.2;
   public static boolean PRESPIN_ON = true; // Flywheels track the aimed RPM whenever the Cell is known
   public static double HOOD_TOLERANCE_DEG = 1.0;
-  // Otherwise it grows large at short range. 5 held shots back: 5-9 degrees off is still well inside the
-  // opening at 0.8 m, where the clearance allows 14 (5 Nov, 084358)
-  public static double MAX_HEADING_TOLERANCE_DEG = 8;
+  // Otherwise it grows large at short range. The geometric clearance leaves nothing for the other errors: every
+  // moving ball that scored left within 1.1 degrees, the misses 7.7 and 13.6 degrees off, all going the way the
+  // robot moved (5 Nov, 083109-092330). 4 keeps 92% of moving READY time (soak 081210, median 1.6)
+  public static double MAX_HEADING_TOLERANCE_DEG = 4;
+  // No shot while moving at least MOVING_SHOT_SPEED_MPS this close to the lip, nor while the hood's target swings
+  // faster than MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC. Strafing past at 0.7-0.8 m/s, balls fed READY at 0.62 and 0.48 m
+  // both missed: during the 0.3 s feed the heading error went 7.7 -> 20.8 degrees and the hood target moved
+  // 6 degrees; the standing shot from 1.5 m went in (5 Nov, 083109). Costs about a quarter of moving READY time
+  public static double MOVING_SHOT_SPEED_MPS = 0.3;
+  public static double MIN_MOVING_SHOT_LIP_M = 0.7;
+  public static double MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = 12;
   // How long an aimed shot must stay ready before the feed starts. Every check above already has to pass,
   // and waiting two or three loops for it to repeat cost more shots than it saved while moving (5 Nov, 084358)
   public static double AIMED_READY_S = 0.0;
   // A feed with no ball out after this long stops once the shot is no longer ready. Past FEED_DELAY_MAX_S, so a
   // ball already on its way isn't cut off
   public static double AIMED_FEED_STOP_UNREADY_S = 0.4;
+  // The longest an aimed feed runs before a ball is seen leaving. The webcam saw first balls leave 0.15-0.28 s
+  // after the feed began and second balls 0.13-0.4 s behind them, while the wheel speed showed a ball 0.1-0.17 s
+  // late, so feeds ran on into the next ball (5 Nov, 084355-092330). After the pulse the feeder holds backward
+  // up to AIMED_FEED_PAUSE_S for the dip of a ball already on its way
+  public static double AIMED_FEED_PULSE_S = 0.30;
+  public static double AIMED_FEED_PAUSE_S = 0.25;
+  // The wheels lose 300-430 RPM per ball and need about this long to come back (5 Nov, 084355: refed 0.08 s on)
+  public static double MIN_BALL_GAP_S = 0.35;
+  // From each aimed feed command until this long after, the drive keeps the translation it had at the feed, so the
+  // ball leaves at the speed it was aimed for. A ball fed standing still left 0.36 s later with the robot at
+  // 0.73 m/s and turning 44 deg/s after the stick was pushed, and missed right (5 Nov, 084758)
+  public static double FEED_COMMIT_S = 0.4;
+  // Feeds back to back kept renewing the hold, so the robot drove on after the stick was let go and ran into the
+  // fence (5 Nov, 090446). Letting go of the stick always stops it, and one hold lasts at most this long
+  public static double FEED_COMMIT_MAX_S = 1.0;
+  // The commit holds the stick, not the speed: a ball fed in the loop the stick was pushed left with the robot at
+  // 0.56 m/s, the wheels 250 RPM fast for that speed, and went long (5 Nov, 085458). So a feed also waits for the
+  // drive command to hold within FIRE_STICK_CHANGE for FIRE_STEADY_STICK_S, and for the robot to stop speeding up
+  public static double FIRE_STEADY_STICK_S = 0.3;
+  public static double FIRE_STICK_CHANGE = 0.1;
+  public static double MAX_ACCEL_TO_FIRE_MPS2 = 1.0; // Over ACCEL_WINDOW_S; 8% of moving READY time in soak 081210
+  public static double ACCEL_WINDOW_S = 0.1;
   // A feed under way also stops at once, ball out or not, if the hood falls this far off its target (twice the
   // fire check's): the target moves when the robot sets off, and the ball then leaves at the old angle
   public static double FEED_STOP_HOOD_DEG = 2.0;

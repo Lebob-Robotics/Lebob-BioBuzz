@@ -69,7 +69,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *       can't see the Cell.</li>
  *   <li>Left trigger held, or left bumper to toggle: intake. The feeder runs backward to queue the
  *       balls short of the shooter. Both stop at 4 balls once the beam breaks are wired.</li>
- *   <li>B: eject. X: stop the shooter (also ends spin-up, and resets a stall trip). A: tell the robot
+ *   <li>B: eject. X: stop the flywheels, and keep them stopped even with the Cell known until RT, RB, Y or
+ *       B (also resets a stall trip). A: tell the robot
  *       it is facing away from the driver's wall (use it if the heading drifts).</li>
  *   <li>D-pad right/left: raise/lower hood 2 degrees per press (hood trim while aiming).
  *       Up/down: hood presets, or RPM trim while aiming.</li>
@@ -99,6 +100,7 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double TRIGGER_PRESSED = 0.5;
+  private boolean holdFire;
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
@@ -136,6 +138,11 @@ public class Robot {
   private boolean headingValid = false;
   private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
   private long lastVisionNanos = 0;
+  private int outOfFieldFrames; // Tag fixes in a row that put the robot off the field: the pose has gone wrong
+  private int headingOffFrames; // Tag-pair headings in a row this far from the trusted heading
+  private int positionFixes; // Tag fixes applied to the position so far
+  private double lastHeadingOffRad;
+  private static final double HEADING_OFF_RAD = Math.toRadians(15);
 
   private AimState aimState = AimState.OFF;
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
@@ -145,7 +152,9 @@ public class Robot {
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
   private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate(
-      ShootOnTheMoveConstants.AIMED_READY_S, ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S);
+      ShootOnTheMoveConstants.AIMED_READY_S, ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S,
+      ShootOnTheMoveConstants.AIMED_FEED_PULSE_S, ShootOnTheMoveConstants.AIMED_FEED_PAUSE_S,
+      ShootOnTheMoveConstants.MIN_BALL_GAP_S);
   private double cellSeenAgoS = Double.POSITIVE_INFINITY;
   private boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
   private double aimCellX = 0; // The point aimed at this loop, field metres
@@ -163,12 +172,24 @@ public class Robot {
   private static final double PREPOSITION_SETTLE_S = 0.5;
   private boolean prepositionBackward = false;
   private double prepositionSwitchSinceS = Double.NaN;
+  private boolean shooterStopLatched = false; // X: flywheels off until the driver next asks for a shot
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
   private boolean wasLeftBumper = false;
   private boolean shooterWasStalled = false;
   private final HeadingHold headingHold = new HeadingHold();
+  // This loop's results, for an OpMode that drives the robot itself (SotmFieldTest)
+  private Pose lastPose = new Pose(0, 0, 0);
+  private double[] lastVelocity = {0, 0, 0};
+  private boolean lastFeeding = false;
+  private double feedCommitUntilS = Double.NEGATIVE_INFINITY;
+  private double[] committedTranslation; // Held while a fed ball is still in the shooter; null otherwise
+  private double committedSinceS;
+  private double[] lastTranslation = {0.0, 0.0};
+  private double[] steadyStick = {0.0, 0.0};
+  private double steadyStickSinceS = Double.NEGATIVE_INFINITY;
+  private final java.util.ArrayDeque<double[]> velocityHistory = new java.util.ArrayDeque<>(); // {t, x, y}
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driver) {
     this.telemetry = telemetry;
@@ -255,6 +276,15 @@ public class Robot {
     lastVision = null;
   }
 
+  /** For scripted tests: the alliance without the X and B buttons, which also stop and eject the shooter. */
+  public void setAlliance(Alliance alliance) {
+    this.alliance = alliance;
+  }
+
+  public Alliance getAlliance() {
+    return alliance;
+  }
+
   private void pollAlliance() {
     if (driver.x) {
       alliance = Alliance.BLUE;
@@ -272,6 +302,11 @@ public class Robot {
         pinpointPose.getHeading(AngleUnit.RADIANS));
     double[] velocity = odometry.getVelocityMetersPerSec(); // {x, y, turn rate}
     long nowNanos = vision.getCaptureNanos(); // Logged, so replay gives the same result
+    if (odometry.isFaulted()) {
+      // The pose is frozen while the robot moves: nothing may aim or drive to it until vision places it again
+      poseValid = false;
+      headingValid = false;
+    }
 
     if (driver.a) {
       odometry.setHeading(alliance.forwardHeadingRad());
@@ -300,13 +335,19 @@ public class Robot {
     rpmTrend.update(clock.seconds(), shooter.getRpm());
     double predictedRpmError = rpmTrend.predicted(ShootOnTheMoveConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm();
     Logger.recordOutput("Shooter/PredictedRpmError", predictedRpmError);
-    boolean ready = aim != null && ShootOnTheMove.readyToFire(aim,
-        shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE)
-            && shooter.meanRpmWithin(ShootOnTheMoveConstants.RPM_MEAN_BELOW_TARGET,
-                ShootOnTheMoveConstants.RPM_MEAN_ABOVE_TARGET)
-            && predictedRpmError <= ShootOnTheMoveConstants.RPM_PREDICTED_ABOVE_TARGET,
-        hood.atTarget(hoodToleranceTicks()),
+    boolean flywheelsReady = shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE)
+        && shooter.meanRpmWithin(ShootOnTheMoveConstants.RPM_MEAN_BELOW_TARGET,
+            ShootOnTheMoveConstants.RPM_MEAN_ABOVE_TARGET)
+        && predictedRpmError <= ShootOnTheMoveConstants.RPM_PREDICTED_ABOVE_TARGET;
+    boolean hoodReady = hood.atTarget(hoodToleranceTicks());
+    boolean motionSteady = updateMotionSteady(aiming, velocity);
+    boolean ready = aim != null && motionSteady && ShootOnTheMove.readyToFire(aim, flywheelsReady, hoodReady,
         pose.headingRad, velocity[2], turningRateRadPerSec);
+    // What READY waits on, one by one: the shot and heading alone, then the wheels and the hood
+    Logger.recordOutput("SOTM/Gate/AimReady", aim != null && ShootOnTheMove.readyToFire(aim, true, true,
+        pose.headingRad, velocity[2], turningRateRadPerSec));
+    Logger.recordOutput("SOTM/Gate/Flywheels", flywheelsReady);
+    Logger.recordOutput("SOTM/Gate/Hood", hoodReady);
     // A feed under way stops if the shot goes bad before the ball is out: the driver set off or turned back
     // mid-feed, and the ball left 3 degrees of hood or 37 degrees of heading off (5 Nov, 095605)
     boolean shotLost = aim != null && (!aim.shot.valid
@@ -326,7 +367,15 @@ public class Robot {
         : shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
     boolean aimedFeed = aimedFeedGate.update(clock.seconds(), (shootAll && aim != null) || oneBall,
         oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall, shotLost);
+    Logger.recordOutput("Feeder/Gate", aimedFeedGate.stateName());
+    Logger.recordOutput("Feeder/BallLeft", aimedFeedGate.ballLeft());
     updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
+    if (aimedFeed) {
+      feedCommitUntilS = clock.seconds() + ShootOnTheMoveConstants.FEED_COMMIT_S;
+    }
+    lastPose = pose;
+    lastVelocity = velocity;
+    lastFeeding = aimedFeed || manualReady;
 
     long tRun = System.nanoTime();
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
@@ -366,12 +415,19 @@ public class Robot {
       poseHistory.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
       tracker.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
       poseValid |= result.gain > 0; // The first position fix is applied in full, so after it the pose is on the field
+      if (result.gain > 0) { positionFixes++; }
       headingValid |= result.headingGain > 0; // Likewise the first heading fix
       pose = result.newPose; // The Pinpoint may not report the new pose until its next update
     }
     if (result.reason != VisionResult.Reason.NO_OBSERVATIONS) {
       lastVision = result;
       lastVisionNanos = nowNanos;
+      outOfFieldFrames = result.reason == VisionResult.Reason.OUT_OF_FIELD ? outOfFieldFrames + 1 : 0;
+      if (result.headingPairs > 0 && headingValid) {
+        boolean off = Math.abs(result.dHeadingRad) > HEADING_OFF_RAD;
+        headingOffFrames = off ? headingOffFrames + 1 : 0;
+        if (off) { lastHeadingOffRad = result.dHeadingRad; }
+      }
     }
     double frameAgeS = Double.NaN; // Of the newest frame handed in
     for (TagObservation observation : observations) {
@@ -544,10 +600,54 @@ public class Robot {
     return lockRateRadPerSec;
   }
 
+  /**
+   * True once the drive command has held still long enough for the robot to reach its speed, and the robot is no
+   * longer speeding up or slowing down: a shot is aimed for the speed now, so it must still be the speed at release.
+   */
+  private boolean updateMotionSteady(boolean aiming, double[] velocity) {
+    double nowS = clock.seconds();
+    double maxPower = aiming ? ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER : 1.0;
+    double[] stick = MecanumDriveSubsystem.shapeTranslation(-driver.left_stick_y, driver.left_stick_x, maxPower);
+    if (Math.hypot(stick[0] - steadyStick[0], stick[1] - steadyStick[1]) > ShootOnTheMoveConstants.FIRE_STICK_CHANGE) {
+      steadyStick = stick;
+      steadyStickSinceS = nowS;
+    }
+    velocityHistory.addLast(new double[] {nowS, velocity[0], velocity[1]});
+    while (velocityHistory.size() > 2 && nowS - velocityHistory.peekFirst()[0] > ShootOnTheMoveConstants.ACCEL_WINDOW_S) {
+      velocityHistory.removeFirst();
+    }
+    double[] oldest = velocityHistory.peekFirst();
+    double spanS = nowS - oldest[0];
+    double accelMps2 = spanS > 0.02 ? Math.hypot(velocity[0] - oldest[1], velocity[1] - oldest[2]) / spanS : 0.0;
+    boolean steady = nowS - steadyStickSinceS >= ShootOnTheMoveConstants.FIRE_STEADY_STICK_S
+        && accelMps2 <= ShootOnTheMoveConstants.MAX_ACCEL_TO_FIRE_MPS2;
+    Logger.recordOutput("SOTM/AccelMps2", accelMps2);
+    Logger.recordOutput("SOTM/Gate/Steady", steady);
+    return steady;
+  }
+
   private void updateDrive(boolean aiming, Aim aim, double lockRateRadPerSec, Pose pose, double turnRateRadPerSec) {
     // Slower while shooting, so the shot's lead for the robot's speed stays small and the aim keeps up
     double maxPower = aiming ? ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER : 1.0;
     double[] translation = MecanumDriveSubsystem.shapeTranslation(-driver.left_stick_y, driver.left_stick_x, maxPower);
+    // The drive runs before this loop's feed check, so lastTranslation is what was commanded as the feed started
+    double nowS = clock.seconds();
+    boolean stickReleased = translation[0] == 0.0 && translation[1] == 0.0;
+    if (committedTranslation != null
+        && (stickReleased || nowS - committedSinceS > ShootOnTheMoveConstants.FEED_COMMIT_MAX_S)) {
+      feedCommitUntilS = Double.NEGATIVE_INFINITY;
+    }
+    if (aiming && nowS < feedCommitUntilS) {
+      if (committedTranslation == null) {
+        committedTranslation = lastTranslation;
+        committedSinceS = nowS;
+      }
+      translation = committedTranslation;
+    } else {
+      committedTranslation = null;
+    }
+    lastTranslation = translation;
+    Logger.recordOutput("Drive/FeedCommit", committedTranslation != null);
     double forward = translation[0];
     double right = translation[1];
     double forwardOffsetRad = alliance.forwardHeadingRad();
@@ -576,10 +676,18 @@ public class Robot {
     boolean backwardWaiting = aim != null && aim.backward && !validShot
         && aim.shot.reason != Shot.Reason.OUT_OF_RANGE;
     boolean shotKnown = validShot || backwardWaiting;
-    if (validShot) {
-      aimRpm = aim.shot.targetRpm;
-    } else if (backwardWaiting) {
-      aimRpm = ShootOnTheMove.calculateBackward(aim.shot.distanceToLipM, 0, 0).targetRpm;
+    double rpmRate = shotKnown ? aim.rpmRatePerSec : 0.0;
+    // The shot is for the ball leaving FEED_DELAY_S from now. The wheels and hood only have to be there by
+    // then, so they follow the shot for now and arrive at this one as the ball leaves. Holding this one
+    // already put them a feed delay early: 4 degrees of hood at 20 degrees/s (5 Nov, 080236).
+    if (shotKnown && !Double.isNaN(aim.rpmNow)) {
+      aimRpm = aim.rpmNow;
+    }
+
+    if (aiming || driver.y || driver.b) {
+      shooterStopLatched = false;
+    } else if (driver.x) {
+      shooterStopLatched = true;
     }
 
     if (aiming) {
@@ -587,7 +695,8 @@ public class Robot {
       // No Cell in view means no shot table to read, so go for the top speed
       shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0
           ? ShooterTuning.RPM_OVERRIDE
-          : aim == null ? shooter.getMaxRpm() : aimRpm + rpmTrim);
+          : aim == null ? shooter.getMaxRpm() : aimRpm + rpmTrim,
+          ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
     } else if (driver.y) {
       if (ShooterTuning.RPM_OVERRIDE > 0) {
         shooter.setShooterState(ShooterState.AIM);
@@ -597,12 +706,13 @@ public class Robot {
       }
     } else if (driver.b) {
       shooter.setShooterState(ShooterState.EJECT);
-    } else if (driver.x) {
+    } else if (shooterStopLatched) {
       shooter.setShooterState(ShooterState.STOP);
     } else if (shotKnown && ShootOnTheMoveConstants.PRESPIN_ON) {
       // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
       shooter.setShooterState(ShooterState.AIM);
-      shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE : aimRpm + rpmTrim);
+      shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE : aimRpm + rpmTrim,
+          ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
     } else {
       shooter.setShooterState(ShooterState.IDLE);
     }
@@ -616,7 +726,8 @@ public class Robot {
         // stop, but the hood doesn't fall by itself: it stayed ~36 degrees up and the shot never got ready.
         hood.setTargetTicks(HoodSubsystem.minTargetTicks()); // Trim doesn't apply
       } else if (validShot) { // Otherwise the hood holds its last angle
-        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.shot.hoodDeg - hoodLiftTrimDeg));
+        // Lift rises as the launch angle falls
+        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.hoodNowDeg - hoodLiftTrimDeg), -aim.hoodRateDegPerSec);
       }
     } else if (driver.dpad_up) {
       hood.setPreset(HoodPreset.FAR);
@@ -658,7 +769,7 @@ public class Robot {
     } else if (shooting) {
       // While an aimed shot waits, the indexer stops too: pushing the stack against the held feeder forced
       // a ball through before the aim was ready (4 Nov, 084004: 18 deg off, overshot)
-      boolean feeding = !aiming || ready;
+      boolean feeding = (!aiming || ready) && !holdFire;
       intake.setIntakeState(IntakeState.STOP);
       indexer.setIndexerState(feeding ? IndexerState.FEED : IndexerState.STOP);
       feeder.setFeederState(feeding ? FeederState.FEED : FeederState.HOLD);
@@ -881,6 +992,24 @@ public class Robot {
   }
 
   /** Called once when the OpMode stops. */
+  /** The pose this loop aimed from, after the vision correction. */
+  public Pose getPose() { return lastPose; }
+  /** Field velocity {x, y, turn rate} this loop, m/s and rad/s. */
+  public double[] getVelocity() { return lastVelocity.clone(); }
+  public boolean isPoseValid() { return poseValid; }
+  public int getOutOfFieldFrames() { return outOfFieldFrames; }
+  public int getHeadingOffFrames() { return headingOffFrames; }
+  public int getPositionFixes() { return positionFixes; }
+  public double getLastHeadingOffRad() { return lastHeadingOffRad; }
+  public boolean isHeadingValid() { return headingValid; }
+  public boolean isAimingAtFieldCell() { return aimingAtFieldCell; }
+  public double getAimCellX() { return aimCellX; }
+  public double getAimCellY() { return aimCellY; }
+  public AimState getAimState() { return aimState; }
+  public boolean isFeeding() { return lastFeeding; }
+  /** Aims as RT asks but feeds nothing: a scripted test lining up before the shot it means to take. */
+  public void setHoldFire(boolean hold) { holdFire = hold; }
+
   public void stop() {
     fieldSender.shutdownNow();
     hood.disable(); // Its loop thread would otherwise hold the hood until it misses the heartbeat

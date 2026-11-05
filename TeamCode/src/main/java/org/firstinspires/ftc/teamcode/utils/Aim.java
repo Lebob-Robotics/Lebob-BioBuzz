@@ -18,10 +18,28 @@ public final class Aim {
   public final double lockRateRadPerSec;
   public final double headingToleranceRad; // How far off the target heading still scores
   public final boolean backward; // Out of the robot's front with the hood down, from the backward table
+  /**
+   * Hood angle and flywheel RPM to hold now: the shot for a ball leaving now. As with the lock heading, the
+   * hood and wheels following these are at {@link #shot}'s as the ball leaves, FEED_DELAY_S after the fire
+   * command. The shot's own values if there is no shot from here.
+   */
+  public final double hoodNowDeg;
+  public final double rpmNow;
+  /**
+   * How fast those change as the robot keeps its present velocity, so the hood and wheels can follow a
+   * moving target instead of chasing it. 0 when either shot isn't valid.
+   */
+  public final double hoodRateDegPerSec;
+  public final double rpmRatePerSec;
 
   Aim(Shot shot, double targetHeadingRad, double lockHeadingRad, double lockRateRadPerSec,
-      double headingToleranceRad, boolean backward) {
+      double headingToleranceRad, boolean backward, double hoodNowDeg, double rpmNow,
+      double hoodRateDegPerSec, double rpmRatePerSec) {
     this.backward = backward;
+    this.hoodNowDeg = hoodNowDeg;
+    this.rpmNow = rpmNow;
+    this.hoodRateDegPerSec = hoodRateDegPerSec;
+    this.rpmRatePerSec = rpmRatePerSec;
     this.shot = shot;
     this.targetHeadingRad = targetHeadingRad;
     this.lockHeadingRad = lockHeadingRad;

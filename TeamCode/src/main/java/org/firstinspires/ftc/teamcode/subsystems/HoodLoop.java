@@ -42,6 +42,28 @@ final class HoodLoop implements Runnable {
   private static final int ACTIVATION_TOLERANCE_TICKS = 100;
   /** Pushing up against the motor ceiling this long, short of the goal, means the encoders disagree. */
   private static final double CEILING_HOLD_SECONDS = 0.3;
+  /**
+   * A moving goal is carried forward at its rate between the main loop's updates, at most this long: past
+   * it the main loop has stalled and the goal stays where it got to.
+   */
+  private static final double GOAL_EXTRAPOLATE_MAX_S = 0.15;
+
+  /** The goal as the main loop last set it, read whole by the loop thread. */
+  private static final class Goal {
+    final double deg;
+    final double rateDegPerSec;
+    final double minDeg;
+    final double maxDeg;
+    final long setNs;
+
+    Goal(double deg, double rateDegPerSec, double minDeg, double maxDeg, long setNs) {
+      this.deg = deg;
+      this.rateDegPerSec = rateDegPerSec;
+      this.minDeg = minDeg;
+      this.maxDeg = maxDeg;
+      this.setNs = setNs;
+    }
+  }
 
   private final LynxModuleIntf revModule;
   private final int revPort;
@@ -60,7 +82,7 @@ final class HoodLoop implements Runnable {
   private volatile double openLoopPower = Double.NaN; // Set: drive this power instead of the controller
   private volatile double openLoopMinDeg;
   private volatile double openLoopMaxDeg;
-  private volatile double goalDeg;
+  private volatile Goal goal = new Goal(0, 0, 0, 0, System.nanoTime());
   private volatile int revZero;
   private volatile double minLiftDeg;
   private volatile double maxLiftDeg;
@@ -78,6 +100,7 @@ final class HoodLoop implements Runnable {
   private volatile double power;
   private volatile double setpointDeg = Double.NaN;
   private volatile double setpointVel;
+  private volatile double goalNowDeg = Double.NaN;
   private volatile boolean settled;
   private volatile double periodMsAvg;
   private volatile double periodMsMax;
@@ -122,7 +145,11 @@ final class HoodLoop implements Runnable {
   // ---- Main thread ---------------------------------------------------------
 
   void heartbeat() { heartbeatNs = System.nanoTime(); }
-  void setGoalDeg(double deg) { goalDeg = deg; }
+  void setGoalDeg(double deg) { setGoal(deg, 0, deg, deg); }
+  /** A goal moving at rateDegPerSec, carried forward between calls but kept inside [minDeg, maxDeg]. */
+  void setGoal(double deg, double rateDegPerSec, double minDeg, double maxDeg) {
+    goal = new Goal(deg, rateDegPerSec, minDeg, maxDeg, System.nanoTime());
+  }
   void setRevZero(int ticks) { revZero = ticks; }
   /**
    * The motor encoder's raw count on the lower stop, and how far above it the motor may drive the hood
@@ -133,6 +160,8 @@ final class HoodLoop implements Runnable {
     motorHomeTicks = rawTicks;
     motorCeilingTicks = ceilingTicks;
   }
+  /** The travel can change after homing (tuning widens it), so the ceiling follows it. */
+  void setMotorCeiling(int ceilingTicks) { motorCeilingTicks = ceilingTicks; }
   void setLimits(double minDeg, double maxDeg) { minLiftDeg = minDeg; maxLiftDeg = maxDeg; }
   void setBatteryVolts(double volts) { if (volts > 6) { batteryVolts = volts; } }
   /** Share of the top speed allowed: re-homing after belt slips slows the hood down. */
@@ -226,6 +255,8 @@ final class HoodLoop implements Runnable {
   double power() { return power; }
   double setpointDeg() { return setpointDeg; }
   double setpointVelDegPerSec() { return setpointVel; }
+  /** The goal the loop last steered to, carried forward at its rate. */
+  double goalNowDeg() { return goalNowDeg; }
   boolean isSettled() { return settled; }
   double periodMsAvg() { return periodMsAvg; }
   double periodMsMax() { return periodMsMax; }
@@ -312,7 +343,16 @@ final class HoodLoop implements Runnable {
         } else {
           HoodSubsystem.fillFastGains(gains);
           gains.maxVelDegPerSec *= speedScale;
-          p = controller.update(dt, pos, vel, goalDeg, gains) * 12.0 / batteryVolts;
+          Goal gl = goal;
+          double aheadS = Math.max(0, Math.min(GOAL_EXTRAPOLATE_MAX_S, (nowNs - gl.setNs) / 1e9));
+          double goalNow = gl.deg + gl.rateDegPerSec * aheadS;
+          double goalRate = gl.rateDegPerSec;
+          if (goalNow >= gl.maxDeg || goalNow <= gl.minDeg) {
+            goalNow = Math.max(gl.minDeg, Math.min(gl.maxDeg, goalNow));
+            goalRate = 0; // Stops at the end of the range
+          }
+          goalNowDeg = goalNow;
+          p = controller.update(dt, pos, vel, goalNow, goalRate, gains) * 12.0 / batteryVolts;
           setpointDeg = controller.setpointDeg();
           setpointVel = controller.setpointVelDegPerSec();
           settled = controller.isSettled();
@@ -368,7 +408,9 @@ final class HoodLoop implements Runnable {
 
         double periodMs = (System.nanoTime() - startNs) / 1e6;
         periodMsAvg += 0.05 * (periodMs - periodMsAvg);
-        periodMsMax = Math.max(periodMsMax, periodMs);
+        synchronized (sampleLock) { // drainSamples() resets it
+          periodMsMax = Math.max(periodMsMax, periodMs);
+        }
         long sleepMs = Math.round(HoodSubsystem.FAST_PERIOD_MS - periodMs);
         if (sleepMs > 0) {
           Thread.sleep(sleepMs);

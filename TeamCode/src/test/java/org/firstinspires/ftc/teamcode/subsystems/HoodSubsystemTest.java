@@ -15,11 +15,17 @@ public class HoodSubsystemTest {
   }
 
   @Test public void targetsStayOneDegreeInsideBothStops() {
-    assertEquals(0, HoodSubsystem.clampTarget(0)); // STOW and LEFT at the bottom rest on the stop unpowered
-    assertEquals(0, HoodSubsystem.clampTarget(-500));
-    assertEquals(228, HoodSubsystem.clampTarget(1)); // Just above the stop: kept a margin off it
-    assertEquals(HoodSubsystem.angleToTicks(52), HoodSubsystem.clampTarget(1_000_000));
-    assertEquals(3000, HoodSubsystem.clampTarget(3000));
+    double saved = HoodSubsystem.MIN_ANGLE_DEG;
+    HoodSubsystem.MIN_ANGLE_DEG = 51; // Upper stop
+    try {
+      assertEquals(0, HoodSubsystem.clampTarget(0)); // STOW and LEFT at the bottom rest on the stop unpowered
+      assertEquals(0, HoodSubsystem.clampTarget(-500));
+      assertEquals(228, HoodSubsystem.clampTarget(1)); // Just above the stop: kept a margin off it
+      assertEquals(HoodSubsystem.angleToTicks(52), HoodSubsystem.clampTarget(1_000_000));
+      assertEquals(3000, HoodSubsystem.clampTarget(3000));
+    } finally {
+      HoodSubsystem.MIN_ANGLE_DEG = saved;
+    }
   }
 
   @Test public void tenDegreeMoveIsAboutOneHundredSevenMotorTicks() {

@@ -368,10 +368,11 @@ public class VisionCorrectorTest {
   public void rejectsWhenMovingTooFastOrTurningTooFast() {
     List<TagObservation> observations = list(observe(31, Cell.AUDIENCE, TRUE_POSE));
     PoseHistory history = stillHistory(TRUE_POSE);
-    VisionResult fast = corrector.process(observations, history, TRUE_POSE, 0.8, 0.8, 0, true, T0 + 100 * MS);
+    double limit = ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS;
+    VisionResult fast = corrector.process(observations, history, TRUE_POSE, limit, limit, 0, true, T0 + 100 * MS);
     assertEquals(Reason.TOO_FAST, fast.reason);
     assertFalse(fast.accepted);
-    assertTrue(corrector.process(observations, history, TRUE_POSE, 1.0, 0, 0, true, T0 + 100 * MS).accepted);
+    assertTrue(corrector.process(observations, history, TRUE_POSE, limit, 0, 0, true, T0 + 100 * MS).accepted);
     assertEquals(Reason.TOO_FAST_TURNING,
         corrector.process(observations, history, TRUE_POSE, 0, 0, 1.1, true, T0 + 100 * MS).reason);
     assertEquals(Reason.TOO_FAST_TURNING,
@@ -613,6 +614,38 @@ public class VisionCorrectorTest {
     assertEquals(ShootOnTheMoveConstants.HEADING_GAIN, result.headingGain, TOLERANCE);
     assertEquals(odometry.headingRad + ShootOnTheMoveConstants.HEADING_GAIN * Math.toRadians(-5),
         result.newPose.headingRad, 1e-6);
+  }
+
+  @Test
+  public void tagsThatOnlyDisagreeThroughTheHeadingFixItInFull() {
+    ShootOnTheMoveConstants.MAX_SPREAD_M = 0.03; // Tight enough that a 15 degree heading error spreads them
+    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(15));
+    VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
+    assertTrue(result.accepted);
+    assertEquals(1.0, result.headingGain, TOLERANCE);
+    assertEquals(TRUE_POSE.headingRad, result.newPose.headingRad, 1e-6);
+    assertTrue(result.spreadM < MM_TOLERANCE);
+
+    VisionResult moving = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0.4, 0, 0,
+        true, true, T0 + 100 * MS);
+    assertEquals(Reason.SPREAD, moving.reason); // Pair headings taken moving are not trusted
+  }
+
+  @Test
+  public void movingTheTrustedHeadingIsLeftToOdometry() {
+    // 5 Nov: a frame taken at 1 m/s turning 39 deg/s put the heading 11.5 degrees out, where odometry was right
+    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(5));
+    VisionResult moving = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0.4, 0, 0,
+        true, true, T0 + 100 * MS);
+    assertTrue(moving.accepted); // The position still is
+    assertEquals(0, moving.headingGain, TOLERANCE);
+    VisionResult turning = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0, 0, 0.5,
+        true, true, T0 + 100 * MS);
+    assertEquals(0, turning.headingGain, TOLERANCE);
+    // Not yet trusted, the first heading fix is still taken in full
+    VisionResult first = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0.4, 0, 0,
+        true, false, T0 + 100 * MS);
+    assertEquals(1.0, first.headingGain, TOLERANCE);
   }
 
   @Test

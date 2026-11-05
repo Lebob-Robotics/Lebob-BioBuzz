@@ -42,6 +42,12 @@ public class ShooterStallGuardTest {
   }
 
   @Test
+  public void runsAtAFarShotsSpeedUnderLoad() {
+    // 3700 RPM at the wheels is 1180 ticks/s at the motors, drawing 4-5 A (5 Nov, 082111)
+    assertFalse(run(10.0, 4.9, 1160));
+  }
+
+  @Test
   public void tripsOnSlowOverloadFromBackwardsPulleys() {
     // Both motors at 6.8 A turning 640 ticks/s: still moving, but cooking.
     assertFalse(run(1.0, 6.8, 640));

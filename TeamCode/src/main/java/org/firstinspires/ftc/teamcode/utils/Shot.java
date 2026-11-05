@@ -8,7 +8,8 @@ public final class Shot {
     CLOSING_TOO_FAST,
     BACKING_TOO_FAST,
     NO_SAFE_SHOT,
-    SIDEWAYS_TOO_FAST
+    SIDEWAYS_TOO_FAST,
+    HOOD_OUT_OF_RANGE // Flatter than the hood's top stop allows
   }
 
   public final boolean valid;

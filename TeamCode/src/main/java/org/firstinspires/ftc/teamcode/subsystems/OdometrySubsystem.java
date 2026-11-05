@@ -33,8 +33,27 @@ public class OdometrySubsystem extends SubsystemBase {
 
   /** Null when "pinpoint" is not in the config: the pose then stays at zero. */
   private final GoBildaPinpointDriver pinpoint;
-  /** The last pose read while the Pinpoint said READY. */
+  /** The last pose read while the Pinpoint said READY, in its own frame. */
   private Pose2D lastGoodPose = ZERO_POSE;
+  /**
+   * Field pose = the Pinpoint's pose turned by offsetHeadingRad, then shifted by (offsetXM, offsetYM). Corrections
+   * change these, never the Pinpoint: writing a pose into it threw away whatever it turned between the loop's read
+   * and the write, 1.1 degrees a write turning, and the heading was 23 degrees out after 21 corrections (5 Nov, 081521).
+   */
+  private double offsetXM;
+  private double offsetYM;
+  private double offsetHeadingRad;
+  /**
+   * Bad reads for this long and the pose is no longer trusted. Single bad reads clear within a loop or two (60 ms,
+   * 5 Nov); after a reset the Pinpoint stayed on FAULT_BAD_READ, the pose froze while the robot drove on, and the
+   * field test, seeing no progress, pushed it off the field (5 Nov, 085633).
+   */
+  private static final double FAULT_AFTER_S = 0.3;
+  /** While faulted, the configuration and the last good pose are written again this often. */
+  private static final double RECONFIGURE_EVERY_S = 1.0;
+  private long badSinceNanos = -1;
+  private long lastReconfigureNanos;
+  private int reconfigures;
 
   public OdometrySubsystem(HardwareMap hardwareMap) {
     GoBildaPinpointDriver found = null;
@@ -59,6 +78,17 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return;
     }
+    configure();
+    // Robot must be stationary during this call.
+    pinpoint.resetPosAndIMU();
+    lastGoodPose = ZERO_POSE;
+    offsetXM = 0;
+    offsetYM = 0;
+    offsetHeadingRad = 0;
+  }
+
+  /** Offsets, pods and directions: the Pinpoint forgets them if it resets. */
+  private void configure() {
     // CAD, to the middle of the four wheels, the centre ShootOnTheMoveConstants uses. The old (0, -105) made
     // spinning in place read as 0.07 m/s forward and 0.10 m/s left per rad/s (fits 0.85-0.99 over four runs),
     // which worked back to offsets of about (-65, 0): the hooded shot's lead swung with every turn (5 Nov, 084206)
@@ -69,9 +99,6 @@ public class OdometrySubsystem extends SubsystemBase {
     pinpoint.setEncoderDirections(
         GoBildaPinpointDriver.EncoderDirection.REVERSED,
         GoBildaPinpointDriver.EncoderDirection.REVERSED);
-
-    // Robot must be stationary during this call.
-    pinpoint.resetPosAndIMU();
   }
 
   /**
@@ -89,25 +116,46 @@ public class OdometrySubsystem extends SubsystemBase {
       pinpoint.update();
     }
 
-    Pose2D pose = pinpoint.getPosition();
+    // A FAULT_BAD_READ comes back as garbage for a loop; log the pose the robot uses, not a 0.4 m spike
+    Pose2D pose = toField(isReadGood() ? pinpoint.getPosition() : lastGoodPose);
     double headingRad = pose.getHeading(AngleUnit.RADIANS);
 
     // Meters and radians, as AdvantageScope expects.
     Logger.recordOutput("Odometry/Pose", new Pose2d(
         pose.getX(DistanceUnit.METER), pose.getY(DistanceUnit.METER), new Rotation2d(headingRad)));
+    Logger.recordOutput("Odometry/Offset", new double[] {offsetXM, offsetYM, offsetHeadingRad});
 
     // Same pose in the units we read it in on the field.
     Logger.recordOutput("Odometry/XInches", pose.getX(DistanceUnit.INCH));
     Logger.recordOutput("Odometry/YInches", pose.getY(DistanceUnit.INCH));
     Logger.recordOutput("Odometry/HeadingDegrees", pose.getHeading(AngleUnit.DEGREES));
 
-    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", pinpoint.getVelX(DistanceUnit.INCH));
-    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", pinpoint.getVelY(DistanceUnit.INCH));
+    double[] fieldVelocity = getVelocityMetersPerSec();
+    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", fieldVelocity[0] / 0.0254);
+    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", fieldVelocity[1] / 0.0254);
     Logger.recordOutput("Odometry/Velocity/HeadingDegreesPerSec",
         pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
-    double[] velocity = getVelocityMetersPerSec();
-    Logger.recordOutput("Odometry/VelocityField", new double[] { velocity[0], velocity[1] });
+    Logger.recordOutput("Odometry/VelocityField", new double[] { fieldVelocity[0], fieldVelocity[1] });
     Logger.recordOutput("Odometry/DeviceStatus", String.valueOf(pinpoint.getDeviceStatus()));
+
+    long now = System.nanoTime();
+    if (isReadGood()) {
+      badSinceNanos = -1;
+    } else if (badSinceNanos < 0) {
+      badSinceNanos = now;
+    } else if (isFaulted() && (now - lastReconfigureNanos) / 1e9 >= RECONFIGURE_EVERY_S) {
+      lastReconfigureNanos = now;
+      reconfigures++;
+      configure();
+      pinpoint.setPosition(lastGoodPose);
+    }
+    Logger.recordOutput("Odometry/Faulted", isFaulted());
+    Logger.recordOutput("Odometry/Reconfigures", reconfigures);
+  }
+
+  /** True once the Pinpoint has read badly for {@link #FAULT_AFTER_S}: its pose is stale, however it looks. */
+  public boolean isFaulted() {
+    return badSinceNanos >= 0 && (System.nanoTime() - badSinceNanos) / 1e9 >= FAULT_AFTER_S;
   }
 
   /**
@@ -122,7 +170,20 @@ public class OdometrySubsystem extends SubsystemBase {
     if (isReadGood()) {
       lastGoodPose = pinpoint.getPosition();
     }
-    return lastGoodPose;
+    return toField(lastGoodPose);
+  }
+
+  private Pose2D toField(Pose2D device) {
+    double x = device.getX(DistanceUnit.METER);
+    double y = device.getY(DistanceUnit.METER);
+    double cos = Math.cos(offsetHeadingRad);
+    double sin = Math.sin(offsetHeadingRad);
+    return new Pose2D(DistanceUnit.METER, offsetXM + x * cos - y * sin, offsetYM + x * sin + y * cos,
+        AngleUnit.RADIANS, normalize(device.getHeading(AngleUnit.RADIANS) + offsetHeadingRad));
+  }
+
+  private static double normalize(double rad) {
+    return Math.atan2(Math.sin(rad), Math.cos(rad));
   }
 
   /** False when the Pinpoint's last update did not read it as READY, so its pose must not be used or written back. */
@@ -143,25 +204,29 @@ public class OdometrySubsystem extends SubsystemBase {
     double vy = pinpoint.getVelY(DistanceUnit.METER);
     double omega = pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS);
 
-    if (!PINPOINT_VELOCITY_IS_FIELD_FRAME) {
-      double heading = pinpoint.getPosition().getHeading(AngleUnit.RADIANS);
-      double cos = Math.cos(heading);
-      double sin = Math.sin(heading);
-      double fieldVx = vx * cos - vy * sin;
-      double fieldVy = vx * sin + vy * cos;
-      vx = fieldVx;
-      vy = fieldVy;
-    }
-    return new double[] { vx, vy, omega };
+    // To the Pinpoint's own frame first if it reports robot-frame velocity, then turned into the field frame
+    double turn = offsetHeadingRad
+        + (PINPOINT_VELOCITY_IS_FIELD_FRAME ? 0 : pinpoint.getPosition().getHeading(AngleUnit.RADIANS));
+    double cos = Math.cos(turn);
+    double sin = Math.sin(turn);
+    return new double[] { vx * cos - vy * sin, vx * sin + vy * cos, omega };
   }
 
-  /** Sets the reported pose. The Pinpoint may not report it until its next update. */
+  /**
+   * Makes the pose read this loop report as the given one, from now on. Motion since that read is kept, because
+   * only the offset changes.
+   */
   public void setPose(double xM, double yM, double headingRad) {
     if (pinpoint == null) {
       return;
     }
-    pinpoint.setPosition(new Pose2D(
-        DistanceUnit.METER, xM, yM, AngleUnit.RADIANS, headingRad));
+    double x = lastGoodPose.getX(DistanceUnit.METER); // Not a bad read's zeros
+    double y = lastGoodPose.getY(DistanceUnit.METER);
+    offsetHeadingRad = normalize(headingRad - lastGoodPose.getHeading(AngleUnit.RADIANS));
+    double cos = Math.cos(offsetHeadingRad);
+    double sin = Math.sin(offsetHeadingRad);
+    offsetXM = xM - (x * cos - y * sin);
+    offsetYM = yM - (x * sin + y * cos);
   }
 
   /** Sets the reported heading in place, keeping the current position. */
@@ -169,9 +234,7 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return;
     }
-    Pose2D current = getPose(); // Not a bad read's zeros
-    pinpoint.setPosition(new Pose2D(
-        DistanceUnit.MM, current.getX(DistanceUnit.MM), current.getY(DistanceUnit.MM),
-        AngleUnit.RADIANS, headingRad));
+    Pose2D current = getPose();
+    setPose(current.getX(DistanceUnit.METER), current.getY(DistanceUnit.METER), headingRad);
   }
 }

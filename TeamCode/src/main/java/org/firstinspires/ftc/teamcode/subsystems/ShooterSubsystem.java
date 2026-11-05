@@ -43,14 +43,22 @@ public class ShooterSubsystem extends SubsystemBase {
   public static double VELOCITY_I = Double.NaN;
   public static double VELOCITY_D = Double.NaN;
   public static double VELOCITY_F = Double.NaN;
+  /**
+   * The speed command leads a moving target (driving toward or away from the Cell) by its rate times this,
+   * making up for the wheels' lag behind the command so they are at the target itself.
+   */
+  public static double LEAD_S = 0.1; // The lag behind 300-600 RPM/s ramps at P 150 (Flywheel Tune, 5 Nov)
   public static double IDLE_RPM = 2500; // Middle of the shot table, so any aimed shot is a short spin-up away
   private static final double SHOOTER_VELOCITY = 4000;
   /** Motor encoder ticks per motor revolution (goBILDA 5203 6000 RPM). */
   private static final double MOTOR_TICKS_PER_REV = 28.0; // TODO verify
   /** Motor revolutions per flywheel revolution: 23 tooth wheel pulley over 33 tooth motor pulley (CAD). */
   private static final double MOTOR_REVS_PER_WHEEL_REV = 23.0 / 33.0;
-  /** Target changes smaller than this (RPM) are not re-sent to the motors. */
-  private static final double TARGET_RESEND_RPM = 1.0;
+  /**
+   * Target changes smaller than this (RPM) are not re-sent to the motors. Re-sending the few-RPM wobble a
+   * standing aim has every loop kept the wheels ~75 RPM low, where a held target settles on it (5 Nov, 080236).
+   */
+  private static final double TARGET_RESEND_RPM = 20.0;
   /** Current and velocity are separate hub reads, so sample them this often. */
   private static final double STALL_SAMPLE_PERIOD_S = 0.1;
 
@@ -65,6 +73,8 @@ public class ShooterSubsystem extends SubsystemBase {
   private ShooterState shooterState;
   // Flywheel RPM that AIM holds.
   private double targetRpm = 0.0;
+  // Speed AIM sends: the target led by its rate
+  private double commandRpm = 0.0;
   // Last target actually sent, so slow drifts below TARGET_RESEND_RPM still go out.
   private double sentRpm = Double.NaN;
   private ShooterState previousShooterState = ShooterState.STOP;
@@ -87,8 +97,10 @@ public class ShooterSubsystem extends SubsystemBase {
     PIDFCoefficients sdk = shooterRight.getVelocityPidf();
     if (Double.isNaN(VELOCITY_P)) {
       // The SDK's 10 cut only ~2% power for 170 RPM too fast, so the wheels took 2-3 s to coast down to a
-      // lower target and held aimed shots back (5 Nov, 084358)
-      VELOCITY_P = 30.0;
+      // lower target and held aimed shots back (5 Nov, 084358). At 30 they still took 1.6 s to fall 600 RPM and
+      // ran 145 RPM fast following a target falling 600 RPM/s while driving at the Cell; 150 took 0.4 s and held
+      // as steady, 250 began to oscillate (Flywheel Tune, 5 Nov).
+      VELOCITY_P = 150.0;
     }
     if (Double.isNaN(VELOCITY_I)) {
       VELOCITY_I = 1.0; // Higher winds up during a ball's dip and overshoots ~200 RPM for a second after
@@ -125,7 +137,7 @@ public class ShooterSubsystem extends SubsystemBase {
         setShooterPower(-1.0);
         break;
       case AIM:
-        setShooterRpm(targetRpm);
+        setShooterRpm(commandRpm);
         break;
     }
   }
@@ -148,12 +160,19 @@ public class ShooterSubsystem extends SubsystemBase {
    * if already aiming; otherwise it takes effect on entering AIM.
    */
   public void setTargetRpm(double rpm) {
-    rpm = Math.max(0.0, Math.min(getMaxRpm(), rpm)); // So atSpeed() compares against a speed the motors can reach
+    setTargetRpm(rpm, 0.0);
+  }
+
+  /** As {@link #setTargetRpm(double)}, for a target changing at rpmPerSec: the command leads it by LEAD_S. */
+  public void setTargetRpm(double rpm, double rpmPerSec) {
+    double max = getMaxRpm();
+    rpm = Math.max(0.0, Math.min(max, rpm)); // So atSpeed() compares against a speed the motors can reach
     targetRpm = rpm;
+    commandRpm = Math.max(0.0, Math.min(max, rpm + rpmPerSec * LEAD_S));
     // doShooterState ignores unchanged states, so re-send the velocity here.
     if (shooterState == ShooterState.AIM
-        && !(Math.abs(rpm - sentRpm) <= TARGET_RESEND_RPM)) {
-      setShooterRpm(targetRpm);
+        && !(Math.abs(commandRpm - sentRpm) <= TARGET_RESEND_RPM)) {
+      setShooterRpm(commandRpm);
     }
   }
 
@@ -270,6 +289,7 @@ public class ShooterSubsystem extends SubsystemBase {
     Logger.recordOutput("Shooter/AtSpeed", isAtSpeed());
     Logger.recordOutput("Shooter/AtSpeedThreshold", SHOOTER_VELOCITY);
     Logger.recordOutput("Shooter/TargetRpm", targetRpm);
+    Logger.recordOutput("Shooter/CommandRpm", commandRpm);
     Logger.recordOutput("Shooter/Rpm", getRpm());
     Logger.recordOutput("Shooter/RpmLeft", getRpmLeft());
     Logger.recordOutput("Shooter/RpmRight", getRpmRight());

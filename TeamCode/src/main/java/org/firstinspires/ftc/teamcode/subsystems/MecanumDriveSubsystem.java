@@ -33,14 +33,29 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   // Least turn power while off by more than HEADING_KS_ABOVE_RAD. Standing still, 0.10 didn't turn the robot
   // and 0.15 did, so 0.12 left it stuck 7-9 degrees off, outside the shot tolerance (5 Nov, 084358).
   public static double HEADING_KS = 0.16;
-  public static double HEADING_KS_ABOVE_RAD = Math.toRadians(2.5);
+  // At 2.5 the lock stalled 1.8-2.7 degrees short, always the same way, and standing shots at 1.3-1.6 m went in
+  // under half the time, missing to the right (5 Nov, 084758-091609): KP alone gives 0.035 there, under friction
+  public static double HEADING_KS_ABOVE_RAD = Math.toRadians(1.0);
   // While the robot pushes at the least power and doesn't turn, that power grows at this rate, up to HEADING_KS
   // plus HEADING_KS_BOOST_MAX, and drops back once it turns. 0.16 left it 8.6 degrees off for 4.5 s, wheels at
-  // 0.16 and 12.2 V, where 0.15 had turned it the run before (5 Nov, 083302)
-  public static double HEADING_KS_BOOST_PER_S = 0.2;
+  // 0.16 and 12.2 V, where 0.15 had turned it the run before (5 Nov, 083302). At 0.2/s the last 8.6 degrees
+  // still took 1 s standing (5 Nov, 084933)
+  public static double HEADING_KS_BOOST_PER_S = 0.8;
   public static double HEADING_KS_BOOST_MAX = 0.15;
-  public static double HEADING_STUCK_RATE_RAD_S = Math.toRadians(5); // Turning slower than this counts as stuck
+  // Turning slower than this counts as stuck. At 5 the robot crept the last 15 degrees at 10-15 deg/s on 0.16-0.23
+  // power, never counted as stuck, and took 2.1 s to line up standing (5 Nov, 083228)
+  public static double HEADING_STUCK_RATE_RAD_S = Math.toRadians(15);
   public static double HEADING_MAX_ROTATE = 0.8;
+  // With the wheels already rolling there is no friction to break: turning while strafing hard gave 10.6 rad/s per
+  // unit turn power, against 6.3 standing. The gains above, picked standing, then overshot and the least power
+  // kicked back each time, so the turn rate swung 0-2.4 rad/s around a 0.6-1.0 rad/s target and the aim was
+  // 10-20 degrees off (5 Nov, 081829). So with the drive at or above HEADING_MOVING_FULL_AT the turn power is
+  // scaled by HEADING_MOVING_SCALE and has no least power, blending in from standing; in the same turning model
+  // that cut the error from 8.6 to 2.9 degrees rms. On the field at 0.6, strafing at full stick the robot turned
+  // only 4-7 rad/s per unit (the wheels saturate) and trailed the aim by a steady 8-10 degrees, just outside the
+  // 8-degree tolerance (5 Nov, 084933), so the scale is back to 1 and only the least power is dropped.
+  public static double HEADING_MOVING_SCALE = 1.0;
+  public static double HEADING_MOVING_FULL_AT = 0.5;
   // While the heading lock turns, the drive gives way first, down to this share of the stick: at full stick
   // the shared scale-down left the lock 0.28 of the 0.48 it asked for, and the aim trailed by 15 degrees.
   public static double LOCK_MIN_TRANSLATION_SHARE = 0.4;
@@ -283,7 +298,8 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     double nowS = clock.seconds();
     ksBoost = lockedLastCall ? stuckBoost(ksBoost, error, headingRateRadPerSec, nowS - lastLockS) : 0.0;
     lastLockS = nowS;
-    double ccw = headingLockTurn(error, targetRateRadPerSec, headingRateRadPerSec, HEADING_KS + ksBoost);
+    double ccw = headingLockTurnWhileDriving(error, targetRateRadPerSec, headingRateRadPerSec, HEADING_KS + ksBoost,
+        Math.hypot(forward, right));
 
     // drive()'s rotate is clockwise positive, the opposite of heading.
     drive(forward, right, -ccw, true, currentHeadingRad, true);
@@ -333,6 +349,14 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     }
     double dt = Math.max(0.0, Math.min(0.1, dtS));
     return Math.min(HEADING_KS_BOOST_MAX, boost + HEADING_KS_BOOST_PER_S * dt);
+  }
+
+  /** As {@link #headingLockTurn}, scaled down and without the least power as the drive power rises. */
+  static double headingLockTurnWhileDriving(double errorRad, double targetRateRadPerSec, double headingRateRadPerSec,
+      double ks, double translationPower) {
+    double moving = Math.min(1.0, Math.abs(translationPower) / HEADING_MOVING_FULL_AT);
+    return headingLockTurn(errorRad, targetRateRadPerSec, headingRateRadPerSec, ks * (1 - moving))
+        * (1 - moving * (1 - HEADING_MOVING_SCALE));
   }
 
   /** Heading lock turn power, CCW positive, clamped to HEADING_MAX_ROTATE. */

@@ -14,9 +14,12 @@ public class ShootOnTheMoveTest {
   private double savedShooterForwardM; // The constants are live-tunable statics, so tests put them back
   private double savedShooterLeftM;
   private double savedFeedDelayS;
+  private double savedHoodTopStopDeg;
 
   @Before
   public void zeroShooterOffsetAndDelay() {
+    savedHoodTopStopDeg = ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG;
+    ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = 51; // The table's whole range, whatever the robot's stop is now
     savedShooterForwardM = ShootOnTheMoveConstants.SHOOTER_FORWARD_M;
     savedShooterLeftM = ShootOnTheMoveConstants.SHOOTER_LEFT_M;
     savedFeedDelayS = ShootOnTheMoveConstants.FEED_DELAY_S;
@@ -30,6 +33,20 @@ public class ShootOnTheMoveTest {
     ShootOnTheMoveConstants.SHOOTER_FORWARD_M = savedShooterForwardM;
     ShootOnTheMoveConstants.SHOOTER_LEFT_M = savedShooterLeftM;
     ShootOnTheMoveConstants.FEED_DELAY_S = savedFeedDelayS;
+    ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = savedHoodTopStopDeg;
+  }
+
+  @Test
+  public void aShotFlatterThanTheHoodCanReachIsNoShot() {
+    Shot far = ShootOnTheMove.calculate(1.0, 0, 0);
+    Shot near = ShootOnTheMove.calculate(0.4, 0, 0);
+    assertTrue(far.valid);
+    assertTrue(near.hoodDeg > far.hoodDeg + 2); // Nearer is steeper
+    ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = far.hoodDeg; // Now the far shot is inside the stop's margin
+    Shot blocked = ShootOnTheMove.calculate(1.0, 0, 0);
+    assertFalse(blocked.valid);
+    assertEquals(Shot.Reason.HOOD_OUT_OF_RANGE, blocked.reason);
+    assertTrue(ShootOnTheMove.calculate(0.4, 0, 0).valid);
   }
 
   private static int indexOf(double[] axis, double value) {
@@ -181,6 +198,24 @@ public class ShootOnTheMoveTest {
     assertEquals(strafing.shot.turningRad, headingChange, TOLERANCE);
   }
 
+  @Test
+  public void holdsTheShotForNowAndItsRateToTheRelease() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0.4, 0, 2.0, 0);
+    // The robot at release, 0.2 s on, standing at where it is then with the same velocity
+    Aim atRelease = ShootOnTheMove.aim(new Pose(0.08, 0, 0), 0.4, 0, 2.0, 0);
+    assertTrue(aim.shot.valid && atRelease.shot.valid);
+    assertEquals(atRelease.hoodNowDeg, aim.shot.hoodDeg, 1e-6); // Following the now values arrives at the shot
+    assertEquals(atRelease.rpmNow, aim.shot.targetRpm, 1e-6);
+    assertEquals((aim.shot.hoodDeg - aim.hoodNowDeg) / 0.2, aim.hoodRateDegPerSec, 1e-6);
+    assertEquals((aim.shot.targetRpm - aim.rpmNow) / 0.2, aim.rpmRatePerSec, 1e-6);
+    assertTrue(aim.rpmRatePerSec < 0); // Closer needs less speed
+
+    Aim still = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 2.0, 0);
+    assertEquals(0, still.hoodRateDegPerSec, 0);
+    assertEquals(0, still.rpmRatePerSec, 0);
+  }
+
   // ---- readyToFire and helpers -------------------------------------------
 
   @Test
@@ -192,6 +227,33 @@ public class ShootOnTheMoveTest {
     assertFalse(ShootOnTheMove.readyToFire(aim, false, true, onHeading, 0));
     assertFalse(ShootOnTheMove.readyToFire(aim, true, false, onHeading, 0));
     assertFalse(ShootOnTheMove.readyToFire(aim, true, true, offHeading, 0));
+  }
+
+  @Test
+  public void noMovingShotCloseToTheLip() {
+    double cellX = ShootOnTheMoveConstants.MIN_MOVING_SHOT_LIP_M - 0.1 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Aim standing = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, cellX, 0);
+    Aim strafing = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, cellX, 0);
+    assertTrue(standing.shot.valid && strafing.shot.valid);
+    assertTrue(ShootOnTheMove.readyToFire(standing, true, true, standing.lockHeadingRad, 0));
+    assertFalse(ShootOnTheMove.readyToFire(strafing, true, true, strafing.lockHeadingRad, strafing.lockRateRadPerSec));
+  }
+
+  @Test
+  public void notReadyWhileTheHoodTargetSwingsFast() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0.6, 0, 1.6, 0); // Driving straight at it
+    assertTrue(aim.shot.valid);
+    assertTrue(Math.abs(aim.hoodRateDegPerSec) > 0);
+    double saved = ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC;
+    try {
+      ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = Math.abs(aim.hoodRateDegPerSec) + 1;
+      assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, aim.lockRateRadPerSec));
+      ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = Math.abs(aim.hoodRateDegPerSec) - 1;
+      assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, aim.lockRateRadPerSec));
+    } finally {
+      ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = saved;
+    }
   }
 
   @Test

@@ -19,7 +19,9 @@ These tools work that out on a laptop and give the robot a table.
 - `export.js`: `node tools/shots/export.js` regenerates
   `TeamCode/.../utils/ShotTable.java` (hood angle and RPM for every distance
   and radial speed) from `inputs.json`, using `table.js`. Run it after
-  changing `inputs.json` and commit both files together.
+  changing `inputs.json` and commit both files together. It refuses to
+  write a table where blending neighbouring cells would miss, and prints the
+  widest hood spread between neighbours.
 - `table.js`: picks one shot per cell from the hood sweep, with a small
   penalty for hood angle jumps between neighbouring cells, and writes the Java.
 - `inputs.json`: the measured constants behind the committed table. With

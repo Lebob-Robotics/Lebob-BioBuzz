@@ -19,6 +19,13 @@ if (fails.length) {
 
 const out = path.join(__dirname, '..', '..', 'TeamCode', 'src', 'main', 'java', 'org', 'firstinspires', 'ftc', 'teamcode', 'utils', 'ShotTable.java');
 const table = Table.build(p);
+const blends = Table.blendCheck(table, p);
+if (blends.misses.length) {
+  console.error('Blending neighbouring cells misses, not exporting:\n  ' + blends.misses.join('\n  '));
+  process.exit(1);
+}
 fs.writeFileSync(out, Table.toJava(table, p));
 const usable = table.rpm.flat().filter(v => !Number.isNaN(v)).length;
 console.log('wrote ' + path.relative(process.cwd(), out) + ': ' + table.dist.length + ' x ' + table.vel.length + ' cells, ' + usable + ' with a shot');
+console.log('every blend scores; widest hood spread in a block ' + blends.maxSpreadDeg.toFixed(1)
+    + ' deg (keep ShootOnTheMoveConstants.MAX_HOOD_DIFFERENCE_TO_BLEND_DEG above it)');

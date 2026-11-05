@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import android.graphics.Canvas;
 import android.util.Size;
 
 import com.bylazar.configurables.annotations.Configurable;
@@ -13,19 +14,24 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.Exposur
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainControl;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.teamcode.utils.CameraMount;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.ClusterFromTags;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.TagObservation;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
+import org.opencv.core.Mat;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,6 +46,13 @@ public class VisionSubsystem extends SubsystemBase {
   /** Live camera controls for tuning tag contrast. Exposure is in milliseconds. */
   public static int EXPOSURE_MS = 6;
   public static int GAIN = 60;
+  /**
+   * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
+   * names cycling so a PC can pull them and see what the robot sees.
+   */
+  public static double SAVE_FRAME_EVERY_S = 5;
+  private long lastFrameSaveNanos;
+  private int frameSaves;
   public static float DECIMATION = 2; // Halves the detection work; 3.25-inch tags still read at 2+ m. 1 for range
   /**
    * Also run a single-tag detector on each camera, so every Hive tag in view (red and blue) reaches the
@@ -73,9 +86,9 @@ public class VisionSubsystem extends SubsystemBase {
   private final AprilTagProcessor[] singleTagProcessors = new AprilTagProcessor[2]; // Null when not running
   private final VisionPortal[] portals = new VisionPortal[2];
   private final VisionInputs[] inputs = {new VisionInputs(), new VisionInputs()};
-  private final String[] cameraStatus = {"not opened", "not opened"};
-  private final int[] appliedExposure = {-1, -1};
-  private final int[] appliedGain = {-1, -1};
+  private final String[] cameraStatus = {"not opened", "not opened"}; // Written by the camera worker too
+  private volatile int[] appliedExposure = {-1, -1};
+  private volatile int[] appliedGain = {-1, -1};
   private final float[] appliedDecimation = {Float.NaN, Float.NaN};
   /**
    * A camera that says it is streaming but gives no frames this long is stopped and started again. On
@@ -83,8 +96,37 @@ public class VisionSubsystem extends SubsystemBase {
    */
   public static double RESTART_AFTER_NO_FRAMES_S = 2.0;
   private final long[] noFramesSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
-  private final boolean[] resumePending = new boolean[2];
   private final int[] restarts = new int[2];
+  /**
+   * Restarts and camera controls run here, never on the robot loop: when the camera dropped off USB six times
+   * in 3 s, stopStreaming() never returned and the loop froze with the flywheel on for 4 minutes (5 Nov, 080143).
+   */
+  private final ExecutorService cameraWorker = Executors.newSingleThreadExecutor(r -> {
+    Thread t = new Thread(r, "BioBuzzCameraWorker");
+    t.setDaemon(true);
+    return t;
+  });
+  private final long[] streamingSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
+  private final boolean[] workerBusy = new boolean[2]; // Set by the loop, cleared by the worker; guarded by this
+  private final FrameClock[] frameClocks = {new FrameClock(), new FrameClock()};
+
+  /**
+   * Notes when each frame arrives. A frozen stream kept reporting its last FPS (9.2), so the no-frames restart
+   * never ran and the robot drove 10 s blind, then searched with a dead camera (5 Nov, 082057).
+   */
+  private static final class FrameClock implements VisionProcessor {
+    volatile long lastFrameNanos = System.nanoTime();
+
+    @Override public void init(int width, int height, CameraCalibration calibration) {}
+
+    @Override public Object processFrame(Mat frame, long captureTimeNanos) {
+      lastFrameNanos = System.nanoTime();
+      return null;
+    }
+
+    @Override public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight,
+        float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {}
+  }
 
   public VisionSubsystem(HardwareMap hardwareMap) {
     this(hardwareMap, false);
@@ -139,7 +181,8 @@ public class VisionSubsystem extends SubsystemBase {
           .setCameraResolution(RESOLUTION)
           // Compressed, so two 720p streams fit through the hub's USB
           .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
-          .addProcessor(processor);
+          .addProcessor(processor)
+          .addProcessor(frameClocks[side.ordinal()]);
       if (singleTagProcessor != null) {
         builder.addProcessor(singleTagProcessor);
       }
@@ -179,6 +222,18 @@ public class VisionSubsystem extends SubsystemBase {
       Logger.processInputs(prefix, in);
       Logger.recordOutput(prefix + "/Status", cameraStatus[side.ordinal()]);
       Logger.recordOutput(prefix + "/Restarts", restarts[side.ordinal()]);
+      Logger.recordOutput(prefix + "/LastFrameAgeS", (System.nanoTime() - frameClocks[side.ordinal()].lastFrameNanos) * 1e-9);
+    }
+    long now = System.nanoTime();
+    if (!Logger.isReplay() && SAVE_FRAME_EVERY_S > 0 && (now - lastFrameSaveNanos) / 1e9 >= SAVE_FRAME_EVERY_S) {
+      lastFrameSaveNanos = now;
+      for (Side side : Side.values()) {
+        VisionPortal portal = portals[side.ordinal()];
+        if (portal != null && portal.getCameraState() == VisionPortal.CameraState.STREAMING) {
+          portal.saveNextFrameRaw("cam" + (side == Side.LEFT ? "L" : "R") + (frameSaves % 10));
+        }
+      }
+      frameSaves++;
     }
   }
 
@@ -189,17 +244,23 @@ public class VisionSubsystem extends SubsystemBase {
     if (portal == null) {
       return;
     }
-    VisionPortal.CameraState state = portal.getCameraState();
-    if (resumePending[i] && state == VisionPortal.CameraState.CAMERA_DEVICE_READY) {
-      portal.resumeStreaming(); // Second half of a restart
-      resumePending[i] = false;
+    synchronized (this) {
+      if (workerBusy[i]) {
+        streamingSinceNanos[i] = Long.MIN_VALUE;
+        return;
+      }
     }
+    VisionPortal.CameraState state = portal.getCameraState();
     if (state != VisionPortal.CameraState.STREAMING) {
       appliedExposure[i] = -1;
       appliedGain[i] = -1;
       noFramesSinceNanos[i] = Long.MIN_VALUE;
+      streamingSinceNanos[i] = Long.MIN_VALUE;
       cameraStatus[i] = state.name() + (restarts[i] > 0 ? " (restarts " + restarts[i] + ")" : "");
       return;
+    }
+    if (streamingSinceNanos[i] == Long.MIN_VALUE) {
+      streamingSinceNanos[i] = System.nanoTime();
     }
     if (restartIfNoFrames(i, portal)) {
       return;
@@ -214,15 +275,21 @@ public class VisionSubsystem extends SubsystemBase {
     if (appliedExposure[i] == EXPOSURE_MS && appliedGain[i] == GAIN) {
       return;
     }
+    final int exposureWanted = EXPOSURE_MS;
+    final int gainWanted = GAIN;
+    runOnWorker(i, () -> setControls(i, side, portal, exposureWanted, gainWanted));
+  }
+
+  private void setControls(int i, Side side, VisionPortal portal, int exposureWanted, int gainWanted) {
     try {
       ExposureControl exposure = portal.getCameraControl(ExposureControl.class);
       GainControl gain = portal.getCameraControl(GainControl.class);
       boolean ok = exposure.isModeSupported(ExposureControl.Mode.Manual)
           && exposure.setMode(ExposureControl.Mode.Manual);
       long exposureMs = Math.max(exposure.getMinExposure(TimeUnit.MILLISECONDS),
-          Math.min(exposure.getMaxExposure(TimeUnit.MILLISECONDS), EXPOSURE_MS));
+          Math.min(exposure.getMaxExposure(TimeUnit.MILLISECONDS), exposureWanted));
       ok = ok && exposure.setExposure(exposureMs, TimeUnit.MILLISECONDS);
-      int gainValue = Math.max(gain.getMinGain(), Math.min(gain.getMaxGain(), GAIN));
+      int gainValue = Math.max(gain.getMinGain(), Math.min(gain.getMaxGain(), gainWanted));
       ok = gain.setGain(gainValue) && ok;
       cameraStatus[i] = (ok ? "streaming" : "controls partly unsupported")
           + ": exposure " + exposure.getExposure(TimeUnit.MILLISECONDS) + " ms, gain " + gain.getGain();
@@ -230,14 +297,63 @@ public class VisionSubsystem extends SubsystemBase {
       cameraStatus[i] = "streaming; controls: " + e.toString();
       RobotLog.ee("BioBuzzVision", e, "Camera controls failed for %s", side);
     }
-    appliedExposure[i] = EXPOSURE_MS;
-    appliedGain[i] = GAIN;
+    appliedExposure[i] = exposureWanted;
+    appliedGain[i] = gainWanted;
+  }
+
+  /** Runs a camera call on the worker unless one for this camera is still going (it may never return). */
+  private void runOnWorker(int i, Runnable job) {
+    synchronized (this) {
+      if (workerBusy[i]) {
+        return;
+      }
+      workerBusy[i] = true;
+    }
+    cameraWorker.execute(() -> {
+      try {
+        job.run();
+      } catch (RuntimeException e) {
+        RobotLog.ee("BioBuzzVision", e, "Camera %d call failed", i);
+      } finally {
+        synchronized (VisionSubsystem.this) {
+          workerBusy[i] = false;
+        }
+      }
+    });
+  }
+
+  /** Stop, wait for the device, start again. On the worker. */
+  private void restart(int i, VisionPortal portal) {
+    portal.stopStreaming();
+    long deadline = System.nanoTime() + 3_000_000_000L;
+    while (portal.getCameraState() != VisionPortal.CameraState.CAMERA_DEVICE_READY && System.nanoTime() < deadline) {
+      try {
+        Thread.sleep(50);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      }
+    }
+    portal.resumeStreaming();
+  }
+
+  /** Seconds since any camera last gave a frame; 0 in replay or with no camera opened. */
+  public double newestFrameAgeS() {
+    double age = Double.POSITIVE_INFINITY;
+    for (int i = 0; i < portals.length; i++) {
+      if (portals[i] != null) {
+        age = Math.min(age, (System.nanoTime() - frameClocks[i].lastFrameNanos) * 1e-9);
+      }
+    }
+    return Double.isInfinite(age) ? 0 : age;
   }
 
   /** Stops a streaming camera that gives no frames; the next loops start it again. True if it did. */
   private boolean restartIfNoFrames(int i, VisionPortal portal) {
     long now = System.nanoTime();
-    if (portal.getFps() >= 0.5f) {
+    long expectedFrameSince = Math.max(frameClocks[i].lastFrameNanos, streamingSinceNanos[i]); // Grace after a (re)start
+    boolean framesArriving = (now - expectedFrameSince) * 1e-9 < RESTART_AFTER_NO_FRAMES_S / 2;
+    if (portal.getFps() >= 0.5f && framesArriving) {
       noFramesSinceNanos[i] = Long.MIN_VALUE;
       return false;
     }
@@ -249,11 +365,12 @@ public class VisionSubsystem extends SubsystemBase {
       return false;
     }
     RobotLog.ww("BioBuzzVision", "Camera %d streaming with no frames; restarting", i);
-    portal.stopStreaming();
-    resumePending[i] = true;
     restarts[i]++;
     noFramesSinceNanos[i] = Long.MIN_VALUE;
     cameraStatus[i] = "no frames, restarting (" + restarts[i] + ")";
+    appliedExposure[i] = -1;
+    appliedGain[i] = -1;
+    runOnWorker(i, () -> restart(i, portal));
     return true;
   }
 
@@ -353,6 +470,7 @@ public class VisionSubsystem extends SubsystemBase {
 
   /** Closes both portals. Call from the OpMode's stop(). */
   public void close() {
+    cameraWorker.shutdownNow();
     for (int i = 0; i < portals.length; i++) {
       if (portals[i] != null) {
         portals[i].close();

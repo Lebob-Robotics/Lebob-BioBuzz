@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.hardware.HubMotors;
+import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -54,9 +55,12 @@ public class HoodSubsystem extends SubsystemBase {
   /**
    * Settles (unpowered, the brake holds) inside this, tighter than DEADBAND_TICKS so the hood rests
    * nearer the target than "at target" needs; driven again once the error grows past the re-engage.
+   * 0.1 / 0.2 hunted: each 0.2-degree correction's take-up kick overshot by a degree, and the aimed goal's
+   * +-0.4 degree noise standing kept starting them; the hood swung 31-34 at 8 Hz (5 Nov, 084004). The ready
+   * gate allows 1.
    */
-  public static double FAST_DEADBAND_DEG = 0.1;
-  public static double FAST_REENGAGE_DEG = 0.2;
+  public static double FAST_DEADBAND_DEG = 0.3;
+  public static double FAST_REENGAGE_DEG = 0.5;
   public static double FAST_RESYNC_DEG = 4.0;
   public static double FAST_MAX_POWER = 1.0;
   /** Start of a move: this power until the hood moves, which takes up the belt's slack first. */
@@ -69,6 +73,10 @@ public class HoodSubsystem extends SubsystemBase {
   public static double FAST_TAKE_UP_MAX_S = 0.12;
   /** Read-to-drive delay the loop predicts across (see HoodController.Gains.latencyS). */
   public static double FAST_LATENCY_S = 0.005;
+  /** Off: a moving target is followed in steps, as each new target arrives (the 5 Nov behaviour). */
+  public static boolean FAST_TRACK_RATE = true;
+  /** Targets moving slower than this count as still, so pose noise doesn't keep the hood driven. */
+  public static double FAST_TRACK_MIN_RATE_DEG_S = 1.0;
   /** Power the guard counts as "trying to move" for its stall check: above kS plus small corrections. */
   private static final double FAST_GUARD_POWER = 0.25;
   /** The loop's REV reading and the main loop's, at rest, may differ by this much before it is dropped. */
@@ -92,7 +100,7 @@ public class HoodSubsystem extends SubsystemBase {
   /** REV errors smaller than this (ticks) are on target: 45 ticks is 0.2 degrees. */
   public static int DEADBAND_TICKS = 45;
   /** Targets are kept this far inside both stops. */
-  public static double STOP_MARGIN_DEG = 1.0;
+  public static double STOP_MARGIN_DEG = ShootOnTheMoveConstants.HOOD_STOP_MARGIN_DEG;
   /** Motor speeds below this (ticks/s) count as at rest; the hub reports speed in 20 tick/s steps. */
   public static double AT_REST_TICKS_PER_SEC = 30;
   /** Motor error the guard treats as "trying to move" for its stall check. */
@@ -104,7 +112,7 @@ public class HoodSubsystem extends SubsystemBase {
   /** Launch angle at the lower hard stop, where the encoder is zeroed. */
   public static double ZERO_ANGLE_DEG = 99.0;
   /** Launch angle at the top of the hood's travel; sets the upper soft limit. */
-  public static double MIN_ANGLE_DEG = 51.0; // TODO tune on robot
+  public static double MIN_ANGLE_DEG = ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG;
   /** Encoder ticks per degree of launch angle: 8192 ticks/rev through the 10:1. */
   public static double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
 
@@ -176,6 +184,7 @@ public class HoodSubsystem extends SubsystemBase {
   // When on, directTicks overrides the preset (used for continuous aiming).
   private boolean directMode = false;
   private int directTicks = 0;
+  private double targetLiftRateDegPerSec = 0.0;
 
   // What the last loop step saw, kept for logging.
   private int lastPosition;
@@ -219,6 +228,7 @@ public class HoodSubsystem extends SubsystemBase {
     g.takeUpDeg = FAST_TAKE_UP_DEG;
     g.takeUpMaxS = FAST_TAKE_UP_MAX_S;
     g.latencyS = FAST_LATENCY_S;
+    g.trackMinRateDegPerSec = FAST_TRACK_MIN_RATE_DEG_S;
   }
 
   /** Battery voltage, so the fast loop's power means the same on a fresh battery as on a tired one. */
@@ -228,9 +238,12 @@ public class HoodSubsystem extends SubsystemBase {
     }
   }
 
-  /** Returns the fast loop to position control after {@link #setOpenLoopPower(double, double, double)}. */
+  /**
+   * As {@link #setOpenLoopPower(double, double, double)}, cut outside the range targets may take (the stop
+   * margins). NaN returns the fast loop to position control.
+   */
   public void setOpenLoopPower(double power) {
-    setOpenLoopPower(power, 0, 0);
+    setOpenLoopPower(power, minTargetTicks() / TICKS_PER_DEG, maxTargetTicks() / TICKS_PER_DEG);
   }
 
   /**
@@ -369,6 +382,9 @@ public class HoodSubsystem extends SubsystemBase {
     Logger.recordOutput("Hood/MotorTargetTicks", lastMotorTarget);
     Logger.recordOutput("Hood/MotorTicks", lastMotorPosition);
     Logger.recordOutput("Hood/MotorTicksSinceHome", lastMotorPosition + motorZero - homedMotorZero);
+    if (fastLoop != null && zeroed) {
+      fastLoop.setMotorCeiling(motorCeilingTicks());
+    }
     Logger.recordOutput("Hood/MotorCeilingTicks", motorCeilingTicks());
     Logger.recordOutput("Hood/MotorVelocityTicksPerSec", lastMotorVelocity);
     Logger.recordOutput("Hood/OffsetMotorTicks", targeting.offset());
@@ -397,6 +413,8 @@ public class HoodSubsystem extends SubsystemBase {
       Logger.recordOutput("Hood/Fast/Power", fastLoop.power());
       Logger.recordOutput("Hood/Fast/SetpointDeg", fastLoop.setpointDeg());
       Logger.recordOutput("Hood/Fast/SetpointVelDegPerSec", fastLoop.setpointVelDegPerSec());
+      Logger.recordOutput("Hood/Fast/GoalNowDeg", fastLoop.goalNowDeg());
+      Logger.recordOutput("Hood/TargetLiftRateDegPerSec", targetLiftRateDegPerSec);
       Logger.recordOutput("Hood/Fast/Settled", fastLoop.isSettled());
       Logger.recordOutput("Hood/Fast/PeriodMsAvg", fastLoop.periodMsAvg());
       Logger.recordOutput("Hood/Fast/PeriodMsMax", fastLoop.periodMsMax());
@@ -522,7 +540,10 @@ public class HoodSubsystem extends SubsystemBase {
     } else {
       fastMismatchLoops = 0;
     }
-    fastLoop.setGoalDeg(target / TICKS_PER_DEG);
+    // The rate only applies to the aimed target it came with, and not at either end of the range
+    double rate = FAST_TRACK_RATE && directMode && target == directTicks && target != 0 ? targetLiftRateDegPerSec : 0;
+    fastLoop.setGoal(target / TICKS_PER_DEG, rate, minTargetTicks() / TICKS_PER_DEG,
+        maxTargetTicks() / TICKS_PER_DEG);
     fastLoop.setLimits(0.3, maxTargetTicks() / TICKS_PER_DEG + 0.5);
     fastLoop.setSpeedScale(recovery.speed(1.0, RETRY_SPEED_FACTOR, MIN_RETRY_SPEED));
     if (!drivingFast) {
@@ -575,7 +596,16 @@ public class HoodSubsystem extends SubsystemBase {
    * {@link #setPreset(HoodPreset)}. Clamped to the soft limits.
    */
   public void setTargetTicks(int ticks) {
+    setTargetTicks(ticks, 0.0);
+  }
+
+  /**
+   * As {@link #setTargetTicks(int)}, for a target moving at liftRateDegPerSec (lift degrees, positive raising
+   * the hood): the fast loop follows it between calls instead of in steps. 0 once clamped to a limit.
+   */
+  public void setTargetTicks(int ticks, double liftRateDegPerSec) {
     directTicks = clampTarget(ticks);
+    targetLiftRateDegPerSec = directTicks == ticks ? liftRateDegPerSec : 0.0;
     directMode = true;
     enabled = true;
   }
@@ -646,6 +676,11 @@ public class HoodSubsystem extends SubsystemBase {
     setTargetTicks((int) Math.round(liftDegrees * TICKS_PER_DEG));
   }
 
+  /** A lift target moving at liftRateDegPerSec; see {@link #setTargetTicks(int, double)}. */
+  public void setTargetLiftDegrees(double liftDegrees, double liftRateDegPerSec) {
+    setTargetTicks((int) Math.round(liftDegrees * TICKS_PER_DEG), liftRateDegPerSec);
+  }
+
   public boolean hasEncoderFault() {
     return encoderGuard.isTripped() || fastLoop != null && fastLoop.hasRecoverableFailure();
   }
@@ -681,8 +716,16 @@ public class HoodSubsystem extends SubsystemBase {
     return zeroed && !hasEncoderFault() && Math.abs(getTarget() - getPosition()) < DEADBAND_TICKS;
   }
 
-  /** True when the hood is within toleranceTicks of its target. */
+  /**
+   * True when the hood is within toleranceTicks of its target. With the fast loop driving, its reading is
+   * used: the main loop's is a loop old, which on a target moving 20 degrees/s is 2 degrees behind already.
+   */
   public boolean atTarget(int toleranceTicks) {
-    return zeroed && !hasEncoderFault() && Math.abs(getTarget() - getPosition()) <= toleranceTicks;
+    if (!zeroed || hasEncoderFault()) {
+      return false;
+    }
+    double positionTicks = drivingFast && !Double.isNaN(fastLoop.posDeg())
+        ? fastLoop.posDeg() * TICKS_PER_DEG : getPosition();
+    return Math.abs(getTarget() - positionTicks) <= toleranceTicks;
   }
 }

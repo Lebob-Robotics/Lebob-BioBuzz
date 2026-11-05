@@ -15,7 +15,7 @@
   "openingLengthM": 0.357,
   "openingTiltDeg": 59.7,
   "marginM": 0.02,
-  "hoodMinDeg": 51,
+  "hoodMinDeg": 56,
   "hoodMaxDeg": 99,
   "hoodStepDeg": 1,
   "hoodTolDeg": 1,

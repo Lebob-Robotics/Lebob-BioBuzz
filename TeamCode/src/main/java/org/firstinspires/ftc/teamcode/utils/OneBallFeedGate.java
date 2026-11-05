@@ -14,14 +14,29 @@ package org.firstinspires.ftc.teamcode.utils;
 public final class OneBallFeedGate {
   public static double READY_SECONDS = 0.10;
   public static double DIP_RPM = 200;
+  // A ball also counts as gone once the wheels fall this far below their highest reading since the feed began.
+  // Below target alone missed balls fed with the wheels above it: 312 RPM had to go first, the feed ran on
+  // 0.45 s and pushed a second ball out (5 Nov, 085458). The reading steps by about 60 RPM
+  public static double DIP_FROM_PEAK_RPM = 150;
+  // Each pulse after a pause with no ball out runs this much longer, so a ball sitting further back still goes
+  public static double PULSE_GROWTH_S = 0.10;
+  public static double PULSE_LIMIT_S = 1.0;
 
-  private enum State { WAITING, FEEDING, RECOVERING, DONE } // DONE: one-ball mode, until released
+  // PAUSED: the pulse ran out with no dip seen yet; waits for the dip of a ball already on its way
+  private enum State { WAITING, FEEDING, PAUSED, RECOVERING, DONE } // DONE: one-ball mode, until released or it ends
 
   private final double readySeconds;
   private final double stopUnreadyAfterS;
+  private final double pulseS;
+  private final double pauseS;
+  private final double minGapS;
   private State state = State.WAITING;
   private double readySinceS = Double.NaN;
   private double feedingSinceS = Double.NaN;
+  private double pausedSinceS = Double.NaN;
+  private double ballLeftAtS = Double.NEGATIVE_INFINITY;
+  private double peakRpm;
+  private int emptyPulses;
   private boolean ballLeft;
   private boolean feedStarted;
 
@@ -41,8 +56,23 @@ public final class OneBallFeedGate {
    *                          the next ball loaded went straight out whatever the aim (5 Nov, 094738: 11 s)
    */
   public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS) {
+    this(readySeconds, stopUnreadyAfterS, Double.POSITIVE_INFINITY, 0, 0);
+  }
+
+  /**
+   * @param pulseS  the longest a feed runs before a ball is seen leaving; it then stops and waits up to
+   *                {@code pauseS} for the dip of a ball already on its way, and otherwise feeds again once ready.
+   *                The speed reading shows a ball 0.1-0.17 s after it left, by when the feeder had pushed the
+   *                next one into the wheels (5 Nov video: second balls 0.13-0.4 s behind the first)
+   * @param minGapS the shortest time from one ball leaving to the next feed (5 Nov, 084355: refed after 0.08 s)
+   */
+  public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS, double pulseS, double pauseS,
+      double minGapS) {
     this.readySeconds = readySeconds;
     this.stopUnreadyAfterS = stopUnreadyAfterS;
+    this.pulseS = pulseS;
+    this.pauseS = pauseS;
+    this.minGapS = minGapS;
   }
 
   /**
@@ -59,7 +89,8 @@ public final class OneBallFeedGate {
   /**
    * As above.
    *
-   * @param oneBall stop after the first ball until {@code held} is released, so each press shoots one
+   * @param oneBall stop after the first ball until {@code held} is released, so each press shoots one. Once
+   *                this goes false with {@code held} still true (RT pulled while RB is held), feeding resumes
    */
   public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm,
       boolean oneBall) {
@@ -86,23 +117,38 @@ public final class OneBallFeedGate {
 
     if (!held) {
       state = State.WAITING;
+      emptyPulses = 0;
       return false;
+    }
+    if (state == State.DONE && !oneBall) {
+      state = State.WAITING;
     }
     switch (state) {
       case WAITING:
       case RECOVERING:
-        if (steady) {
+        if (steady && nowS - ballLeftAtS >= minGapS) {
           state = State.FEEDING;
           feedStarted = true;
           feedingSinceS = nowS;
+          peakRpm = rpm;
         }
         break;
       case FEEDING:
-        if (rpm < targetRpm - DIP_RPM) {
-          state = oneBall ? State.DONE : State.RECOVERING;
-          ballLeft = true;
-          readySinceS = Double.NaN;
+        peakRpm = Math.max(peakRpm, rpm);
+        if (dipped(rpm, targetRpm)) {
+          leave(nowS, oneBall);
         } else if (shotLost || (!atSpeed && nowS - feedingSinceS >= stopUnreadyAfterS)) {
+          state = State.WAITING;
+        } else if (nowS - feedingSinceS >= Math.min(PULSE_LIMIT_S, pulseS + emptyPulses * PULSE_GROWTH_S)) {
+          state = State.PAUSED;
+          pausedSinceS = nowS;
+        }
+        break;
+      case PAUSED:
+        if (dipped(rpm, targetRpm)) {
+          leave(nowS, oneBall);
+        } else if (nowS - pausedSinceS >= pauseS) {
+          emptyPulses++;
           state = State.WAITING;
         }
         break;
@@ -110,6 +156,23 @@ public final class OneBallFeedGate {
         break;
     }
     return state == State.FEEDING;
+  }
+
+  private boolean dipped(double rpm, double targetRpm) {
+    return rpm < targetRpm - DIP_RPM || rpm < peakRpm - DIP_FROM_PEAK_RPM;
+  }
+
+  private void leave(double nowS, boolean oneBall) {
+    state = oneBall ? State.DONE : State.RECOVERING;
+    ballLeft = true;
+    ballLeftAtS = nowS;
+    readySinceS = Double.NaN;
+    emptyPulses = 0;
+  }
+
+  /** For the log: WAITING, FEEDING, PAUSED, RECOVERING or DONE. */
+  public String stateName() {
+    return state.name();
   }
 
   /** True on the loop a ball was seen leaving (the wheels dipped). */

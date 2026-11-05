@@ -91,10 +91,10 @@ public class MecanumDriveMixTest {
     // 5 Nov (083302): 8.6 degrees off, 0.16 at the wheels, and the robot didn't turn for 4.5 s
     double off = Math.toRadians(8.6);
     double boost = 0;
-    for (int loop = 0; loop < 25; loop++) {
+    for (int loop = 0; loop < 5; loop++) { // 0.1 s, short of the cap
       boost = MecanumDriveSubsystem.stuckBoost(boost, off, 0.0, 0.02);
     }
-    org.junit.Assert.assertEquals(0.5 * MecanumDriveSubsystem.HEADING_KS_BOOST_PER_S, boost, 1e-9);
+    org.junit.Assert.assertEquals(0.1 * MecanumDriveSubsystem.HEADING_KS_BOOST_PER_S, boost, 1e-9);
     double ccw = MecanumDriveSubsystem.headingLockTurn(off, 0.0, 0.0, MecanumDriveSubsystem.HEADING_KS + boost);
     org.junit.Assert.assertTrue(ccw > MecanumDriveSubsystem.HEADING_KS);
     // Capped however long it is stuck
@@ -120,6 +120,21 @@ public class MecanumDriveMixTest {
     double[] out = MecanumDriveSubsystem.shapeTranslation(0.6, 0.8, 0.5); // Full stick, any direction
     org.junit.Assert.assertEquals(0.5, Math.hypot(out[0], out[1]), 1e-9);
     org.junit.Assert.assertEquals(0.6 / 0.8, out[0] / out[1], 1e-9);
+  }
+
+  @Test
+  public void drivingHardTheLockTurnsGentlerAndWithoutTheLeastPush() {
+    // 5 Nov (081829): strafing, the robot turns ~1.7x as far per unit power and the least push made it swing
+    double off = Math.toRadians(4); // Past HEADING_KS_ABOVE_RAD, where standing gets the least push
+    double ks = MecanumDriveSubsystem.HEADING_KS;
+    org.junit.Assert.assertEquals(MecanumDriveSubsystem.headingLockTurn(off, 0.5, 0.5, ks),
+        MecanumDriveSubsystem.headingLockTurnWhileDriving(off, 0.5, 0.5, ks, 0.0), 1e-9);
+    org.junit.Assert.assertEquals(ks, MecanumDriveSubsystem.headingLockTurnWhileDriving(off, 0, 0, ks, 0.0), 1e-9);
+    double plain = MecanumDriveSubsystem.headingLockTurn(off, 0.5, 0.5, 0.0);
+    org.junit.Assert.assertEquals(plain * MecanumDriveSubsystem.HEADING_MOVING_SCALE,
+        MecanumDriveSubsystem.headingLockTurnWhileDriving(off, 0.5, 0.5, ks, 1.0), 1e-9);
+    org.junit.Assert.assertEquals(MecanumDriveSubsystem.HEADING_KP * off * MecanumDriveSubsystem.HEADING_MOVING_SCALE,
+        MecanumDriveSubsystem.headingLockTurnWhileDriving(off, 0, 0, ks, 1.0), 1e-9);
   }
 
   @Test

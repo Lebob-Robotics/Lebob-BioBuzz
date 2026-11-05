@@ -22,8 +22,11 @@ package org.firstinspires.ftc.teamcode.subsystems;
  */
 public class ShooterStallGuard {
   public static final double STALL_CURRENT_AMPS = 4.0;
-  /** Ticks per second, about half the free speed. */
-  public static final double STALL_VELOCITY = 1200;
+  /**
+   * Ticks per second. Above the 480-700 of the burnout; 1200 was within normal running: a far shot holds
+   * the wheels at 3700 RPM, 1180 ticks/s, drawing 4-5 A, and that tripped the guard (5 Nov, 082111).
+   */
+  public static final double STALL_VELOCITY = 750;
   /**
    * Long enough for a normal spin-up from rest to pass {@link #STALL_VELOCITY}.
    * Not yet measured with the belts on: check the Shooter/StallGuard log.

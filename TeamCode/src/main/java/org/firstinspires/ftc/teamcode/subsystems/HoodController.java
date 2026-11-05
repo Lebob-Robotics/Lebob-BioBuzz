@@ -15,6 +15,11 @@ package org.firstinspires.ftc.teamcode.subsystems;
  * moves, then starts from where it is. A hood that friction stops short of the goal starts again the
  * same way: pushing harder until it broke free jumped it past the goal.
  *
+ * <p>A target that moves steadily (driving toward or away from the Cell) is followed with its rate: the profile
+ * is planned relative to the moving target and its speed fed forward, and the hood never settles while the
+ * target moves. Without the rate it settled, waited for the target to get 0.2 degrees away, took up the slack
+ * and jumped: it swung 1-1.5 degrees either side of the target every 0.12 s (5 Nov, 094733).
+ *
  * <p>The hub's own RUN_TO_POSITION could not do this: its speed loop either swung 3-6 degrees around
  * the target or crept and stopped short (Hood Tune sweeps, 5 Nov).
  */
@@ -67,6 +72,8 @@ public final class HoodController {
      * deg/s, 5 ms is a degree, which uncorrected reads as lagging the profile and drives it past.
      */
     public double latencyS;
+    /** A target moving slower than this counts as still: settling and the deadband apply. */
+    public double trackMinRateDegPerSec;
   }
 
   private double setpointDeg;
@@ -100,6 +107,16 @@ public final class HoodController {
    * @return motor power, positive raising the hood, before battery compensation
    */
   public double update(double dtS, double measuredDeg, double velDegPerSec, double goalDeg, Gains g) {
+    return update(dtS, measuredDeg, velDegPerSec, goalDeg, 0.0, g);
+  }
+
+  /**
+   * As above, for a target moving at goalRateDegPerSec.
+   */
+  public double update(double dtS, double measuredDeg, double velDegPerSec, double goalDeg,
+      double goalRateDegPerSec, Gains g) {
+    boolean goalMoving = Math.abs(goalRateDegPerSec) >= g.trackMinRateDegPerSec && goalRateDegPerSec != 0;
+    double rate = goalMoving ? goalRateDegPerSec : 0.0;
     double posDeg = measuredDeg + velDegPerSec * g.latencyS;
     if (!started) {
       started = true;
@@ -108,14 +125,14 @@ public final class HoodController {
       settled = true;
     }
     if (settled) {
-      if (Math.abs(goalDeg - posDeg) <= g.reengageDeg) {
+      if (!goalMoving && Math.abs(goalDeg - posDeg) <= g.reengageDeg) {
         setpointDeg = posDeg;
         setpointVel = 0;
         setpointAccel = 0;
         return 0;
       }
       settled = false;
-      startTakeUp(posDeg, goalDeg);
+      startTakeUp(posDeg, goalDeg, rate, g);
     }
     if (takingUp) {
       takeUpS += dtS;
@@ -132,23 +149,26 @@ public final class HoodController {
       setpointDeg = posDeg;
       setpointVel = velDegPerSec;
     }
-    stepProfile(dtS, goalDeg, g);
+    stepMovingProfile(dtS, goalDeg, rate, g);
 
     double error = setpointDeg - posDeg;
-    boolean profileDone = setpointDeg == goalDeg && setpointVel == 0;
-    if (profileDone && Math.abs(goalDeg - posDeg) <= g.deadbandDeg && Math.abs(velDegPerSec) < g.maxVelDegPerSec * 0.05) {
+    boolean profileDone = setpointDeg == goalDeg && setpointVel == rate;
+    if (!goalMoving && profileDone && Math.abs(goalDeg - posDeg) <= g.deadbandDeg
+        && Math.abs(velDegPerSec) < g.maxVelDegPerSec * 0.05) {
       settled = true;
       return 0;
     }
-    stuckForS = profileDone && Math.abs(velDegPerSec) < STUCK_DEG_PER_SEC ? stuckForS + dtS : 0;
+    // Following a slow target, the hood is slow too: only stuck once it has also fallen behind
+    boolean behind = !goalMoving || Math.abs(goalDeg - posDeg) > g.reengageDeg;
+    stuckForS = profileDone && behind && Math.abs(velDegPerSec) < STUCK_DEG_PER_SEC ? stuckForS + dtS : 0;
     if (stuckForS >= g.stuckS) {
       stuckForS = 0;
       // Breaking free near the top jumped the hood 0.2-0.3 degrees, past a tighter band and back
-      if (Math.abs(goalDeg - posDeg) <= g.reengageDeg) {
+      if (!goalMoving && Math.abs(goalDeg - posDeg) <= g.reengageDeg) {
         settled = true;
         return 0;
       }
-      startTakeUp(posDeg, goalDeg);
+      startTakeUp(posDeg, goalDeg, rate, g);
       takeUpS = dtS;
       return takeUpPower(posDeg, goalDeg, g);
     }
@@ -161,9 +181,12 @@ public final class HoodController {
     return Math.max(-g.maxPower, Math.min(g.maxPower, power));
   }
 
-  private void startTakeUp(double posDeg, double goalDeg) {
+  private void startTakeUp(double posDeg, double goalDeg, double rate, Gains g) {
     takingUp = true;
     takeUpDir = Math.signum(goalDeg - posDeg);
+    if (rate != 0 && Math.abs(goalDeg - posDeg) <= g.deadbandDeg) {
+      takeUpDir = Math.signum(rate); // On a moving target: start the way it goes
+    }
     takeUpStartDeg = posDeg;
     takeUpS = 0;
     stuckForS = 0;
@@ -175,6 +198,19 @@ public final class HoodController {
     setpointAccel = 0;
     double p = g.kS + g.takeUpPerDeg * Math.abs(goalDeg - posDeg) + g.takeUpRampPerSec * takeUpS;
     return takeUpDir * Math.min(g.takeUpPower, p);
+  }
+
+  /**
+   * {@link #stepProfile} relative to a goal moving at rate: the setpoint arrives on the goal moving with
+   * it. Rate 0 is the plain profile.
+   */
+  private void stepMovingProfile(double dtS, double goalDeg, double rate, Gains g) {
+    double goalBeforeDeg = goalDeg - rate * dtS;
+    setpointDeg -= goalBeforeDeg;
+    setpointVel -= rate;
+    stepProfile(dtS, 0.0, g);
+    setpointDeg += goalDeg;
+    setpointVel += rate;
   }
 
   /**

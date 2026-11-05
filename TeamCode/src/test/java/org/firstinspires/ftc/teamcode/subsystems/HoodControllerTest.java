@@ -178,4 +178,59 @@ public class HoodControllerTest {
     }
     assertEquals(40, c.setpointDeg(), 1e-9);
   }
+
+  /**
+   * Follows a target ramping at rateDegPerSec from 15 degrees, set every 80 ms (TeleOp's loop) and carried
+   * forward between as HoodLoop does. Returns {max error, RMS error, power reversals}, all after the first 0.3 s.
+   */
+  private static double[] track(double rateDegPerSec, boolean withRate) {
+    Plant p = new Plant(15);
+    HoodController c = new HoodController();
+    HoodController.Gains g = gains();
+    g.trackMinRateDegPerSec = 1.0;
+    double setDeg = 15;
+    double setS = 0;
+    double maxErr = 0;
+    double sumSq = 0;
+    int n = 0;
+    int reversals = 0;
+    double lastSign = 0;
+    for (int i = 0; i * DT < 2.0; i++) {
+      double t = i * DT;
+      if (i % 16 == 0) {
+        setDeg = 15 + rateDegPerSec * t;
+        setS = t;
+      }
+      double rate = withRate ? rateDegPerSec : 0;
+      double goal = setDeg + rate * Math.min(0.15, t - setS);
+      double power = c.update(DT, p.readPos, p.readVel, goal, rate, g);
+      p.step(power);
+      if (power != 0) {
+        if (t >= 0.3 && lastSign != 0 && Math.signum(power) != lastSign) {
+          reversals++;
+        }
+        lastSign = Math.signum(power);
+      }
+      if (t >= 0.3) {
+        double err = Math.abs(p.pos - (15 + rateDegPerSec * t));
+        maxErr = Math.max(maxErr, err);
+        sumSq += err * err;
+        n++;
+      }
+    }
+    return new double[] {maxErr, Math.sqrt(sumSq / n), reversals};
+  }
+
+  @Test public void followsAMovingTargetWithItsRate() {
+    for (double rate : new double[] {4, 10, -10, 20}) {
+      double[] r = track(rate, true);
+      double[] steps = track(rate, false);
+      String msg = String.format("rate %.0f: with rate max %.2f rms %.2f reversals %.0f; steps max %.2f rms %.2f reversals %.0f",
+          rate, r[0], r[1], r[2], steps[0], steps[1], steps[2]);
+      System.out.println(msg);
+      assertTrue(msg, r[0] < 0.5);
+      assertTrue(msg, r[1] < steps[1]);
+      assertEquals(msg, 0, r[2], 0); // Driven one way all along: no hunting
+    }
+  }
 }
