@@ -135,6 +135,25 @@ public class VisionCorrectorTest {
 
   // ---- Field and camera maths ---------------------------------------------
 
+  @Test public void upCellAimPointIsOutsideTheTagLineCentre() {
+    double outM = ShootOnTheMoveConstants.CLUSTER_UP_X_M + ShootOnTheMoveConstants.CELL_REF_UP_TOWARD_IN * 0.0254;
+    double[] redScoring = VisionCorrector.upCellAimPoint(Alliance.RED, Cell.SCORING);
+    assertEquals(-outM, redScoring[0], TOLERANCE);
+    assertEquals(-12.75 * 0.0254, redScoring[1], TOLERANCE);
+    double[] blueAudience = VisionCorrector.upCellAimPoint(Alliance.BLUE, Cell.AUDIENCE);
+    assertEquals(outM, blueAudience[0], TOLERANCE);
+    assertEquals(12.75 * 0.0254, blueAudience[1], TOLERANCE);
+    // Where the sightings put RED SCORING up on 5 Nov (081558): about (-0.46, -0.29)
+    assertEquals(-0.46, redScoring[0], 0.03);
+    assertEquals(-0.29, redScoring[1], 0.04);
+  }
+
+  @Test public void upCellIsNotConfirmedBeforeAnyTags() {
+    VisionCorrector corrector = new VisionCorrector();
+    assertFalse(corrector.upCellConfirmed(Alliance.RED));
+    assertFalse(corrector.upCellConfirmed(Alliance.BLUE));
+  }
+
   @Test
   public void tagFieldPositionsFollowTheTipState() {
     double[] downCluster = VisionCorrector.tagFieldPosition(30, Cell.AUDIENCE); // RED SCORING, AUDIENCE up
@@ -225,13 +244,23 @@ public class VisionCorrectorTest {
       if (frame < 3) {
         assertEquals(Cell.AUDIENCE, corrector.upCell(Alliance.RED));
         assertFalse(result.redFlipped);
+        assertFalse(corrector.upCellConfirmed(Alliance.RED)); // Still the starting guess
       } else {
         assertEquals(Cell.SCORING, corrector.upCell(Alliance.RED));
         assertTrue(result.redFlipped);
+        assertTrue(corrector.upCellConfirmed(Alliance.RED));
         assertFalse(result.blueFlipped);
       }
     }
     assertEquals(Cell.SCORING, corrector.upCell(Alliance.BLUE)); // Untouched
+  }
+
+  @Test
+  public void tagsAgreeingWithTheStartingGuessConfirmItAtOnce() {
+    run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), TRUE_POSE, true);
+    assertEquals(Cell.AUDIENCE, corrector.upCell(Alliance.RED));
+    assertTrue(corrector.upCellConfirmed(Alliance.RED));
+    assertFalse(corrector.upCellConfirmed(Alliance.BLUE));
   }
 
   @Test
@@ -450,7 +479,8 @@ public class VisionCorrectorTest {
   @Test
   public void theFirstFixAcceptsALargeJumpInFull() {
     Pose odometry = offsetBy(TRUE_POSE, 0.9, 0.7); // Far beyond MAX_JUMP_M
-    VisionResult result = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false);
+    VisionResult result = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
+        odometry, 0, 0, 0, false, true, T0 + 100 * MS); // Heading set by the driver (A)
     assertTrue(result.accepted);
     assertEquals(1.0, result.gain, TOLERANCE);
     assertEquals(-0.9, result.dxM, MM_TOLERANCE);
@@ -467,6 +497,44 @@ public class VisionCorrectorTest {
         observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.5, 0.0))), TRUE_POSE, false);
     assertEquals(Reason.SPREAD, result.reason);
     assertFalse(result.accepted);
+  }
+
+  @Test
+  public void oneTagCannotPlaceTheRobotBeforeTheHeadingIsKnown() {
+    // Logged 5 Nov (082826): start heading 154 degrees out, and tag 45 alone put the robot 2 m from the truth
+    Pose odometry = new Pose(0, 0, TRUE_POSE.headingRad + Math.toRadians(154));
+    VisionResult one = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
+        odometry, 0, 0, 0, false, false, T0 + 100 * MS);
+    assertEquals(Reason.NO_HEADING, one.reason);
+    assertFalse(one.accepted);
+    // Two tags far enough apart fix the heading first, and then the position is right
+    VisionResult pair = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0, 0, 0,
+        false, false, T0 + 100 * MS);
+    assertTrue(pair.accepted);
+    assertEquals(TRUE_POSE.xM, pair.newPose.xM, MM_TOLERANCE);
+    assertEquals(TRUE_POSE.yM, pair.newPose.yM, MM_TOLERANCE);
+  }
+
+  @Test
+  public void aBigJumpThatKeepsRepeatingReplacesATrustedPosition() {
+    Pose odometry = offsetBy(TRUE_POSE, 1.8, 0.8);
+    for (int frame = 1; frame < ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {
+      assertEquals(Reason.JUMP, run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true).reason);
+    }
+    VisionResult result = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true);
+    assertEquals(Reason.RELOCATED, result.reason);
+    assertTrue(result.accepted);
+    assertEquals(1.0, result.gain, TOLERANCE);
+    assertEquals(TRUE_POSE.xM, result.newPose.xM, MM_TOLERANCE);
+    assertEquals(TRUE_POSE.yM, result.newPose.yM, MM_TOLERANCE);
+  }
+
+  @Test
+  public void bigJumpsThatDisagreeNeverReplaceATrustedPosition() {
+    for (int frame = 0; frame < 3 * ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {
+      Pose odometry = offsetBy(TRUE_POSE, frame % 2 == 0 ? 0.8 : -0.8, 0);
+      assertEquals(Reason.JUMP, run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true).reason);
+    }
   }
 
   @Test

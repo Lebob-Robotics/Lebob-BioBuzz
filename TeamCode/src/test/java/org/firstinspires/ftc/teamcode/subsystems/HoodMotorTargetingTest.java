@@ -65,6 +65,20 @@ public class HoodMotorTargetingTest {
     assertEquals(0, t.offsetUp());
   }
 
+  @Test public void overshootWhileStillMovingKeepsTheDirection() {
+    HoodMotorTargeting t = new HoodMotorTargeting();
+    t.motorTargetFor(TWENTY_DEG, 0, DEADBAND);
+    t.observe(TWENTY_DEG - 400, 214 - 19 + 18, true, TWENTY_DEG, DEADBAND); // Up offset 18
+    t.motorTargetFor(TEN_DEG, TWENTY_DEG, DEADBAND);
+    t.observe(TEN_DEG + 341, 107, true, TEN_DEG, DEADBAND); // Down offset -16
+    // Up to 20 again from rest, then the hood swings past it while the motor still moves: no switch to the down offset
+    assertEquals(214 + 18, t.motorTargetFor(TWENTY_DEG, TEN_DEG, DEADBAND, false));
+    assertEquals(214 + 18, t.motorTargetFor(TWENTY_DEG, TWENTY_DEG - 1000, DEADBAND, true));
+    assertEquals(214 + 18, t.motorTargetFor(TWENTY_DEG, TWENTY_DEG + 300, DEADBAND, true));
+    // Once it stops past the target, the correction back down uses the down offset
+    assertEquals(214 - 16, t.motorTargetFor(TWENTY_DEG, TWENTY_DEG + 300, DEADBAND, false));
+  }
+
   @Test public void insideDeadbandKeepsTheLastDirection() {
     HoodMotorTargeting t = new HoodMotorTargeting();
     t.motorTargetFor(TEN_DEG, 0, DEADBAND);

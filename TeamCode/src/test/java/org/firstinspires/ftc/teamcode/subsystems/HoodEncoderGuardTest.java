@@ -42,9 +42,9 @@ public class HoodEncoderGuardTest {
   @Test public void beltSlipIsRezeroedNotTripped() {
     // Logged 4 Nov: the motor reached full lift (~490 ticks) but the REV stopped 2100 ticks short
     HoodEncoderGuard guard = new HoodEncoderGuard();
-    // Encoders agree until the belt skips 2100 REV ticks at 0.2 s, then move together again
+    // The belt skips teeth over the second half of the move: the REV still moves, 2100 ticks short
     double tripped = run(guard, 2.0,
-        t -> Math.min(t, 0.4) / 0.4 * 10400 - (t >= 0.2 ? 2100 : 0),
+        t -> Math.min(t, 0.4) / 0.4 * 10400 - Math.max(0, Math.min(t, 0.4) - 0.2) / 0.2 * 2100,
         t -> Math.min(t, 0.4) / 0.4 * 10400 / 8192.0 * 384.5, t -> t < 0.4, true);
     assertTrue(Double.isNaN(tripped));
     assertEquals(1, guard.getSlipCount());
@@ -99,11 +99,29 @@ public class HoodEncoderGuardTest {
     assertFalse(guard.takeRebase());
   }
 
-  @Test public void grossDisagreementIsCaughtEvenMidMove() {
+  @Test public void revThatDoesNotFollowTripsWithoutRebase() {
     HoodEncoderGuard guard = new HoodEncoderGuard();
     assertFalse(guard.update(0, 0, 0, true, false));
-    assertFalse(guard.update(0.08, 0, 70, true, false)); // REV unplugged while the motor runs
-    assertFalse(guard.update(0.19, 0, 107, true, false));
-    assertTrue(guard.takeRebase()); // Caught mid-move; keeps coming back, so run() trips it
+    assertTrue(guard.update(0.08, 0, 70, true, false)); // REV unplugged while the motor runs
+    assertTrue(guard.isRevNotFollowing());
+    assertFalse(guard.takeRebase()); // Rebasing to it would drive the hood up again from the bottom
+    guard.reset();
+    assertFalse(guard.isRevNotFollowing());
+  }
+
+  @Test public void deadRevAtStartIsCaughtBeforeTheHoodNearsTheTop() {
+    // 085313: the REV read 0 to 3 throughout; the main loop saw the motor at 14, 75, then 303 ticks
+    HoodEncoderGuard guard = new HoodEncoderGuard();
+    assertFalse(guard.update(0, 3, 14, true, false));
+    assertTrue(guard.update(0.07, 3, 75, true, false));
+    assertTrue(guard.isRevNotFollowing());
+    assertFalse(guard.takeRebase());
+  }
+
+  @Test public void revMovingAgainstTheMotorIsNotFollowing() {
+    HoodEncoderGuard guard = new HoodEncoderGuard();
+    assertFalse(guard.update(0, 0, 0, true, false));
+    assertTrue(guard.update(0.1, -900, 60, true, false));
+    assertTrue(guard.isRevNotFollowing());
   }
 }

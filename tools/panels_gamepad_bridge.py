@@ -89,14 +89,25 @@ async def read_controller(device, pad):
         os.close(fd)
 
 
+async def drain(ws):
+    # Panels sends field and telemetry updates to every client from the robot's OpMode thread. A client
+    # that stops reading (websockets pauses the socket once 16 messages sit unread) blocks that thread:
+    # the robot stops responding and the app restarts from "stuck in stop()".
+    async for _ in ws:
+        pass
+
+
 async def send(robot, pad):
     url = f"ws://{robot}:8002"
     while True:
         try:
             async with websockets.connect(url, max_size=None, open_timeout=3, ping_interval=None) as ws:  # Panels never answers pings
                 print(f"Connected to {url}. Driving.")
+                reader = asyncio.create_task(drain(ws))
                 last_print = 0.0
                 while True:
+                    if reader.done():
+                        reader.result()  # Raises the reason the connection ended; reconnect below
                     await ws.send(pad.message())
                     now = time.monotonic()
                     if now - last_print > 1.0:

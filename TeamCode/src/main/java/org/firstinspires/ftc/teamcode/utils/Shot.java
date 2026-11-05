@@ -36,7 +36,13 @@ public final class Shot {
   }
 
   static Shot impossible(Reason reason, double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
-    return new Shot(reason, Double.NaN, Double.NaN, Double.NaN, 0.0,
+    return impossible(reason, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps, 0.0);
+  }
+
+  /** @param turningRad the nearest shot's turn, so the robot keeps lining up while there is no shot */
+  static Shot impossible(Reason reason, double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps,
+      double turningRad) {
+    return new Shot(reason, Double.NaN, Double.NaN, Double.NaN, turningRad,
         distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
   }
 }

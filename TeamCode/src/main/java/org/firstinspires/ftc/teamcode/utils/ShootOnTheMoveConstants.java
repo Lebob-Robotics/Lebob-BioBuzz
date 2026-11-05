@@ -18,7 +18,10 @@ import com.bylazar.configurables.annotations.Configurable;
 public final class ShootOnTheMoveConstants {
   private ShootOnTheMoveConstants() {}
 
-  public static double FEED_DELAY_S = 0.10; // Fire command to ball leaving the shooter. Sean's estimate
+  // Fire command to ball leaving the shooter. The flywheels' RPM dips 0.12-0.30 s after the command, mostly
+  // about 0.2 s (nine feeds, 4-5 Nov logs)
+  public static double FEED_DELAY_S = 0.20;
+  public static double FEED_DELAY_MAX_S = 0.30; // Latest a ball leaves: the heading must still be on target then
 
   // ---- Shooter on the robot (CAD) --------------------------------------
   public static double SHOOTER_DIRECTION_RAD = Math.PI; // Relative to robot forward. PI fires out of the back
@@ -37,6 +40,9 @@ public final class ShootOnTheMoveConstants {
   // turns the cameras away from it, so it is kept well past one turn-around.
   public static double CELL_EXPIRY_S = 150.0; // Forget the Cell this long after the last sighting. A whole match: odometry carries it
   public static double CELL_SWITCH_AFTER_S = 1.0; // Switch to another of our Cells once the held one is unseen this long
+  // Aim at the up Cell's field position once the tags have placed the robot; the tracker's Cell before that
+  public static boolean AIM_AT_FIELD_CELL = true;
+  public static double AIM_DRIVE_MAX_POWER = 0.5; // Drive power at full stick while RT or RB is held; 1 normally
   public static double CELL_SWITCH_MARGIN_M = 0.3; // ...or sooner if the other is at least this much nearer
   public static double CELL_SMOOTHING = 0.3; // Share of the way the stored Cell moves toward each sighting. 1 is no smoothing
   public static final int POSE_HISTORY_SIZE = 100; // About two seconds of loops
@@ -92,6 +98,10 @@ public final class ShootOnTheMoveConstants {
   public static double FIELD_HALF_SIZE_M = 1.83;
   public static double ROBOT_HALF_SIZE_M = 0.15;
   public static double CORRECTION_GAIN = 0.5; // Share of each correction applied. The first fix applies all of it
+  // A jump bigger than MAX_JUMP_M that this many frames agree on (within POSE_OVERRIDE_AGREE_M) means odometry
+  // lost the position, so it is replaced in full. 22 rejected fixes agreed within 5 cm on a 2 m error (5 Nov, 082826)
+  public static int POSE_OVERRIDE_FRAMES = 5;
+  public static double POSE_OVERRIDE_AGREE_M = 0.15;
   // Heading from the tags: two tags seen at once give the robot's heading from the line between them.
   public static boolean VISION_HEADING = true;
   public static double MIN_HEADING_BASELINE_M = 0.2; // Tags closer together than this give too noisy a heading
@@ -114,9 +124,32 @@ public final class ShootOnTheMoveConstants {
   // Per flywheel. The hub's speed reading steps by about 61 RPM, and the wheels settle a step or so above
   // target (3605 read as 3628-3689, 4 Nov), so 75 held the shot back about 3 s. Two steps
   public static double RPM_TOLERANCE = 125;
+  // The two wheels' mean, which the aimed shot also needs. The shot table allows 50 RPM, and 50 RPM is about
+  // 0.1 m of range. Both misses of 5 Nov (080106) left 56 and 80-98 RPM fast, one long; balls 63 RPM slow went in,
+  // and the wheels lag a target that moves with the robot's speed, so slow gets more room
+  public static double RPM_MEAN_ABOVE_TARGET = 50;
+  public static double RPM_MEAN_BELOW_TARGET = 100;
+  // The speed this far ahead, from its trend, must not be more than this over: wheels climbing back after a ball
+  // were fed at +17 and the ball left at +130, long (5 Nov, 080706). Fast side only, and looser than the speed
+  // now: balls predicted +61 and +85 went in, and wheels slowing toward the target settle rather than undershoot.
+  // The mean steps 30 RPM, so the slope needs 0.2 s
+  public static double RPM_PREDICTED_ABOVE_TARGET = 100;
+  public static double RPM_LOOKAHEAD_S = 0.08;
+  public static double RPM_TREND_WINDOW_S = 0.2;
   public static boolean PRESPIN_ON = true; // Flywheels track the aimed RPM whenever the Cell is known
   public static double HOOD_TOLERANCE_DEG = 1.0;
-  public static double MAX_HEADING_TOLERANCE_DEG = 5; // Otherwise it grows large at short range
+  // Otherwise it grows large at short range. 5 held shots back: 5-9 degrees off is still well inside the
+  // opening at 0.8 m, where the clearance allows 14 (5 Nov, 084358)
+  public static double MAX_HEADING_TOLERANCE_DEG = 8;
+  // How long an aimed shot must stay ready before the feed starts. Every check above already has to pass,
+  // and waiting two or three loops for it to repeat cost more shots than it saved while moving (5 Nov, 084358)
+  public static double AIMED_READY_S = 0.0;
+  // A feed with no ball out after this long stops once the shot is no longer ready. Past FEED_DELAY_MAX_S, so a
+  // ball already on its way isn't cut off
+  public static double AIMED_FEED_STOP_UNREADY_S = 0.4;
+  // A feed under way also stops at once, ball out or not, if the hood falls this far off its target (twice the
+  // fire check's): the target moves when the robot sets off, and the ball then leaves at the old angle
+  public static double FEED_STOP_HOOD_DEG = 2.0;
 
   // ---- Backward shot (tools/shots/backwards-calibration.json) ---------
   // Out of the robot's front, the other way to the cameras: hood on its lower stop, so the ball leaves
@@ -127,7 +160,13 @@ public final class ShootOnTheMoveConstants {
   public static double BACKWARD_LAUNCH_DEG = 99; // Hood on its lower stop (HoodSubsystem.ZERO_ANGLE_DEG)
   public static final double[] BACKWARD_DIST_M = {0.95, 1.3, 1.8, 2.3};
   public static final double[] BACKWARD_RPM = {3400, 3500, 3700, 4200};
+  // Closer than the table's first point, the first point's RPM is used. Untested below 0.95 m: without it,
+  // a driver at 0.6-0.8 m facing the Cell was turned 180 degrees to the hooded shot (5 Nov)
+  public static double BACKWARD_MIN_DIST_M = 0.65;
   public static double BACKWARD_MAX_SPEED_MPS = 0.3; // Toward or sideways
+  // A backward shot that stays blocked this long, by speed or by being too close, gives way to the hooded shot
+  // if that has one. Driving around the Cell at full stick held a backward pick for 30 s with no shot (5 Nov, 094211)
+  public static double BACKWARD_GIVE_UP_S = 1.0;
 
   // ---- Driver ----------------------------------------------------------
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming

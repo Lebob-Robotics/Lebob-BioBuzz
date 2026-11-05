@@ -27,12 +27,39 @@ public final class VisionCorrector {
   private Cell upCellRed = Cell.AUDIENCE; // Starts red AUDIENCE, blue SCORING. Vision flips them
   private Cell upCellBlue = Cell.SCORING;
   private final int[] flipVotes = new int[2]; // Frames in a row voting against the current up Cell: red, blue
+  private final boolean[] upCellConfirmed = new boolean[2]; // Tags have shown which Cell is up: red, blue
   private int headingDisagreeFrames = 0; // Frames in a row whose heading fix was too big to trust, and agreed
   private double lastDisagreeRad = 0;
+  private int jumpAgreeFrames = 0; // Frames whose position fix was too big to trust, each agreeing with the last
+  private double lastJumpDxM = 0;
+  private double lastJumpDyM = 0;
 
   /** The up Cell of an alliance's Hive. */
   public Cell upCell(Alliance alliance) {
     return alliance == Alliance.RED ? upCellRed : upCellBlue;
+  }
+
+  /** False until the tags' heights have shown which Cell of the Hive is up, not just the starting guess. */
+  public boolean upCellConfirmed(Alliance alliance) {
+    return upCellConfirmed[alliance == Alliance.RED ? 0 : 1];
+  }
+
+  /**
+   * Where a Cell sighting puts a Hive's up Cell on the field, {x, y} in metres: the centre of its line of tags,
+   * moved out from the Hive by the offset the sightings use (CELL_REF_UP_TOWARD_IN). Cell sightings agreed with
+   * it within 4 cm (5 Nov, 081558).
+   */
+  public static double[] upCellAimPoint(Alliance alliance, Cell cell) {
+    double ySumIn = 0;
+    int tags = 0;
+    for (int id = 30; id <= 45; id++) {
+      if (tagAlliance(id) == alliance && tagCell(id) == cell) {
+        ySumIn += TAG_Y_IN[id - 30];
+        tags++;
+      }
+    }
+    double outM = CLUSTER_UP_X_M + CELL_REF_UP_TOWARD_IN * IN_TO_M;
+    return new double[] {cell == Cell.AUDIENCE ? outM : -outM, ySumIn / tags * IN_TO_M};
   }
 
   /** Clears partial tip votes. */
@@ -268,8 +295,26 @@ public final class VisionCorrector {
       reason = Reason.SPREAD;
     } else if (Math.abs(now.xM + medianDx) > limitM || Math.abs(now.yM + medianDy) > limitM) {
       reason = Reason.OUT_OF_FIELD;
+    } else if (!poseValid && !headingValid && headingGain == 0) {
+      // Offsets turned by an untrusted heading put the robot anywhere. Once accepted, the pose is trusted and
+      // the true fix is refused as a jump: one tag with the start heading 154 degrees out put the robot 2 m
+      // away, on the far side of the Cell, for the whole run (5 Nov, 082826)
+      reason = Reason.NO_HEADING;
     } else if (poseValid && Math.hypot(medianDx, medianDy) > MAX_JUMP_M) {
       reason = Reason.JUMP;
+    }
+    if (reason == Reason.JUMP) {
+      boolean agrees = jumpAgreeFrames > 0
+          && Math.hypot(medianDx - lastJumpDxM, medianDy - lastJumpDyM) <= POSE_OVERRIDE_AGREE_M;
+      jumpAgreeFrames = agrees ? jumpAgreeFrames + 1 : 1;
+      lastJumpDxM = medianDx;
+      lastJumpDyM = medianDy;
+      if (jumpAgreeFrames >= POSE_OVERRIDE_FRAMES) {
+        reason = Reason.RELOCATED;
+        jumpAgreeFrames = 0;
+      }
+    } else if (reason == Reason.ACCEPTED) {
+      jumpAgreeFrames = 0;
     }
     boolean headingStillGood = reason == Reason.OUT_OF_FIELD || reason == Reason.JUMP; // Not about the heading
     if (reason != Reason.ACCEPTED && headingStillGood && headingGain > 0) {
@@ -282,7 +327,7 @@ public final class VisionCorrector {
       headingOnly.headingPairs = headingFixes.size();
       return headingOnly;
     }
-    if (reason != Reason.ACCEPTED) {
+    if (reason != Reason.ACCEPTED && reason != Reason.RELOCATED) {
       VisionResult rejectedResult = new VisionResult(reason, firstReject, 0, 0, 0, null, used, rejected,
           spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
       rejectedResult.dHeadingRad = dHeading;
@@ -290,7 +335,7 @@ public final class VisionCorrector {
       return rejectedResult;
     }
 
-    double gain = poseValid ? CORRECTION_GAIN : 1.0;
+    double gain = poseValid && reason != Reason.RELOCATED ? CORRECTION_GAIN : 1.0;
     Pose newPose = new Pose(now.xM + gain * medianDx, now.yM + gain * medianDy,
         ShootOnTheMove.normalizeAngle(now.headingRad + headingGain * dHeading));
     VisionResult result = new VisionResult(reason, firstReject, medianDx, medianDy, gain, newPose, used,
@@ -320,12 +365,14 @@ public final class VisionCorrector {
     Cell winner = audience > scoring ? Cell.AUDIENCE : Cell.SCORING;
     if (winner == upCell(alliance)) {
       flipVotes[hive] = 0;
+      upCellConfirmed[hive] = true;
       return false;
     }
     if (++flipVotes[hive] < Math.max(1, TIP_CONFIRM_FRAMES)) {
       return false;
     }
     flipVotes[hive] = 0;
+    upCellConfirmed[hive] = true;
     if (alliance == Alliance.RED) {
       upCellRed = winner;
     } else {

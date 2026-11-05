@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.FtcLogTuning;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
+import org.psilynx.psikit.ftc.wrappers.MotorWrapper;
 
 @TeleOp(name = "Lebot Teleop", group = "Robot")
 public class Main extends PsiKitIterativeOpMode {
@@ -35,7 +36,13 @@ public class Main extends PsiKitIterativeOpMode {
    * loop made the motor logging 62 ms of a 138 ms loop (4 Nov). Our code doesn't read them back, so they
    * are only for the log.
    */
-  public static final double NON_BULK_READ_PERIOD_S = 0.5;
+  public static final double NON_BULK_READ_PERIOD_S = 2.0;
+
+  /**
+   * How often PsiKit re-reads each motor's settings (direction, mode, zero power behaviour), each its own
+   * hub call. Its default of 0.25 s gave 20 ms spikes in the motor logging. Our code sets them once.
+   */
+  public static final double MOTOR_CONFIG_READ_PERIOD_S = 5.0;
 
   /**
    * Allows Panels (live tuning web server). MUST be false at events: R704 D
@@ -69,6 +76,11 @@ public class Main extends PsiKitIterativeOpMode {
     FtcLogTuning.bulkOnlyLogging = false;
     FtcLogTuning.logMotorCurrent = LOG_MOTOR_CURRENT;
     FtcLogTuning.nonBulkReadPeriodSec = NON_BULK_READ_PERIOD_S;
+    MotorWrapper.Companion.setConfigRefreshPeriodSec(MOTOR_CONFIG_READ_PERIOD_S);
+    MotorWrapper.Companion.setMetadataRefreshPeriodSec(10.0);
+    // Our code doesn't use them, and the hood and shooter log their own state
+    MotorWrapper.Companion.setLogOverCurrent(false);
+    MotorWrapper.Companion.setLogBusy(false);
     // PsiKit does the one Pinpoint update per loop, before user code. Our code
     // must not call update() itself (see OdometrySubsystem).
     FtcLogTuning.pinpointLoggerCallsUpdate = true;

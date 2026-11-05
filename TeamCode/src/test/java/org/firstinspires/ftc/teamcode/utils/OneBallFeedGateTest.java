@@ -15,6 +15,13 @@ public class OneBallFeedGateTest {
     assertTrue(gate.feedStarted());
   }
 
+  @Test public void aimedGateWithNoWaitFeedsOnTheFirstReadyLoop() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0);
+    assertFalse(gate.update(0.00, true, false, 3300, TARGET));
+    assertTrue(gate.update(0.08, true, true, 3505, TARGET));
+    assertTrue(gate.feedStarted());
+  }
+
   @Test public void keepsFeedingThroughSpeedReadingSteps() {
     OneBallFeedGate gate = new OneBallFeedGate();
     gate.update(0.00, true, true, 3505, TARGET);
@@ -48,6 +55,26 @@ public class OneBallFeedGateTest {
     assertFalse(gate.update(1.05, false, true, 3505, TARGET, true)); // Released
     gate.update(1.10, true, true, 3505, TARGET, true);
     assertTrue(gate.update(1.20, true, true, 3505, TARGET, true)); // Pressed again: the next ball
+  }
+
+  @Test public void aFeedWithNoBallStopsOnceNoLongerReady() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, 0.4);
+    assertTrue(gate.update(0.00, true, true, 3505, TARGET));
+    assertTrue(gate.update(0.20, true, false, 3443, TARGET)); // Too soon: a ball may be on its way
+    assertTrue(gate.update(0.45, true, true, 3505, TARGET)); // Still ready: keeps feeding
+    assertFalse(gate.update(0.50, true, false, 3505, TARGET)); // No ball, aim gone: stop
+    assertFalse(gate.ballLeft());
+    assertTrue(gate.update(0.60, true, true, 3505, TARGET)); // Ready again
+    assertTrue(gate.feedStarted());
+  }
+
+  @Test public void aFeedStopsAtOnceWhenTheShotIsLost() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, 0.4);
+    assertTrue(gate.update(0.00, true, true, 3505, TARGET, false, false));
+    assertTrue(gate.update(0.05, true, false, 3443, TARGET, false, false)); // Speed step alone: keeps going
+    assertFalse(gate.update(0.10, true, false, 3505, TARGET, false, true)); // Hood or aim gone: stop
+    assertFalse(gate.ballLeft());
+    assertTrue(gate.update(0.20, true, true, 3505, TARGET, false, false));
   }
 
   @Test public void releasingStopsAtOnce() {

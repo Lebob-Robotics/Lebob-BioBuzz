@@ -121,5 +121,8 @@ public class IntakeSubsystem extends SubsystemBase {
     Logger.recordOutput("Intake/Full", full);
     Logger.recordOutput("Intake/Velocity", intakeMotor.getVelocity());
     Logger.recordOutput("Intake/CommandedPower", intakeMotor.getCommandedPower());
+    // PsiKit's logged IntakeMotor power is not read back from the hub, so the current is the only record
+    // that the motor runs, and how hard a ball loads it. Each read is its own hub call, so only while running.
+    Logger.recordOutput("Intake/Amps", intakeState == IntakeState.STOP ? 0.0 : intakeMotor.getCurrentAmps());
   }
 }

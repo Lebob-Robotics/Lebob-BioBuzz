@@ -36,13 +36,15 @@ public final class ShootOnTheMove {
       outsideTable = Shot.Reason.BACKING_TOO_FAST;
     }
     if (outsideTable != null) {
-      return Shot.impossible(outsideTable, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
+      return Shot.impossible(outsideTable, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps,
+          approximateTurningRad(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps));
     }
 
     TableLookup lookup = new TableLookup(distanceToLipM, speedTowardCellMps);
     double hoodDifferenceDeg = lookup.spread(ShotTable.HOOD_DEG);
     if (Double.isNaN(hoodDifferenceDeg)) { // A neighbouring cell has no shot, so we're at the edge of what scores
-      return Shot.impossible(Shot.Reason.NO_SAFE_SHOT, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
+      return Shot.impossible(Shot.Reason.NO_SAFE_SHOT, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps,
+          approximateTurningRad(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps));
     }
     boolean blend = hoodDifferenceDeg <= MAX_HOOD_DIFFERENCE_TO_BLEND_DEG;
     double hoodDeg = blend ? lookup.blended(ShotTable.HOOD_DEG) : lookup.nearest(ShotTable.HOOD_DEG);
@@ -52,10 +54,37 @@ public final class ShootOnTheMove {
     double ballHorizontalSpeedMps = targetRpm * ShotTable.EXIT_SPEED_PER_RPM * Math.cos(Math.toRadians(hoodDeg));
     double sinTurning = -sidewaysSpeedMps / ballHorizontalSpeedMps; // The ball's sideways speed cancels the robot's
     if (!(Math.abs(sinTurning) <= Math.sin(Math.toRadians(MAX_TURNING_DEG)))) { // Also catches NaN
-      return Shot.impossible(Shot.Reason.SIDEWAYS_TOO_FAST, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
+      return Shot.impossible(Shot.Reason.SIDEWAYS_TOO_FAST, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps,
+          clampedTurningRad(sinTurning));
     }
     return new Shot(Shot.Reason.OK, targetRpm, hoodDeg, timeOfFlightS, Math.asin(sinTurning),
         distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
+  }
+
+  /**
+   * The turn for a shot the table can't make, from its nearest shot, so the robot keeps lining up through a
+   * moment without one. Turning 0 then jumped the aim heading 25 degrees and back while strafing (5 Nov, 094211).
+   */
+  static double approximateTurningRad(double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
+    double[] distances = ShotTable.DIST_M;
+    double[] speeds = ShotTable.VEL_MPS;
+    double dist = Math.max(distances[0], Math.min(distances[distances.length - 1], distanceToLipM));
+    double speed = Math.max(speeds[0], Math.min(speeds[speeds.length - 1], speedTowardCellMps));
+    double[] rpmAndHood = new TableLookup(dist, speed).nearestShot();
+    double ballHorizontalSpeedMps = rpmAndHood[0] * ShotTable.EXIT_SPEED_PER_RPM
+        * Math.cos(Math.toRadians(rpmAndHood[1]));
+    if (!(ballHorizontalSpeedMps > 0)) { // Also NaN: none of the four cells has a shot
+      return 0.0;
+    }
+    return clampedTurningRad(-sidewaysSpeedMps / ballHorizontalSpeedMps);
+  }
+
+  private static double clampedTurningRad(double sinTurning) {
+    if (Double.isNaN(sinTurning)) {
+      return 0.0;
+    }
+    double maxSin = Math.sin(Math.toRadians(MAX_TURNING_DEG));
+    return Math.asin(Math.max(-maxSin, Math.min(maxSin, sinTurning)));
   }
 
   /** Where to point the robot and what shot to take. Everything is in the field frame. */
@@ -80,11 +109,13 @@ public final class ShootOnTheMove {
 
   /** The hooded shot out of the shooter's side, whether or not the table has one. */
   public static Aim aimHooded(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
-    Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY);
+    Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, FEED_DELAY_S);
+    Geometry now = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, 0);
     Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
-    double shooterHeadingRad = g.directionToCellRad + shot.turningRad;
-    double robotHeadingRad = normalizeAngle(shooterHeadingRad - SHOOTER_DIRECTION_RAD);
-    return new Aim(shot, robotHeadingRad, headingTolerance(g.distanceToClusterM), false);
+    double robotHeadingRad = normalizeAngle(g.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
+    double lockHeadingRad = normalizeAngle(now.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
+    return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
+        headingTolerance(g.distanceToClusterM), false);
   }
 
   /**
@@ -92,13 +123,16 @@ public final class ShootOnTheMove {
    * hooded shot's, so a caller that has picked it keeps it rather than falling back each loop.
    */
   public static Aim aimBackward(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
-    Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY);
+    Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, FEED_DELAY_S);
+    Geometry now = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, 0);
     Shot shot = calculateBackward(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
     double robotHeadingRad = normalizeAngle(g.directionToCellRad - BACKWARD_DIRECTION_RAD);
-    return new Aim(shot, robotHeadingRad, headingTolerance(g.distanceToClusterM), true);
+    double lockHeadingRad = normalizeAngle(now.directionToCellRad - BACKWARD_DIRECTION_RAD);
+    return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
+        headingTolerance(g.distanceToClusterM), true);
   }
 
-  /** Where the Cell is from the shooter when the ball leaves, and how the robot moves relative to it. */
+  /** Where the Cell is from the shooter leadS from now, and how the robot moves relative to it. */
   private static final class Geometry {
     final double distanceToClusterM;
     final double distanceToLipM;
@@ -106,9 +140,9 @@ public final class ShootOnTheMove {
     final double speedTowardCellMps;
     final double sidewaysSpeedMps;
 
-    Geometry(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
-      double predictedX = robot.xM + velocityXMps * FEED_DELAY_S; // Where the robot will be when the ball leaves
-      double predictedY = robot.yM + velocityYMps * FEED_DELAY_S;
+    Geometry(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY, double leadS) {
+      double predictedX = robot.xM + velocityXMps * leadS;
+      double predictedY = robot.yM + velocityYMps * leadS;
 
       double cosHeading = Math.cos(robot.headingRad);
       double sinHeading = Math.sin(robot.headingRad);
@@ -126,6 +160,11 @@ public final class ShootOnTheMove {
       sidewaysSpeedMps = -velocityXMps * unitToCellY + velocityYMps * unitToCellX;
       distanceToLipM = distanceToClusterM - CLUSTER_TO_NEAR_LIP_M;
     }
+
+    /** How fast the direction to the Cell turns, anticlockwise positive: moving left swings it clockwise. */
+    double directionRateRadPerSec() {
+      return -sidewaysSpeedMps / distanceToClusterM;
+    }
   }
 
   /**
@@ -135,7 +174,8 @@ public final class ShootOnTheMove {
   public static Shot calculateBackward(double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
     double[] distances = BACKWARD_DIST_M;
     Shot.Reason reason = null;
-    if (!(distanceToLipM >= distances[0] && distanceToLipM <= distances[distances.length - 1])) {
+    if (!(distanceToLipM >= Math.min(BACKWARD_MIN_DIST_M, distances[0])
+        && distanceToLipM <= distances[distances.length - 1])) {
       reason = Shot.Reason.OUT_OF_RANGE;
     } else if (speedTowardCellMps > BACKWARD_MAX_SPEED_MPS) {
       reason = Shot.Reason.CLOSING_TOO_FAST;
@@ -147,19 +187,40 @@ public final class ShootOnTheMove {
     if (reason != null) {
       return Shot.impossible(reason, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
     }
-    int i = Math.min(TableLookup.indexAtOrBelow(distances, distanceToLipM), distances.length - 2);
-    double fraction = (distanceToLipM - distances[i]) / (distances[i + 1] - distances[i]);
+    double tableDistM = Math.max(distanceToLipM, distances[0]);
+    int i = Math.min(TableLookup.indexAtOrBelow(distances, tableDistM), distances.length - 2);
+    double fraction = (tableDistM - distances[i]) / (distances[i + 1] - distances[i]);
     double rpm = BACKWARD_RPM[i] + fraction * (BACKWARD_RPM[i + 1] - BACKWARD_RPM[i]);
     return new Shot(Shot.Reason.OK, rpm, BACKWARD_LAUNCH_DEG, Double.NaN, 0.0,
         distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
   }
 
-  /** True when the shot is valid, the flywheels and hood are on target, and the heading is close enough. */
-  public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad) {
+  /**
+   * True when the shot is valid, the flywheels and hood are on target, and the heading is close enough to
+   * the lock heading both now and FEED_DELAY_MAX_S from now, turning at their current rates. The error
+   * changes steadily in between, so the ball leaves on target whenever in that window it goes. The later
+   * check stops a shot fired while the robot swings through the target; the first one that only lines up
+   * by still turning fast toward it.
+   */
+  public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
+      double turnRateRadPerSec) {
+    return readyToFire(aim, flywheelsReady, hoodReady, headingRad, turnRateRadPerSec, 0.0);
+  }
+
+  /**
+   * As above, with the rate the shooter's sideways turn ({@link Shot#turningRad}) is changing: reversing a
+   * strafe at 1 m/s swings it 50 degrees in half a second, and a ball fed then leaves aimed for the old speed.
+   */
+  public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
+      double turnRateRadPerSec, double turningRateRadPerSec) {
+    double errorNowRad = normalizeAngle(aim.lockHeadingRad - headingRad);
+    double targetRateRadPerSec = aim.lockRateRadPerSec + turningRateRadPerSec;
+    double errorAtLatestExitRad = errorNowRad + (targetRateRadPerSec - turnRateRadPerSec) * FEED_DELAY_MAX_S;
     return aim.shot.valid
         && flywheelsReady
         && hoodReady
-        && Math.abs(aim.headingErrorRad(headingRad)) <= aim.headingToleranceRad;
+        && Math.abs(errorNowRad) <= aim.headingToleranceRad
+        && Math.abs(errorAtLatestExitRad) <= aim.headingToleranceRad;
   }
 
   /**
@@ -202,6 +263,23 @@ public final class ShootOnTheMove {
       int nearestDist = distFraction < 0.5 ? distIndex : distIndex + 1;
       int nearestSpeed = speedFraction < 0.5 ? speedIndex : speedIndex + 1;
       return grid[nearestDist][nearestSpeed];
+    }
+
+    /** {RPM, hood degrees} of the nearest of the four cells that has a shot, or NaNs when none has. */
+    double[] nearestShot() {
+      int nearestDist = distFraction < 0.5 ? distIndex : distIndex + 1;
+      int nearestSpeed = speedFraction < 0.5 ? speedIndex : speedIndex + 1;
+      if (!Double.isNaN(ShotTable.RPM[nearestDist][nearestSpeed])) {
+        return new double[] {ShotTable.RPM[nearestDist][nearestSpeed], ShotTable.HOOD_DEG[nearestDist][nearestSpeed]};
+      }
+      for (int d = distIndex; d <= distIndex + 1; d++) {
+        for (int s = speedIndex; s <= speedIndex + 1; s++) {
+          if (!Double.isNaN(ShotTable.RPM[d][s])) {
+            return new double[] {ShotTable.RPM[d][s], ShotTable.HOOD_DEG[d][s]};
+          }
+        }
+      }
+      return new double[] {Double.NaN, Double.NaN};
     }
 
     /** Largest minus smallest of the four cells. NaN when any is NaN. */

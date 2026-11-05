@@ -117,6 +117,25 @@ public class ShootOnTheMoveTest {
     assertEquals(Shot.Reason.SIDEWAYS_TOO_FAST, ShootOnTheMove.calculate(1.0, 0, 10).reason);
   }
 
+  @Test
+  public void withoutAShotTheTurnStaysAtItsLimitInsteadOfDroppingToZero() {
+    double max = Math.toRadians(ShootOnTheMoveConstants.MAX_TURNING_DEG);
+    assertEquals(-max, ShootOnTheMove.calculate(1.0, 0, 10).turningRad, 1e-9); // Moving left: turn clockwise
+    Shot tooClose = ShootOnTheMove.calculate(0.05, 0, 0.5);
+    assertEquals(Shot.Reason.OUT_OF_RANGE, tooClose.reason);
+    assertTrue(tooClose.turningRad < 0);
+    assertEquals(ShootOnTheMove.calculate(ShotTable.DIST_M[0], 0, 0.5).turningRad, tooClose.turningRad, 1e-9);
+  }
+
+  @Test
+  public void notReadyWhileTheSidewaysTurnIsSwinging() {
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
+    double swing = (aim.headingToleranceRad + Math.toRadians(1)) / ShootOnTheMoveConstants.FEED_DELAY_MAX_S;
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, 0, 0));
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, 0, swing));
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, swing, swing)); // Turning with it
+  }
+
   // ---- aim ---------------------------------------------------------------
 
   @Test
@@ -169,17 +188,76 @@ public class ShootOnTheMoveTest {
     Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
     double onHeading = aim.targetHeadingRad;
     double offHeading = aim.targetHeadingRad + aim.headingToleranceRad * 2;
-    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, onHeading));
-    assertFalse(ShootOnTheMove.readyToFire(aim, false, true, onHeading));
-    assertFalse(ShootOnTheMove.readyToFire(aim, true, false, onHeading));
-    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, offHeading));
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, onHeading, 0));
+    assertFalse(ShootOnTheMove.readyToFire(aim, false, true, onHeading, 0));
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, false, onHeading, 0));
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, offHeading, 0));
+  }
+
+  @Test
+  public void notReadyWhileSwingingThroughTheTarget() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
+    // On the heading now, but turning 75 deg/s carries it 15 degrees past by the time the ball leaves
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.targetHeadingRad, Math.toRadians(-75)));
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.targetHeadingRad, Math.toRadians(-5)));
+  }
+
+  @Test
+  public void notReadyWhenOnlyTurningFastLinesUpTheExit() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
+    double rate = Math.toRadians(50);
+    double heading = aim.targetHeadingRad - rate * 0.2; // 10 degrees short, arriving as the ball leaves
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, heading, rate));
+  }
+
+  @Test
+  public void standingStillTheLockHeadingIsTheTarget() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
+    assertEquals(aim.targetHeadingRad, aim.lockHeadingRad, TOLERANCE);
+  }
+
+  @Test
+  public void strafingTheLockHeadingTrailsTheTargetByTheFeedDelay() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    // Moving +y past a Cell at +x: by the time the ball leaves the Cell is further clockwise
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, 1.5, 0);
+    assertTrue(aim.shot.valid);
+    double targetAheadOfLock = ShootOnTheMove.normalizeAngle(aim.targetHeadingRad - aim.lockHeadingRad);
+    assertEquals(-Math.atan2(0.5 * 0.2, 1.5), targetAheadOfLock, 1e-9);
+  }
+
+  @Test
+  public void holdingTheLockHeadingWhileTurningWithTheTargetIsReady() {
+    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, 1.5, 0);
+    double rate = ShootOnTheMove.normalizeAngle(aim.targetHeadingRad - aim.lockHeadingRad) / 0.2;
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, rate));
+  }
+
+  @Test
+  public void strafingTheLockRateFollowsTheSidewaysSpeed() {
+    // Moving left at 0.5 m/s, 1.5 m from the Cell: it swings clockwise at a third of a radian a second
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, 1.5, 0);
+    assertEquals(-0.5 / 1.5, aim.lockRateRadPerSec, 1e-9);
+    assertEquals(0.0, ShootOnTheMove.aim(new Pose(0, 0, 0), 0.5, 0, 1.5, 0).lockRateRadPerSec, 1e-9);
+  }
+
+  @Test
+  public void notReadyWhenTheLatestExitWouldMiss() {
+    Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
+    double driftRate = (aim.headingToleranceRad + Math.toRadians(1)) / ShootOnTheMoveConstants.FEED_DELAY_MAX_S;
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, driftRate));
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, driftRate / 2));
   }
 
   @Test
   public void neverReadyWithoutAValidShot() {
     Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 10, 0);
     assertFalse(aim.shot.valid);
-    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.targetHeadingRad));
+    assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.targetHeadingRad, 0));
   }
 
   @Test
@@ -207,8 +285,16 @@ public class ShootOnTheMoveTest {
     assertEquals(ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
   }
 
+  @Test public void backwardJustInsideTheTableUsesItsFirstPoint() {
+    Shot shot = ShootOnTheMove.calculateBackward(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M, 0, 0);
+    assertTrue(shot.valid);
+    assertEquals(3400, shot.targetRpm, 1e-6);
+    assertEquals(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M, shot.distanceToLipM, 1e-9);
+  }
+
   @Test public void backwardRefusesOutsideTheCalibratedDistances() {
-    assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(0.9, 0, 0).reason);
+    assertEquals(Shot.Reason.OUT_OF_RANGE,
+        ShootOnTheMove.calculateBackward(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M - 0.01, 0, 0).reason);
     assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(2.4, 0, 0).reason);
     assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(Double.NaN, 0, 0).reason);
   }

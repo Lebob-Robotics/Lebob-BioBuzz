@@ -12,7 +12,9 @@ public final class VisionResult {
     NO_VALID_TAGS, // Every tag was dropped, see firstTagReject
     SPREAD,
     OUT_OF_FIELD,
-    JUMP
+    JUMP,
+    NO_HEADING, // A first position fix, but the heading isn't trusted yet and no tag pair fixed it
+    RELOCATED // Too big a jump, but the tags kept agreeing on it, so odometry had lost the position: taken in full
   }
 
   /** Why one tag was dropped. */
@@ -49,7 +51,7 @@ public final class VisionResult {
   VisionResult(Reason reason, TagReject firstTagReject, double dxM, double dyM, double gain,
       Pose newPose, int tagsUsed, int tagsRejected, double spreadM, boolean redFlipped,
       boolean blueFlipped, int[] usedIds, double[] usedDxM, double[] usedDyM) {
-    this.accepted = reason == Reason.ACCEPTED || reason == Reason.HEADING_ONLY;
+    this.accepted = reason == Reason.ACCEPTED || reason == Reason.HEADING_ONLY || reason == Reason.RELOCATED;
     this.reason = reason;
     this.firstTagReject = firstTagReject;
     this.dxM = dxM;

@@ -64,8 +64,17 @@ final class HoodMotorTargeting {
    * direction the hood must move. Inside the deadband the direction is left as it was.
    */
   int motorTargetFor(int revTargetTicks, int revTicks, int deadbandTicks) {
+    return motorTargetFor(revTargetTicks, revTicks, deadbandTicks, false);
+  }
+
+  /**
+   * As above. While the motor is still moving the direction is held: the REV error changes sign during
+   * an overshoot, and switching offsets mid-move sent the motor 1.4 degrees back the other way, which
+   * set up a back-and-forth that ended up to 1.9 degrees off (Hood Tune, 5 Nov).
+   */
+  int motorTargetFor(int revTargetTicks, int revTicks, int deadbandTicks, boolean motorMoving) {
     int error = revTargetTicks - revTicks;
-    if (Math.abs(error) >= deadbandTicks) {
+    if (Math.abs(error) >= deadbandTicks && (!motorMoving || direction == 0)) {
       direction = error > 0 ? 1 : -1;
     }
     return (int) Math.round(revTargetTicks * MOTOR_PER_REV) + offset();

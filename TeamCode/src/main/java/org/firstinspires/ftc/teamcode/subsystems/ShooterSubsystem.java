@@ -86,7 +86,9 @@ public class ShooterSubsystem extends SubsystemBase {
 
     PIDFCoefficients sdk = shooterRight.getVelocityPidf();
     if (Double.isNaN(VELOCITY_P)) {
-      VELOCITY_P = sdk.p;
+      // The SDK's 10 cut only ~2% power for 170 RPM too fast, so the wheels took 2-3 s to coast down to a
+      // lower target and held aimed shots back (5 Nov, 084358)
+      VELOCITY_P = 30.0;
     }
     if (Double.isNaN(VELOCITY_I)) {
       VELOCITY_I = 1.0; // Higher winds up during a ball's dip and overshoots ~200 RPM for a second after
@@ -167,6 +169,15 @@ public class ShooterSubsystem extends SubsystemBase {
   /** Average flywheel speed of both wheels, in RPM. */
   public double getRpm() {
     return (getRpmLeft() + getRpmRight()) / 2.0;
+  }
+
+  /**
+   * True only in AIM, when the mean of the two wheels is between belowRpm under and aboveRpm over the target.
+   * The mean steps by half as much as one wheel's reading.
+   */
+  public boolean meanRpmWithin(double belowRpm, double aboveRpm) {
+    double error = getRpm() - targetRpm;
+    return shooterState == ShooterState.AIM && error >= -belowRpm && error <= aboveRpm;
   }
 
   /** True only in AIM, when each wheel is within toleranceRpm of the target. */

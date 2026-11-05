@@ -8,6 +8,10 @@ package org.firstinspires.ftc.teamcode.subsystems;
  * caller to re-zero the motor to the REV ({@link #takeRebase()}) instead of cutting power. Only one that
  * keeps coming back (MAX_REBASES within REBASE_WINDOW_S: an unplugged, reversed or wrongly scaled
  * encoder) trips the guard, as does power with no motion.
+ *
+ * <p>A REV that does not follow the motor at all trips the guard at once, without a rebase: rebasing to a
+ * frozen REV tells the hood it is back at the bottom, and it is driven up again from wherever it really is
+ * (085313: three rebases to a dead REV drove the hood past its top).
  */
 public final class HoodEncoderGuard {
   public static final double REV_COUNTS_PER_TURN = 8192;
@@ -27,7 +31,9 @@ public final class HoodEncoderGuard {
   private int slipCount;
 
   private boolean tripped;
+  private boolean revNotFollowing;
   private boolean initialized;
+  private final HoodFollowCheck follow = new HoodFollowCheck();
   private double mismatchSince = Double.NaN;
   private double lastMotionS;
   private int lastRevTicks;
@@ -47,6 +53,11 @@ public final class HoodEncoderGuard {
       lastRevTicks = revTicks;
       lastMotorTicks = motorTicks;
     }
+    if (follow.update(revTicks, motorTicks)) {
+      revNotFollowing = true;
+      tripped = true;
+      return true;
+    }
     if (!powered || Math.abs(revTicks - lastRevTicks) >= 16
         || Math.abs(motorTicks - lastMotorTicks) >= 2) {
       lastMotionS = nowS;
@@ -61,6 +72,7 @@ public final class HoodEncoderGuard {
           rebaseTimes[rebaseSlot] = nowS;
           rebaseSlot = (rebaseSlot + 1) % MAX_REBASES;
           rebasePending = true;
+          follow.reset(); // The caller moves the motor count to the REV's
           slipCount++;
           mismatchSince = Double.NaN;
         } else {
@@ -76,6 +88,8 @@ public final class HoodEncoderGuard {
   }
 
   public boolean isTripped() { return tripped; }
+  /** The trip was a REV that did not move with the motor: unplugged, loose on its shaft, or a jam. */
+  public boolean isRevNotFollowing() { return revNotFollowing; }
   /** True once after a disagreement: the caller re-zeroes the motor count to match the REV. */
   public boolean takeRebase() {
     boolean pending = rebasePending;
@@ -87,7 +101,9 @@ public final class HoodEncoderGuard {
 
   public void reset() {
     tripped = false;
+    revNotFollowing = false;
     initialized = false;
+    follow.reset();
     mismatchSince = Double.NaN;
     java.util.Arrays.fill(rebaseTimes, Double.NEGATIVE_INFINITY);
     rebaseSlot = 0;

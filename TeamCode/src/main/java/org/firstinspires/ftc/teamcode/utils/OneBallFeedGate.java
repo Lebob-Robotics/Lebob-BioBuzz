@@ -17,10 +17,33 @@ public final class OneBallFeedGate {
 
   private enum State { WAITING, FEEDING, RECOVERING, DONE } // DONE: one-ball mode, until released
 
+  private final double readySeconds;
+  private final double stopUnreadyAfterS;
   private State state = State.WAITING;
   private double readySinceS = Double.NaN;
+  private double feedingSinceS = Double.NaN;
   private boolean ballLeft;
   private boolean feedStarted;
+
+  /** Waits {@link #READY_SECONDS}. */
+  public OneBallFeedGate() {
+    this(Double.NaN);
+  }
+
+  /** @param readySeconds how long the wheels must hold speed before a feed, or NaN for {@link #READY_SECONDS} */
+  public OneBallFeedGate(double readySeconds) {
+    this(readySeconds, Double.POSITIVE_INFINITY);
+  }
+
+  /**
+   * @param stopUnreadyAfterS a feed that has gone this long without a ball leaving stops once no longer
+   *                          ready, and waits for ready again. Otherwise an empty feeder kept running, and
+   *                          the next ball loaded went straight out whatever the aim (5 Nov, 094738: 11 s)
+   */
+  public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS) {
+    this.readySeconds = readySeconds;
+    this.stopUnreadyAfterS = stopUnreadyAfterS;
+  }
 
   /**
    * @param held       the driver wants to shoot
@@ -40,6 +63,17 @@ public final class OneBallFeedGate {
    */
   public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm,
       boolean oneBall) {
+    return update(nowS, held, atSpeed, rpm, targetRpm, oneBall, false);
+  }
+
+  /**
+   * As above.
+   *
+   * @param shotLost the shot went bad after the feed started (aim, hood or a valid shot lost, not the wheel
+   *                 speed, whose reading steps): a feed with no ball out yet stops and waits for ready again
+   */
+  public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm,
+      boolean oneBall, boolean shotLost) {
     ballLeft = false;
     feedStarted = false;
     if (!atSpeed) {
@@ -47,7 +81,8 @@ public final class OneBallFeedGate {
     } else if (Double.isNaN(readySinceS)) {
       readySinceS = nowS;
     }
-    boolean steady = !Double.isNaN(readySinceS) && nowS - readySinceS >= READY_SECONDS;
+    double waitS = Double.isNaN(readySeconds) ? READY_SECONDS : readySeconds;
+    boolean steady = !Double.isNaN(readySinceS) && nowS - readySinceS >= waitS;
 
     if (!held) {
       state = State.WAITING;
@@ -59,6 +94,7 @@ public final class OneBallFeedGate {
         if (steady) {
           state = State.FEEDING;
           feedStarted = true;
+          feedingSinceS = nowS;
         }
         break;
       case FEEDING:
@@ -66,6 +102,8 @@ public final class OneBallFeedGate {
           state = oneBall ? State.DONE : State.RECOVERING;
           ballLeft = true;
           readySinceS = Double.NaN;
+        } else if (shotLost || (!atSpeed && nowS - feedingSinceS >= stopUnreadyAfterS)) {
+          state = State.WAITING;
         }
         break;
       case DONE:

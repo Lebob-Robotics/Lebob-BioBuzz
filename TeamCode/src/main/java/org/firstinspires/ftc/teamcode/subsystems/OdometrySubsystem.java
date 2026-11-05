@@ -59,10 +59,10 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return;
     }
-    // Andre's values, which the robot has been driving on. CAD gives (-71.5, 0.1) to the middle of the
-    // four wheels, the centre ShootOnTheMoveConstants uses. TODO replace with the Odometry Calibration
-    // result once the pods are on the right ports.
-    pinpoint.setOffsets(0.0, -105.0, DistanceUnit.MM);
+    // CAD, to the middle of the four wheels, the centre ShootOnTheMoveConstants uses. The old (0, -105) made
+    // spinning in place read as 0.07 m/s forward and 0.10 m/s left per rad/s (fits 0.85-0.99 over four runs),
+    // which worked back to offsets of about (-65, 0): the hooded shot's lead swung with every turn (5 Nov, 084206)
+    pinpoint.setOffsets(-71.5, 0.1, DistanceUnit.MM);
     pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     // X (forward) pod counts backward: TeleOp log 3 Nov 22:22, wheels driving the robot backward moved
     // the pose forward (30 of 31 samples). Y (strafe) counted backward too: pushing the robot right raised Y (4 Nov).
