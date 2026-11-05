@@ -50,7 +50,7 @@ public class VisionSubsystem extends SubsystemBase {
    * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
    * names cycling so a PC can pull them and see what the robot sees.
    */
-  public static double SAVE_FRAME_EVERY_S = 5;
+  public static double SAVE_FRAME_EVERY_S = 0; // FrameRecorder keeps every frame now
   private long lastFrameSaveNanos;
   private int frameSaves;
   public static float DECIMATION = 2; // Halves the detection work; 3.25-inch tags still read at 2+ m. 1 for range
@@ -109,6 +109,7 @@ public class VisionSubsystem extends SubsystemBase {
   private final long[] streamingSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
   private final boolean[] workerBusy = new boolean[2]; // Set by the loop, cleared by the worker; guarded by this
   private final FrameClock[] frameClocks = {new FrameClock(), new FrameClock()};
+  private final FrameRecorder[] recorders = new FrameRecorder[2]; // Null when the camera didn't open
 
   /**
    * Notes when each frame arrives. A frozen stream kept reporting its last FPS (9.2), so the no-frames restart
@@ -183,6 +184,8 @@ public class VisionSubsystem extends SubsystemBase {
           .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
           .addProcessor(processor)
           .addProcessor(frameClocks[side.ordinal()]);
+      FrameRecorder recorder = new FrameRecorder(side == Side.LEFT ? "camL" : "camR");
+      builder.addProcessor(recorder);
       if (singleTagProcessor != null) {
         builder.addProcessor(singleTagProcessor);
       }
@@ -191,6 +194,7 @@ public class VisionSubsystem extends SubsystemBase {
       }
 
       portals[side.ordinal()] = builder.build();
+      recorders[side.ordinal()] = recorder;
       processors[side.ordinal()] = processor;
       singleTagProcessors[side.ordinal()] = singleTagProcessor;
       cameraStatus[side.ordinal()] = "opening";
@@ -223,6 +227,12 @@ public class VisionSubsystem extends SubsystemBase {
       Logger.recordOutput(prefix + "/Status", cameraStatus[side.ordinal()]);
       Logger.recordOutput(prefix + "/Restarts", restarts[side.ordinal()]);
       Logger.recordOutput(prefix + "/LastFrameAgeS", (System.nanoTime() - frameClocks[side.ordinal()].lastFrameNanos) * 1e-9);
+      FrameRecorder recorder = recorders[side.ordinal()];
+      if (recorder != null) {
+        Logger.recordOutput(prefix + "/FramesSaved", recorder.saved());
+        Logger.recordOutput(prefix + "/FramesSkipped", recorder.skipped());
+        Logger.recordOutput(prefix + "/Recorder", recorder.status());
+      }
     }
     long now = System.nanoTime();
     if (!Logger.isReplay() && SAVE_FRAME_EVERY_S > 0 && (now - lastFrameSaveNanos) / 1e9 >= SAVE_FRAME_EVERY_S) {
@@ -472,6 +482,10 @@ public class VisionSubsystem extends SubsystemBase {
   public void close() {
     cameraWorker.shutdownNow();
     for (int i = 0; i < portals.length; i++) {
+      if (recorders[i] != null) {
+        recorders[i].close();
+        recorders[i] = null;
+      }
       if (portals[i] != null) {
         portals[i].close();
         portals[i] = null;
