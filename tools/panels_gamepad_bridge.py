@@ -104,18 +104,23 @@ async def send(robot, pad):
             async with websockets.connect(url, max_size=None, open_timeout=3, ping_interval=None) as ws:  # Panels never answers pings
                 print(f"Connected to {url}. Driving.")
                 reader = asyncio.create_task(drain(ws))
-                last_print = 0.0
-                while True:
-                    if reader.done():
-                        reader.result()  # Raises the reason the connection ended; reconnect below
-                    await ws.send(pad.message())
-                    now = time.monotonic()
-                    if now - last_print > 1.0:
-                        a = pad.axes
-                        print(f"  left ({a[0]:+.2f}, {a[1]:+.2f})  right x {a[3]:+.2f}  "
-                              f"LT {max(0, (a[2] + 1) / 2):.2f}  RT {max(0, (a[5] + 1) / 2):.2f}", flush=True)
-                        last_print = now
-                    await asyncio.sleep(SEND_PERIOD_S)
+                try:
+                    last_print = 0.0
+                    while True:
+                        if reader.done():
+                            reader.result()  # Raises the reason the connection ended; reconnect below
+                        await ws.send(pad.message())
+                        now = time.monotonic()
+                        if now - last_print > 1.0:
+                            a = pad.axes
+                            print(f"  left ({a[0]:+.2f}, {a[1]:+.2f})  right x {a[3]:+.2f}  "
+                                  f"LT {max(0, (a[2] + 1) / 2):.2f}  RT {max(0, (a[5] + 1) / 2):.2f}", flush=True)
+                            last_print = now
+                        await asyncio.sleep(SEND_PERIOD_S)
+                finally:
+                    # Collects the reader's own exception too, else each reconnect logs "never retrieved"
+                    reader.cancel()
+                    await asyncio.gather(reader, return_exceptions=True)
         except (OSError, websockets.WebSocketException, asyncio.TimeoutError) as e:
             print(f"Robot not reachable ({e}); retrying in 1 s")
             await asyncio.sleep(1.0)
