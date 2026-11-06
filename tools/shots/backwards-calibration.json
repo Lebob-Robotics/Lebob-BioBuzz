@@ -1,0 +1,88 @@
+{
+  "note": "Shooting out of the back (more compression), hood on its lower stop, flywheel speed only. distM is flywheel axle to the Cell's near lip, measured by tape.",
+  "points": [
+    {
+      "distM": 0.95,
+      "rpm": 3400,
+      "hoodLiftDeg": 0,
+      "fired": 13,
+      "scored": 10,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 0.95,
+      "rpm": 3500,
+      "hoodLiftDeg": 0,
+      "fired": 9,
+      "scored": 4,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 1.3,
+      "rpm": 3500,
+      "hoodLiftDeg": 0,
+      "fired": 9,
+      "scored": 7,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3600,
+      "hoodLiftDeg": 0,
+      "fired": 3,
+      "scored": 2,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3700,
+      "hoodLiftDeg": 0,
+      "fired": 9,
+      "scored": 2,
+      "date": "2026-11-03",
+      "note": "Most misses went right (mechanical spread), depth looked right; the last 3 balls dropped short."
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3500,
+      "hoodLiftDeg": 0,
+      "fired": 3,
+      "scored": 1,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 1.8,
+      "rpm": 3700,
+      "hoodLiftDeg": 0,
+      "fired": 8,
+      "scored": 8,
+      "date": "2026-11-03",
+      "note": "4 went in, 4 had the right depth but went sideways from mechanical spread; counted as in. Battery 12.66 V falling to 12.36 V over the run."
+    },
+    {
+      "distM": 2.3,
+      "rpm": 4000,
+      "hoodLiftDeg": 0,
+      "fired": 2,
+      "scored": 1,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 2.3,
+      "rpm": 4100,
+      "hoodLiftDeg": 0,
+      "fired": 3,
+      "scored": 1,
+      "date": "2026-11-03"
+    },
+    {
+      "distM": 2.3,
+      "rpm": 4200,
+      "hoodLiftDeg": 0,
+      "fired": 13,
+      "scored": 11,
+      "date": "2026-11-03",
+      "note": "Battery 12.2 V, dipping to 11.9 V per ball."
+    }
+  ]
+}

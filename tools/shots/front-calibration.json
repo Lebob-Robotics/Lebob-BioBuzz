@@ -1,0 +1,127 @@
+{
+  "note": "Hooded shot out of the back (the cameras' side), after the compression was fixed mechanically on 2026-11-04. distM is the camera distance from the flywheel axle to the Cell's near lip (Calibration/LipDistM). hoodLiftDeg is lift above the lower stop; launch angle = 99 - lift. Earlier points (0.68 m 3500/70.2, 0.80 m 3650/68 launch) were taken before the fix and are not used.",
+  "points": [
+    {
+      "distM": 1.3,
+      "rpm": 3900,
+      "hoodLiftDeg": 38,
+      "fired": 1,
+      "scored": 0,
+      "date": "2026-11-04"
+    },
+    {
+      "distM": 1.3,
+      "rpm": 3800,
+      "hoodLiftDeg": 38,
+      "fired": 1,
+      "scored": 0,
+      "date": "2026-11-04"
+    },
+    {
+      "distM": 1.3,
+      "rpm": 3700,
+      "hoodLiftDeg": 38,
+      "fired": 8,
+      "scored": 6,
+      "date": "2026-11-04"
+    },
+    {
+      "distM": 0.85,
+      "rpm": 3650,
+      "hoodLiftDeg": 30.4,
+      "fired": 14,
+      "scored": 7,
+      "date": "2026-11-04"
+    },
+    {
+      "distM": 1.29,
+      "rpm": 3640,
+      "hoodLiftDeg": 44.0,
+      "fired": 10,
+      "scored": 7,
+      "date": "2026-11-04",
+      "note": "Table shot (Y) from the refit model, no adjustment."
+    },
+    {
+      "distM": 1.78,
+      "rpm": 3890,
+      "hoodLiftDeg": 46.0,
+      "fired": 2,
+      "scored": 0,
+      "date": "2026-11-04",
+      "note": "Table shot (Y)."
+    },
+    {
+      "distM": 1.78,
+      "rpm": 3790,
+      "hoodLiftDeg": 46.0,
+      "fired": 12,
+      "scored": 12,
+      "date": "2026-11-04",
+      "note": "Table shot less 100 RPM."
+    },
+    {
+      "distM": 2.32,
+      "rpm": 4200,
+      "hoodLiftDeg": 45.4,
+      "fired": 3,
+      "scored": 1,
+      "date": "2026-11-04",
+      "note": "Table shot (Y)."
+    },
+    {
+      "distM": 2.32,
+      "rpm": 4100,
+      "hoodLiftDeg": 45.4,
+      "fired": 14,
+      "scored": 11,
+      "date": "2026-11-04",
+      "note": "Table shot less 100 RPM."
+    },
+    {
+      "distM": 2.32,
+      "rpm": 4200,
+      "hoodLiftDeg": 45.4,
+      "fired": 3,
+      "scored": 1,
+      "date": "2026-11-04",
+      "note": "Table shot (Y)."
+    },
+    {
+      "distM": 2.32,
+      "rpm": 4100,
+      "hoodLiftDeg": 45.4,
+      "fired": 14,
+      "scored": 11,
+      "date": "2026-11-04",
+      "note": "Table shot less 100 RPM."
+    },
+    {
+      "distM": 2.05,
+      "rpm": 3950,
+      "hoodLiftDeg": 45.4,
+      "fired": 13,
+      "scored": 11,
+      "date": "2026-11-04",
+      "note": "Table shot (Y) from the five-distance fit, no adjustment."
+    },
+    {
+      "distM": 2.8,
+      "rpm": 4300,
+      "hoodLiftDeg": 46.0,
+      "fired": 8,
+      "scored": 8,
+      "date": "2026-11-04",
+      "note": "Distance about 2.8 m by tape (cameras could not see); set by hand."
+    },
+    {
+      "distM": 1.76,
+      "rpm": 3810,
+      "hoodLiftDeg": 46,
+      "fired": 4,
+      "scored": 4,
+      "date": "2026-11-04",
+      "note": "4-ball burst, camera distance. Flywheel PIDF [10,2,0,12.9]. Balls 1+2 went together (dip to 3167), ball 4 took 1.9 s to reach the feeder."
+    }
+  ]
+}

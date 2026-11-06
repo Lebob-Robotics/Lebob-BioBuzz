@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BIOBUZZ shot table</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="shots.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 14px system-ui, sans-serif; margin: 0; display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+  form { padding: 12px; overflow-y: auto; border-right: 1px solid #ccc; }
+  form label { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0; align-items: center; }
+  form input[type=number] { width: 100px; }
+  form input[type=file] { max-width: 140px; }
+  form h3 { margin: 14px 0 4px; font-size: 13px; text-transform: uppercase; color: #555; }
+  form button { margin: 6px 4px 0 0; }
+  main { display: grid; grid-template-rows: auto auto minmax(0, 1.3fr) minmax(0, 1fr); grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; height: 100vh; box-sizing: border-box; overflow: hidden; }
+  #banner { grid-column: 1 / 3; grid-row: 1; background: #b00020; color: #fff; padding: 8px; display: none; white-space: pre-wrap; }
+  #controls { grid-column: 1 / 3; grid-row: 2; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; font-family: monospace; }
+  #controls input[type=range] { width: 240px; }
+  #fan { grid-column: 1 / 3; grid-row: 3; }
+  #band { grid-column: 1; grid-row: 4; }
+  #heat { grid-column: 2; grid-row: 4; }
+  #fan, #band, #heat { min-width: 0; min-height: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<form id="inputs" onsubmit="return false">
+  <h3>Ball</h3>
+  <label>Ball <select id="ball"><option>POLLEN</option><option>NECTAR</option></select></label>
+  <span id="fields"></span>
+  <h3>Actions</h3>
+  <button id="compute">Compute table</button>
+  <button id="exportJava" disabled>Export ShotTable.java</button>
+  <button id="exportInputs">Export inputs.json</button>
+  <label>Load inputs.json <input type="file" id="loadInputs" accept=".json"></label>
+  <p id="status"></p>
+</form>
+<main>
+  <div id="banner"></div>
+  <div id="controls">
+    <label>Distance <input type="range" id="distIdx" min="0" max="0" value="0"> <span id="distVal"></span></label>
+    <label>Radial velocity <input type="range" id="velIdx" min="0" max="0" value="0"> <span id="velVal"></span></label>
+    <label>Heatmap <select id="heatKey"><option value="rpm">RPM</option><option value="band">band width</option><option value="tof">time of flight</option></select></label>
+    <span id="stats"></span>
+  </div>
+  <div id="fan"></div>
+  <div id="band"></div>
+  <div id="heat"></div>
+</main>
+<script>
+'use strict';
+const LABELS = {
+  ballDiameterM: 'Diameter (m)', ballMassKg: 'Mass (kg)', dragCd: 'Drag Cd',
+  launchAngleDeg: 'Launch angle (deg)', exitHeightM: 'Exit height (m)', exitSpeedPerRpm: 'Exit speed per RPM (m/s)',
+  shooterOffsetM: 'Shooter offset fwd (m)', rpmToleranceRpm: 'Flywheel tolerance (RPM)',
+  lipHeightM: 'Near lip height (m)', openingWidthM: 'Opening width (m)', openingLengthM: 'Opening length (m)',
+  openingTiltDeg: 'Opening tilt (deg)', marginM: 'Edge margin (m)',
+  distMinM: 'Distance min (m)', distMaxM: 'Distance max (m)', distStepM: 'Distance step (m)',
+  velMinMps: 'Radial vel min (m/s)', velMaxMps: 'Radial vel max (m/s)', velStepMps: 'Radial vel step (m/s)',
+  rpmMin: 'RPM min', rpmMax: 'RPM max', rpmStep: 'RPM step', dtS: 'Time step (s)',
+};
+const GROUPS = [['ballDiameterM', 'ballMassKg', 'dragCd'], ['Shooter', 'launchAngleDeg', 'exitHeightM', 'exitSpeedPerRpm', 'shooterOffsetM', 'rpmToleranceRpm'],
+  ['Cell', 'lipHeightM', 'openingWidthM', 'openingLengthM', 'openingTiltDeg', 'marginM'],
+  ['Sweep', 'distMinM', 'distMaxM', 'distStepM', 'velMinMps', 'velMaxMps', 'velStepMps', 'rpmMin', 'rpmMax', 'rpmStep', 'dtS']];
+const NUMERIC = Object.keys(LABELS);
+const $ = id => document.getElementById(id);
+
+// Build the numeric fields from LABELS so the form and DEFAULTS cannot drift apart.
+const fields = $('fields');
+for (const group of GROUPS) {
+  for (const key of group) {
+    if (!(key in LABELS)) { const h = document.createElement('h3'); h.textContent = key; fields.appendChild(h); continue; }
+    const l = document.createElement('label'); l.textContent = LABELS[key];
+    const i = document.createElement('input'); i.type = 'number'; i.step = 'any'; i.id = key;
+    l.appendChild(i); fields.appendChild(l);
+  }
+}
+function readInputs() {
+  const p = Object.assign({}, Shots.DEFAULTS, { ball: $('ball').value });
+  for (const k of NUMERIC) p[k] = parseFloat($(k).value);
+  return p;
+}
+function writeInputs(p) { $('ball').value = p.ball; for (const k of NUMERIC) $(k).value = p[k]; }
+writeInputs(Shots.DEFAULTS);
+$('ball').onchange = () => { const b = Shots.BALLS[$('ball').value]; $('ballDiameterM').value = b.ballDiameterM; $('ballMassKg').value = b.ballMassKg; };
+
+let grid = null, params = null;
+
+// Shows/hides the banner and reports pass/fail; also gates the export button.
+let selfCheckFailed = false;
+function showSelfCheck(fails) {
+  selfCheckFailed = fails.length > 0;
+  $('banner').style.display = selfCheckFailed ? 'block' : 'none';
+  $('banner').textContent = selfCheckFailed ? 'Self-check failed, export disabled:\n' + fails.join('\n') : '';
+  return selfCheckFailed;
+}
+
+$('compute').onclick = () => {
+  params = readInputs();
+  $('status').textContent = 'computing...';
+  setTimeout(() => {
+    const t0 = performance.now();
+    grid = Shots.solveGrid(params);
+    $('distIdx').max = grid.dist.length - 1; $('velIdx').max = grid.vel.length - 1;
+    $('velIdx').value = Math.round((grid.vel.length - 1) / 2);
+    showSelfCheck(Shots.selfCheck(params));
+    $('exportJava').disabled = selfCheckFailed;
+    $('status').textContent = 'computed ' + grid.dist.length + ' x ' + grid.vel.length + ' cells in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s';
+    draw();
+  }, 10);
+};
+for (const id of ['distIdx', 'velIdx', 'heatKey']) $(id).oninput = () => grid && draw();
+
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = name; a.click();
+}
+$('exportJava').onclick = () => download('ShotTable.java', Shots.toJava(grid, params));
+$('exportInputs').onclick = () => {
+  const p = readInputs(), out = {};
+  for (const k of ['ball', 'ballDiameterM', 'ballMassKg', 'dragCd', 'launchAngleDeg', 'exitHeightM', 'exitSpeedPerRpm', 'shooterOffsetM', 'rpmToleranceRpm', 'lipHeightM', 'openingWidthM', 'openingLengthM', 'openingTiltDeg', 'marginM']) out[k] = p[k];
+  download('inputs.json', JSON.stringify(out, null, 2) + '\n');
+};
+$('loadInputs').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => writeInputs(Object.assign({}, Shots.DEFAULTS, JSON.parse(t))));
+};
+
+function draw() {
+  const i = +$('distIdx').value, j = +$('velIdx').value, d = grid.dist[i], vr = grid.vel[j];
+  $('distVal').textContent = d.toFixed(2) + ' m'; $('velVal').textContent = vr.toFixed(2) + ' m/s';
+  drawFan(i, j, d, vr); drawBand(i, d); drawHeat(); drawStats(i, j, d);
+}
+
+// Panel 1: every RPM in the sweep at this (distance, radial velocity). Green scores, red misses, blue is the chosen shot.
+function drawFan(i, j, d, vr) {
+  const traces = [];
+  for (const rpm of Shots.axis(params.rpmMin, params.rpmMax, params.rpmStep)) {
+    const s = Shots.simulate(rpm, vr, d, params);
+    traces.push({ x: s.points.map(p => p[0]), y: s.points.map(p => p[1]), mode: 'lines', hoverinfo: 'name', name: rpm + ' RPM ' + s.result,
+      line: { color: s.result === 'score' ? 'rgba(0,160,60,0.35)' : 'rgba(200,0,0,0.15)', width: 1 }, showlegend: false });
+  }
+  const chosen = grid.rpm[i][j];
+  if (!Number.isNaN(chosen)) {
+    const s = Shots.simulate(chosen, vr, d, params);
+    traces.push({ x: s.points.map(p => p[0]), y: s.points.map(p => p[1]), mode: 'lines', name: 'chosen ' + chosen + ' RPM', line: { color: '#1f5fbf', width: 3 } });
+  }
+  const o = Shots.opening(d, params);
+  traces.push({ x: [o.x0, o.x1], y: [o.y0, o.y1], mode: 'lines+markers', name: 'Cell opening', line: { color: '#000', width: 4 }, marker: { size: 8 } });
+  traces.push({ x: [o.x0, o.x0], y: [0, o.y0], mode: 'lines', name: 'Cell front', line: { color: '#000', width: 2, dash: 'dot' } });
+  Plotly.react('fan', traces, {
+    title: 'Shots at ' + d.toFixed(2) + ' m, radial ' + vr.toFixed(2) + ' m/s' + (Number.isNaN(chosen) ? '  (NO SHOT)' : ''),
+    // Equal metres per pixel on both axes, or the opening's tilt and the launch angle are drawn skewed.
+    // constrain 'domain' keeps the ranges and shrinks the plot area instead of stretching an axis.
+    xaxis: { title: 'distance (m)', range: [-0.2, Math.max(params.distMaxM + params.openingLengthM, o.x1) + 0.4], constrain: 'domain' },
+    yaxis: { title: 'height (m)', range: [0, 3.2], scaleanchor: 'x', scaleratio: 1, constrain: 'domain' },
+    margin: { t: 40, r: 10 }, showlegend: false,
+    annotations: [{ x: 0, y: params.exitHeightM, ax: -vr * 60, ay: 0, xref: 'x', yref: 'y', axref: 'pixel', ayref: 'pixel', showarrow: true, arrowhead: 2, text: 'robot ' + vr.toFixed(1) + ' m/s' }],
+  }, { responsive: true });
+}
+
+// Panel 2: the valid RPM band against radial velocity at this distance. Where lo and hi meet, the shot disappears.
+function drawBand(i, d) {
+  const x = grid.vel;
+  Plotly.react('band', [
+    { x: x, y: grid.hi[i], mode: 'lines', name: 'highest scoring RPM', line: { color: 'green' } },
+    { x: x, y: grid.lo[i], mode: 'lines', name: 'lowest scoring RPM', line: { color: 'red' }, fill: 'tonexty', fillcolor: 'rgba(0,160,60,0.15)' },
+    { x: x, y: grid.rpm[i], mode: 'lines+markers', name: 'table RPM', line: { color: '#1f5fbf', width: 3 } },
+    { x: [grid.vel[+$('velIdx').value]], y: [grid.rpm[i][+$('velIdx').value]], mode: 'markers', name: 'selected', marker: { color: '#1f5fbf', size: 12, symbol: 'star' } },
+  ], { title: 'Valid RPM band at ' + d.toFixed(2) + ' m', xaxis: { title: 'radial velocity (m/s, + closing)' }, yaxis: { title: 'flywheel RPM' }, margin: { t: 40, r: 10 }, legend: { orientation: 'h', y: 1.12 } }, { responsive: true });
+}
+
+// Panel 3: the whole table. Blank cells have no shot.
+function drawHeat() {
+  const key = $('heatKey').value, m = grid[key];
+  const z = grid.vel.map((_, j) => grid.dist.map((_, i) => m[i][j]));
+  Plotly.react('heat', [{ type: 'heatmap', x: grid.dist, y: grid.vel, z: z, colorscale: 'Viridis', colorbar: { title: key } }],
+    { title: 'Table: ' + key + ' over distance and radial velocity', xaxis: { title: 'distance (m)' }, yaxis: { title: 'radial velocity (m/s)' }, margin: { t: 40, r: 10 }, plot_bgcolor: '#ddd' }, { responsive: true });
+}
+
+function drawStats(i, j, d) {
+  const rpm = grid.rpm[i][j], band = grid.band[i][j], tof = grid.tof[i][j];
+  const lateral = params.openingWidthM / 2 - params.ballDiameterM / 2 - params.marginM;
+  const headingTolDeg = Math.atan(lateral / d) * 180 / Math.PI;
+  const uh = Number.isNaN(rpm) ? NaN : rpm * params.exitSpeedPerRpm * Math.cos(params.launchAngleDeg * Math.PI / 180);
+  $('stats').textContent = Number.isNaN(rpm)
+    ? 'NO SHOT (band ' + (Number.isNaN(band) ? 0 : band) + ' RPM, need ' + 2 * params.rpmToleranceRpm + ')'
+    : 'RPM ' + rpm + '  band ' + band + ' RPM (' + grid.lo[i][j] + '-' + grid.hi[i][j] + ')  TOF ' + tof.toFixed(2) + ' s  heading tol +/-' + headingTolDeg.toFixed(1) + ' deg  horizontal exit ' + uh.toFixed(2) + ' m/s';
+}
+
+// Self-check on load, against the defaults. A failure shows the banner and keeps export disabled.
+showSelfCheck(Shots.selfCheck());
+</script>
+</body>
+</html>

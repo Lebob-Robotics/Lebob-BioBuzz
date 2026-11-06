@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BIOBUZZ flywheel mass</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="../shots/shots.js"></script>
+<script src="../shots/hood.js"></script>
+<script src="flywheel.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 14px system-ui, sans-serif; margin: 0; display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+  form { padding: 12px; overflow-y: auto; border-right: 1px solid #ccc; }
+  form label { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0; align-items: center; }
+  form input[type=number], form select { width: 100px; }
+  form h3 { margin: 14px 0 4px; font-size: 13px; text-transform: uppercase; color: #555; }
+  main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 8px; height: 100vh; overflow: hidden; }
+  #result { grid-column: 1 / 4; font: 16px monospace; white-space: pre-wrap; background: #eef; padding: 8px; }
+  #controls { grid-column: 1 / 4; display: flex; gap: 24px; align-items: center; font-family: monospace; }
+  #controls input[type=range] { width: 300px; }
+  #sweep, #burst, #gear { min-width: 0; min-height: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<form id="inputs" onsubmit="return false">
+  <span id="fields"></span>
+  <h3>Actions</h3>
+  <button id="compute">Compute</button>
+  <label>Load inputs.json <input type="file" id="loadInputs" accept=".json"></label>
+  <p id="status"></p>
+</form>
+<main>
+  <div id="result">Press Compute.</div>
+  <div id="controls">
+    <label>Mass <input type="range" id="massIdx" min="0" max="0" value="0"> <span id="massVal"></span></label>
+    <span id="stats"></span>
+  </div>
+  <div id="sweep"></div>
+  <div id="burst"></div>
+  <div id="gear"></div>
+</main>
+<script>
+'use strict';
+const LABELS = {
+  wheelDiameterM: 'Main wheel diameter (m)', wheel2DiameterM: 'Second wheel diameter (m)', wheel2Gear: 'Second wheel gear (x main rpm)', wheel2MaxRpm: 'Second wheel max rpm', massDistributionK: 'Mass distribution k', layout: 'Layout',
+  existingWheelMassKg: 'Existing wheels (kg)', addRadiusM: 'Add-weight radius (m)',
+  ballMassKg: 'Ball mass (kg)', ballShell: 'Ball shell', energySpreadPct: 'Energy spread (%)', exitSpeedPerRpm: 'Exit speed per RPM (m/s)', transferEfficiency: 'Transfer efficiency',
+  exitSpeedMps: 'Target exit speed (m/s)', toleranceRpm: 'RPM tolerance', shotIntervalS: 'Shot interval (s)', controller: 'Controller', controllerDelayS: 'Controller delay (s)', maxSpinupS: 'Max spin-up (s)',
+  motorFreeRpm: 'Motor free (rpm)', motorStallNm: 'Motor stall (N m)', motorCount: 'Motors', gearRatio: 'Gear ratio (wheel/motor)', batteryV: 'Battery (V)', drivetrainEfficiency: 'Drivetrain efficiency',
+};
+const SELECTS = { layout: ['dualhood', 'dual', 'hood'], ballShell: ['hollow', 'solid'], controller: ['full', 'ff'] };
+const GROUPS = [['Wheels', 'wheelDiameterM', 'wheel2DiameterM', 'wheel2Gear', 'wheel2MaxRpm', 'massDistributionK', 'layout', 'existingWheelMassKg', 'addRadiusM'],
+  ['Ball', 'ballMassKg', 'ballShell', 'energySpreadPct', 'exitSpeedPerRpm', 'transferEfficiency'],
+  ['Shot', 'exitSpeedMps', 'toleranceRpm', 'shotIntervalS', 'controller', 'controllerDelayS', 'maxSpinupS'],
+  ['Motor', 'motorFreeRpm', 'motorStallNm', 'motorCount', 'gearRatio', 'batteryV', 'drivetrainEfficiency']];
+const KEYS = Object.keys(LABELS);
+const $ = id => document.getElementById(id);
+
+const fields = $('fields');
+for (const group of GROUPS) for (const key of group) {
+  if (!(key in LABELS)) { const h = document.createElement('h3'); h.textContent = key; fields.appendChild(h); continue; }
+  const l = document.createElement('label'); l.textContent = LABELS[key];
+  let i;
+  if (SELECTS[key]) { i = document.createElement('select'); for (const v of SELECTS[key]) i.add(new Option(v, v)); }
+  else { i = document.createElement('input'); i.type = 'number'; i.step = 'any'; }
+  i.id = key; l.appendChild(i); fields.appendChild(l);
+}
+{ const h = document.createElement('h3'); h.textContent = 'Motor preset'; fields.appendChild(h);
+  const s = document.createElement('select'); s.add(new Option('choose...', '')); for (const n in Flywheel.MOTORS) s.add(new Option(n, n));
+  s.onchange = () => { const m = Flywheel.MOTORS[s.value]; if (m) for (const k in m) $(k).value = m[k]; }; fields.appendChild(s); }
+function readInputs() { const p = Object.assign({}, Flywheel.DEFAULTS); for (const k of KEYS) p[k] = SELECTS[k] ? $(k).value : parseFloat($(k).value); return p; }
+function writeInputs(p) { for (const k of KEYS) $(k).value = p[k]; }
+writeInputs(Flywheel.DEFAULTS);
+$('loadInputs').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(t => writeInputs(Object.assign({}, Flywheel.DEFAULTS, JSON.parse(t)))); };
+
+let rec = null;
+$('compute').onclick = () => {
+  const inputs = readInputs();
+  rec = Flywheel.recommend(inputs);
+  drawGear(inputs);
+  $('result').textContent = Flywheel.report(inputs.exitSpeedMps + ' m/s', rec).trim()
+    + (rec.p.kpr > rec.p.ceil ? '\nexitSpeedPerRpm ' + rec.p.kpr + ' is above the no-slip ceiling ' + rec.p.ceil.toFixed(5) : '');
+  if (!rec.sweep) { $('stats').textContent = ''; $('massVal').textContent = ''; Plotly.purge('sweep'); Plotly.purge('burst'); return; }
+  $('massIdx').max = rec.sweep.length - 1;
+  $('massIdx').value = Math.max(0, rec.sweep.findIndex(r => Math.abs(r.m - (rec.status === 'existing' ? inputs.existingWheelMassKg : rec.passKg)) < 1e-9));
+  draw();
+};
+$('massIdx').oninput = () => rec && draw();
+
+// Second-wheel gear sweep at the form's exit speed, slip fraction held. Gaps are ratios where the shot is
+// unreachable or no mass passes; red dots are passes narrower than 30 g.
+function drawGear(inputs) {
+  const gs = Flywheel.gearSweep(inputs, [inputs.exitSpeedMps], 1, 3, 0.05);
+  const x = gs.rows.map(r => r.G2), c = gs.rows.map(r => r.cases[0]);
+  Plotly.react('gear', [
+    { x, y: c.map(r => Number.isFinite(r.robustKg) ? Math.max(r.robustKg, r.p.mEx) * 1000 : null), name: 'passing mass (g)', line: { color: '#1f5fbf' } },
+    { x, y: c.map(r => r.fragile && r.passKg != null ? Math.max(r.passKg, r.p.mEx) * 1000 : null), name: 'knife-edge pass (g)', mode: 'markers', marker: { color: '#b00020', size: 5 } },
+    { x, y: c.map(r => r.rpmT), name: 'main wheel rpm', yaxis: 'y2', line: { color: '#888' } },
+    { x, y: c.map(r => r.rpmT * r.p.G2), name: 'second wheel rpm', yaxis: 'y2', line: { color: '#888', dash: 'dot' } },
+  ], { title: 'Second-wheel gearing at ' + inputs.exitSpeedMps + ' m/s', xaxis: { title: 'second wheel rpm / main wheel rpm' },
+    yaxis: { title: 'passing mass (g)', rangemode: 'tozero' }, yaxis2: { title: 'rpm', overlaying: 'y', side: 'right', rangemode: 'tozero' },
+    legend: { x: 0.02, y: 1 }, margin: { t: 40 },
+    shapes: [{ type: 'line', x0: inputs.wheel2Gear, x1: inputs.wheel2Gear, y0: 0, y1: 1, yref: 'paper', line: { color: '#000', dash: 'dot' } }] }, { responsive: true });
+}
+
+function draw() {
+  const r = rec.sweep[+$('massIdx').value], p = rec.p, sim = r.sim;
+  $('massVal').textContent = (r.m * 1000).toFixed(0) + ' g';
+  $('stats').textContent = sim.ok ? 'error ' + sim.err.toFixed(2) + '%, spin-up ' + sim.spin.toFixed(2) + ' s, inertia ' + (sim.I * 1e6).toFixed(0) + ' kg mm2, time constant ' + sim.T.toFixed(2) + ' s' : 'unreachable';
+  const ms = rec.sweep.map(x => x.m * 1000);
+  Plotly.react('sweep', [
+    { x: ms, y: rec.sweep.map(x => x.sim.ok ? x.sim.err : null), name: 'worst error (%)', line: { color: '#1f5fbf' } },
+    { x: ms, y: rec.sweep.map(x => x.sim.ok ? x.sim.spin : null), name: 'spin-up (s)', yaxis: 'y2', line: { color: '#888' } },
+  ], { title: 'Mass sweep', xaxis: { title: 'flywheel mass (g)' }, yaxis: { title: 'worst error (%)', rangemode: 'tozero' },
+    yaxis2: { title: 'spin-up (s)', overlaying: 'y', side: 'right', rangemode: 'tozero' }, legend: { x: 0.6, y: 1 }, margin: { t: 40 },
+    shapes: [{ type: 'line', x0: ms[0], x1: ms[ms.length - 1], y0: p.tol, y1: p.tol, line: { color: '#b00020', dash: 'dash' } },
+      { type: 'line', x0: r.m * 1000, x1: r.m * 1000, y0: 0, y1: 1, yref: 'paper', line: { color: '#000', dash: 'dot' } }] }, { responsive: true });
+  // Burst trace: each shot drops the wheel from wb to wa, then it recovers until the next ball.
+  const rpm = w => w * 60 / (2 * Math.PI), t = [], y = [];
+  if (sim.ok) sim.shots.forEach((s, i) => {
+    const t0 = i * p.dt;
+    t.push(t0, t0); y.push(rpm(s.wb), rpm(s.wa));
+    for (let k = 1; k <= 40; k++) {
+      const dtk = p.dt * k / 40; let w;
+      if (p.ctrl === 'ff') w = sim.w0 - (sim.w0 - s.wa) * Math.exp(-dtk / sim.T);
+      else w = dtk <= p.delay ? s.wa : Math.min(sim.w0, sim.wf - (sim.wf - s.wa) * Math.exp(-(dtk - p.delay) / sim.T));
+      t.push(t0 + dtk); y.push(rpm(w));
+    }
+  });
+  const T = p.rpmT;
+  Plotly.react('burst', [{ x: t, y: y, name: 'flywheel', line: { color: '#1f5fbf' } }],
+    { title: 'Four-ball burst at ' + (r.m * 1000).toFixed(0) + ' g', xaxis: { title: 'time (s)' }, yaxis: { title: 'RPM' }, showlegend: false, margin: { t: 40 },
+      shapes: [T + p.tolRpm, T - p.tolRpm].map(v => ({ type: 'line', x0: 0, x1: 4 * p.dt, y0: v, y1: v, line: { color: '#b00020', dash: 'dash' } })) }, { responsive: true });
+}
+</script>
+</body>
+</html>

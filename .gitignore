@@ -89,3 +89,6 @@ lint/tmp/
 .worktrees/
 # Local Android SDK install
 /android-sdk/
+
+# Python cache
+__pycache__/
