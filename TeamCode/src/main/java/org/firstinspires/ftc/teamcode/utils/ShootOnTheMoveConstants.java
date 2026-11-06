@@ -52,9 +52,11 @@ public final class ShootOnTheMoveConstants {
   public static final int POSE_HISTORY_SIZE = 100; // About two seconds of loops
 
   // ---- Cameras (CAD lens centres: both face backward and 35 deg out, tilted up 41.1 deg) ----
+  // Both cameras are mounted upside down: roll must be undone before pitch and yaw.
+  // The replacement left camera's yaw and pitch are fitted to the right camera's tag positions, not CAD
+  // (6 Nov calibration drive, 824 sightings both cameras made of the same tags).
   public static final CameraMount LEFT_CAMERA = new CameraMount(
-      -0.1624, 0.0377, 0.2093, Math.PI - Math.toRadians(35), Math.toRadians(41.09));
-  // Connected camera is mounted upside down: roll must be undone before pitch and yaw.
+      -0.1624, 0.0377, 0.2093, Math.PI - Math.toRadians(37), Math.toRadians(39.85), Math.PI);
   public static final CameraMount RIGHT_CAMERA = new CameraMount(
       -0.1457, -0.0625, 0.2093, -(Math.PI - Math.toRadians(35)), Math.toRadians(41.09), Math.PI);
 
@@ -215,15 +217,19 @@ public final class ShootOnTheMoveConstants {
   // 0.40 m (Shot Tuning, 6 Nov 082517): on its stop the hood never scored from 0.4-0.6 m (0 of 7 at 3400-3600 rpm,
   // and the G1 grid 0 of 3 at 0.6 m, onto the Cell's bottom); 8 degrees up at 3200 rpm scored 4 of 5, 3150-3300
   // 8 of 13. Shot Tuning 091010: 0.42 m at 90.3 degrees 8 of 10 against 0 of 2 at 91.3; 0.60 m 3270 rpm 94.0 degrees
-  // 5 of 7; 0.72-0.74 m as interpolated (3310-3320, 95.5-95.9) 14 of 25, misses unmarked
+  // 5 of 7; 0.72-0.74 m as interpolated (3310-3320, 95.5-95.9) 14 of 25, misses unmarked. Shot Tuning 080751 (7 Nov):
+  // 0.77 m as interpolated (3320-3330, 95.9-96.5) 4 of 4, 23 degrees off the Cell's axis; 47-51 degrees off,
+  // 0.74-0.85 m scored 3 of 14 at 3370-3470 rpm and 94.7-97.7 degrees
   public static final double[] BACKWARD_DIST_M = {0.40, 0.60, 0.95, 1.3, 1.8, 2.3};
   public static final double[] BACKWARD_RPM = {3200, 3270, 3400, 3500, 3700, 4200};
   public static final double[] BACKWARD_HOOD_DEG = {90, 94, 99, 99, 99, 99};
   // Closer than the table's first point, the first point's shot is used
   public static double BACKWARD_MIN_DIST_M = 0.35;
   // Lebot Teleop always takes the backward shot this close (its own distance to the lip) and the hooded one beyond.
-  // Standing (6 Nov): backward 0.42-0.60 m 13/17 against hooded ~50%; the drivers chose 0.72 m as the switch
-  public static double BACKWARD_PICK_MAX_DIST_M = 0.72;
+  // Standing (6 Nov): backward 0.42-0.60 m 13/17 against hooded ~50%; the drivers chose 0.72 m as the switch. Moved to
+  // 0.80 (7 Nov) so the 0.77 m shots the drivers take backward (4 of 4, Shot Tuning 080751) are backward. Hooded at the
+  // table's settings scored 46 of 55 at 0.75 m over the same sessions, against 18 of 29 backward
+  public static double BACKWARD_PICK_MAX_DIST_M = 0.80;
   public static double BACKWARD_MAX_SPEED_MPS = 0.3; // Toward or sideways
   // A backward shot that stays blocked this long, by speed or by being too close, gives way to the hooded shot
   // if that has one. Driving around the Cell at full stick held a backward pick for 30 s with no shot (5 Nov, 094211)

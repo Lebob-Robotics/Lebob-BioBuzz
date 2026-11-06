@@ -252,7 +252,7 @@ public final class VisionCorrector {
       for (int k = 0; k < fixes.length; k++) {
         fixes[k] = headingFixes.get(k);
       }
-      dHeading = median(fixes);
+      dHeading = angleMedian(fixes);
       boolean believable = !headingValid || Math.abs(dHeading) <= Math.toRadians(MAX_HEADING_JUMP_DEG);
       boolean override = false;
       if (believable) {
@@ -416,6 +416,18 @@ public final class VisionCorrector {
   }
 
   /** The middle value of a non-empty array. Leaves the input alone. */
+  /**
+   * Median of angles that may straddle +-pi: fixes of 179 and -179 degrees are 2 degrees apart, but their plain
+   * median is near 0. Each is unwrapped to within pi of the first before taking the median.
+   */
+  private static double angleMedian(double[] angles) {
+    double[] unwrapped = new double[angles.length];
+    for (int i = 0; i < angles.length; i++) {
+      unwrapped[i] = angles[0] + ShootOnTheMove.normalizeAngle(angles[i] - angles[0]);
+    }
+    return ShootOnTheMove.normalizeAngle(median(unwrapped));
+  }
+
   private static double median(double[] values) {
     double[] sorted = Arrays.copyOf(values, values.length);
     Arrays.sort(sorted);

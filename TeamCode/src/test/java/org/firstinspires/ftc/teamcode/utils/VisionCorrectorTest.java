@@ -186,16 +186,16 @@ public class VisionCorrectorTest {
 
   @Test
   public void cameraAxesPointTheRightWay() {
-    // The left camera looks backward and to the left, so its picture-right points forward and left
+    // The left camera looks backward and to the left, upside down, so its picture-right points backward and right
     double[] ahead = LEFT.toRobotFrame(0, 1, 0);
     assertTrue(ahead[0] < LEFT.forwardM && ahead[1] > LEFT.leftM && ahead[2] > LEFT.heightM);
     double[] right = LEFT.toRobotFrame(1, 0, 0);
-    assertTrue(right[0] > LEFT.forwardM && right[1] > LEFT.leftM);
+    assertTrue(right[0] < LEFT.forwardM && right[1] < LEFT.leftM);
     assertEquals(LEFT.heightM, right[2], TOLERANCE);
     double[] aheadRight = RIGHT.toRobotFrame(0, 1, 0); // The right camera is the mirror image
     assertTrue(aheadRight[0] < RIGHT.forwardM && aheadRight[1] < RIGHT.leftM && aheadRight[2] > RIGHT.heightM);
-    double[] up = LEFT.toRobotFrame(0, 0, 1); // Picture-up raises the point by cos(pitch) per metre
-    assertEquals(LEFT.heightM + Math.cos(LEFT.pitchRad), up[2], TOLERANCE);
+    double[] up = LEFT.toRobotFrame(0, 0, 1); // Upside down, picture-up lowers the point by cos(pitch) per metre
+    assertEquals(LEFT.heightM - Math.cos(LEFT.pitchRad), up[2], TOLERANCE);
   }
 
   @Test

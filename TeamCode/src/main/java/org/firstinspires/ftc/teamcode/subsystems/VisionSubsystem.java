@@ -45,9 +45,15 @@ import java.util.concurrent.TimeUnit;
  */
 @Configurable
 public class VisionSubsystem extends SubsystemBase {
-  /** Live camera controls for tuning tag contrast. Exposure is in milliseconds. */
-  public static int EXPOSURE_MS = 6;
-  public static int GAIN = 60;
+  /** Which field's lighting the camera exposure is set for. Switch it in Panels on arriving at a field. */
+  public enum FieldLighting { CURTIN, HOME }
+
+  public static FieldLighting FIELD_LIGHTING = FieldLighting.HOME;
+  /** Live camera controls for tuning tag contrast, per field. Exposure is in milliseconds. */
+  public static int CURTIN_EXPOSURE_MS = 3;
+  public static int CURTIN_GAIN = 30;
+  public static int HOME_EXPOSURE_MS = 3; // Placeholder until tuned on the home field
+  public static int HOME_GAIN = 30;
   /**
    * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
    * names cycling so a PC can pull them and see what the robot sees.
@@ -83,7 +89,10 @@ public class VisionSubsystem extends SubsystemBase {
    * Lens calibration {fx, fy, cx, cy} in pixels at RESOLUTION, per physical camera, from
    * tools/camera-calibration (results/*.json, 1 Nov). Recalibrate if a lens is refocused or swapped.
    */
-  private static final double[] LENS_LEFT = {892.442, 892.360, 632.589, 355.601};
+  // The replacement left camera read tag distances 1% short of the right camera with the old left camera's
+  // calibration, so its focal lengths are scaled up 1% (fitted with the mount, 6 Nov). Recalibrate it to
+  // replace this.
+  private static final double[] LENS_LEFT = {901.198, 901.116, 632.589, 355.601};
   private static final double[] LENS_RIGHT = {885.382, 885.080, 677.418, 365.001};
 
   private final AprilTagProcessor[] processors = new AprilTagProcessor[2];
@@ -298,11 +307,11 @@ public class VisionSubsystem extends SubsystemBase {
       }
       appliedDecimation[i] = DECIMATION;
     }
-    if (appliedExposure[i] == EXPOSURE_MS && appliedGain[i] == GAIN) {
+    final int exposureWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_EXPOSURE_MS : HOME_EXPOSURE_MS;
+    final int gainWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_GAIN : HOME_GAIN;
+    if (appliedExposure[i] == exposureWanted && appliedGain[i] == gainWanted) {
       return;
     }
-    final int exposureWanted = EXPOSURE_MS;
-    final int gainWanted = GAIN;
     runOnWorker(i, () -> setControls(i, side, portal, exposureWanted, gainWanted));
   }
 

@@ -163,6 +163,18 @@ final class FieldRoute {
         || pad.left_trigger > TAKEOVER_STICK || pad.right_trigger > TAKEOVER_STICK || pad.right_bumper;
   }
 
+  /** Every point of the straight line from one point to another is inside the area and out of the Hive's footprint. */
+  static boolean pathClear(double x0, double y0, double x1, double y1) {
+    int steps = (int) Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.02);
+    for (int i = 0; i <= steps; i++) {
+      double f = steps == 0 ? 0 : (double) i / steps;
+      if (!inBox(x0 + f * (x1 - x0), y0 + f * (y1 - y0), 0, 0)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private static boolean segmentClear(double x0, double y0, double x1, double y1) {
     int steps = (int) Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.02);
     for (int i = 0; i <= steps; i++) {

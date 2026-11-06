@@ -128,7 +128,7 @@ public class Robot {
     READY // A ball fed now should score
   }
 
-  private Alliance alliance = Alliance.RED;
+  private Alliance alliance = Alliance.BLUE;
   private boolean driverOnFarSide = false;
   private final TargetTracker tracker = new TargetTracker(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
   // Vision pose correction. The history holds each loop's odometry pose with the time of that loop's
@@ -159,18 +159,32 @@ public class Robot {
   private boolean tuningBackward = false;
   private double tuningRpm = 3400;
   private double tuningHoodDeg = HoodSubsystem.ZERO_ANGLE_DEG;
+  private boolean tuningLive = false; // Shot Tuning's moving pass: the tables' shot, moving corrections and all
+  private boolean scriptedOneBall = false; // As RB held in Shot Tuning, from a script
   private Aim lastAim = null;
   private double[] driveOverride = null; // Field-frame stick {+x, +y} for a scripted drive; null for the driver's
   private boolean forceAim = false; // Aims as RB does, without firing
   private double[] aimPointOverride = null; // Field {x, y} aimed at instead of the Cell; needs the tags' pose
   private double holdAnchorX = Double.NaN; // Where RB holds the robot; NaN while not holding
   private double holdAnchorY = Double.NaN;
+  private double[] holdPoint = null; // A scripted field spot held while no drive is scripted; null for none
+  private boolean sticksLocked = false; // The drive and turn sticks do nothing
+  private double turnOverride = 0; // Turn stick for a scripted turn while the sticks are locked
+  private boolean allianceFromTags = false; // Takes the alliance of the Cell seen while its own is unknown
   // RB's position hold: field-frame power toward the anchor, less a share of the speed to damp it
   private static final double HOLD_DEADBAND_M = 0.02;
   private static final double HOLD_GAIN_PER_M = 2.5;
   private static final double HOLD_MIN_POWER = 0.08; // Gets the wheels past their friction
   private static final double HOLD_MAX_POWER = 0.4;
   private static final double HOLD_DAMPING_S = 0.3;
+  // A scripted hold point rests the wheels near it: holding there, too weak to move the robot, stalled them with
+  // a whine. Pushed past RETURN it drives back to DONE, its least power rising until the robot moves
+  private static final double HOLD_POINT_RETURN_M = 0.04;
+  private static final double HOLD_POINT_DONE_M = 0.015;
+  private static final double HOLD_POINT_BOOST_PER_S = 0.3;
+  private static final double HOLD_POINT_MOVING_MPS = 0.05;
+  private boolean holdPointReturning = false;
+  private double holdPointStuckSinceS;
   private final java.util.List<String[]> panelsLines = new java.util.ArrayList<>();
   private final AtomicBoolean panelsBusy = new AtomicBoolean();
   private double lastPanelsSendS = Double.NEGATIVE_INFINITY;
@@ -381,14 +395,19 @@ public class Robot {
 
     boolean holdShot = driver.right_bumper && !tuningMode;
     boolean shootAll = driver.right_trigger > TRIGGER_PRESSED || holdShot;
-    boolean oneBall = tuningMode && driver.right_bumper && driver.right_trigger <= TRIGGER_PRESSED; // RT wins
-    boolean aiming = shootAll || driver.right_bumper || forceAim;
+    boolean oneBallHeld = driver.right_bumper || scriptedOneBall;
+    boolean oneBall = tuningMode && oneBallHeld && driver.right_trigger <= TRIGGER_PRESSED; // RT wins
+    boolean aiming = shootAll || oneBallHeld || forceAim;
     if (!holdShot) {
       holdAnchorX = Double.NaN;
       holdAnchorY = Double.NaN;
     } else if (Double.isNaN(holdAnchorX)) {
       holdAnchorX = pose.xM;
       holdAnchorY = pose.yM;
+    }
+    if (holdPoint != null && driveOverride == null) {
+      holdAnchorX = holdPoint[0];
+      holdAnchorY = holdPoint[1];
     }
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     if (aim != null && headingTrimDeg != 0) {
@@ -532,6 +551,11 @@ public class Robot {
     // Spinning fast, the frame's pose is too uncertain and moved the Cell 0.17 m during one shot (5 Nov)
     boolean steady = Math.abs(velocity[2]) <= ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S;
     for (CellSighting sighting : vision.takeNewCellSightings()) {
+      Alliance other = alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;
+      if (allianceFromTags && other.ownsCluster(sighting.clusterName) && !tracker.knowsCell(nowNanos)
+          && !visionCorrector.upCellConfirmed(alliance)) {
+        alliance = other;
+      }
       if (alliance.ownsCluster(sighting.clusterName)) {
         if (steady) {
           tracker.update(sighting);
@@ -566,6 +590,9 @@ public class Robot {
     aimCellY = cellY;
     Aim hooded = ShootOnTheMove.aimHooded(pose, velocity[0], velocity[1], cellX, cellY);
     Aim backward = ShootOnTheMove.aimBackward(pose, velocity[0], velocity[1], cellX, cellY);
+    if (tuningMode && tuningLive) {
+      return tuningBackward ? backward : hooded;
+    }
     if (tuningMode) {
       // Tight, so a tuning miss is down to the RPM and hood rather than where in the gate the ball left
       return (tuningBackward ? backward : hooded).withShot(tuningRpm, tuningHoodDeg,
@@ -716,6 +743,9 @@ public class Robot {
 
   /** {forward, right} for the drive, from the left stick or, while one is set, {@link #setDriveOverride}. */
   private double[] stickTranslation(double maxPower) {
+    if (driveOverride == null && sticksLocked) {
+      return new double[] {0, 0};
+    }
     if (driveOverride == null) {
       return MecanumDriveSubsystem.shapeTranslation(-driver.left_stick_y, driver.left_stick_x, maxPower);
     }
@@ -728,14 +758,14 @@ public class Robot {
   private boolean isHolding() { return !Double.isNaN(holdAnchorX); }
 
   /** {forward, right} power back to RB's held spot, damped by the speed. Not curved as a stick is. */
-  private double[] holdTranslation(Pose pose) {
+  private double[] holdTranslation(Pose pose, double minPower) {
     double ex = holdAnchorX - pose.xM;
     double ey = holdAnchorY - pose.yM;
     double away = Math.hypot(ex, ey);
     double vx = -HOLD_DAMPING_S * HOLD_GAIN_PER_M * lastVelocity[0];
     double vy = -HOLD_DAMPING_S * HOLD_GAIN_PER_M * lastVelocity[1];
     if (away > HOLD_DEADBAND_M) {
-      double power = Math.min(HOLD_MAX_POWER, HOLD_MIN_POWER + HOLD_GAIN_PER_M * (away - HOLD_DEADBAND_M));
+      double power = Math.min(HOLD_MAX_POWER, minPower + HOLD_GAIN_PER_M * (away - HOLD_DEADBAND_M));
       vx += ex / away * power;
       vy += ey / away * power;
     }
@@ -749,10 +779,32 @@ public class Robot {
     return new double[] {vx * Math.cos(f) + vy * Math.sin(f), vx * Math.sin(f) - vy * Math.cos(f)};
   }
 
+  /** {@link #holdTranslation} for a scripted hold point: nothing near it, and back to it once pushed off. */
+  private double[] holdPointTranslation(Pose pose) {
+    double nowS = clock.seconds();
+    double away = Math.hypot(holdAnchorX - pose.xM, holdAnchorY - pose.yM);
+    if (!holdPointReturning && away > HOLD_POINT_RETURN_M) {
+      holdPointReturning = true;
+      holdPointStuckSinceS = nowS;
+    } else if (holdPointReturning && away < HOLD_POINT_DONE_M) {
+      holdPointReturning = false;
+    }
+    Logger.recordOutput("Drive/PositionHold/Returning", holdPointReturning);
+    if (!holdPointReturning) {
+      Logger.recordOutput("Drive/PositionHold/ErrorM", away);
+      return new double[] {0, 0};
+    }
+    if (Math.hypot(lastVelocity[0], lastVelocity[1]) > HOLD_POINT_MOVING_MPS) {
+      holdPointStuckSinceS = nowS;
+    }
+    return holdTranslation(pose, HOLD_MIN_POWER + HOLD_POINT_BOOST_PER_S * (nowS - holdPointStuckSinceS));
+  }
+
   private void updateDrive(boolean aiming, Aim aim, double lockRateRadPerSec, Pose pose, double turnRateRadPerSec) {
     // Slower while shooting, so the shot's lead for the robot's speed stays small and the aim keeps up
     double maxPower = aiming ? ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER : 1.0;
-    double[] translation = isHolding() ? holdTranslation(pose) : stickTranslation(maxPower);
+    double[] translation = !isHolding() ? stickTranslation(maxPower)
+        : holdPoint != null && driveOverride == null ? holdPointTranslation(pose) : holdTranslation(pose, HOLD_MIN_POWER);
     // The drive runs before this loop's feed check, so lastTranslation is what was commanded as the feed started
     double nowS = clock.seconds();
     boolean stickReleased = translation[0] == 0.0 && translation[1] == 0.0;
@@ -784,7 +836,7 @@ public class Robot {
           driverHeadingRad, turnRateRadPerSec);
       headingHold.clear();
     } else {
-      double turn = MecanumDriveSubsystem.shapeTurnStick(driver.right_stick_x);
+      double turn = sticksLocked ? turnOverride : MecanumDriveSubsystem.shapeTurnStick(driver.right_stick_x);
       double holdRad = headingHold.update(turn != 0.0, forward != 0.0 || right != 0.0, pose.headingRad,
           turnRateRadPerSec, clock.seconds());
       if (Double.isNaN(holdRad)) {
@@ -834,7 +886,7 @@ public class Robot {
       }
     } else if (eject) {
       shooter.setShooterState(ShooterState.EJECT);
-    } else if (shooterStopLatched) {
+    } else if (shooterStopLatched || tuningMode) { // The tuning OpModes rest the wheels between shots
       shooter.setShooterState(ShooterState.STOP);
     } else if (shotKnown && ShootOnTheMoveConstants.PRESPIN_ON) {
       // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
@@ -849,7 +901,7 @@ public class Robot {
     // so it is already there when RT is pressed. Presets are for when the Cell isn't known.
     boolean prepositioning = !aiming && shotKnown && !fullPower && !eject;
     if (aiming || prepositioning) {
-      if (tuningMode && validShot) {
+      if (tuningMode && !tuningLive && validShot) {
         // Lift 0 is the lower stop; held just above it, as a backward shot's is, so the hood can't sag
         hood.setTargetTicks(Math.max(HoodSubsystem.minTargetTicks(), HoodSubsystem.angleToTicks(aim.hoodNowDeg)));
       } else if (shotKnown && aim.backward) {
@@ -1053,7 +1105,9 @@ public class Robot {
     Logger.recordOutput("SOTM/HeadingTrimDeg", headingTrimDeg);
     Logger.recordOutput("SOTM/TableRpmOffset", tableRpmOffset(aim));
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
-    Logger.recordOutput("Robot/OneBallShot", tuningMode && driver.right_bumper && driver.right_trigger <= TRIGGER_PRESSED);
+    Logger.recordOutput("Robot/OneBallShot", tuningMode && (driver.right_bumper || scriptedOneBall)
+        && driver.right_trigger <= TRIGGER_PRESSED);
+    Logger.recordOutput("Robot/TuningLive", tuningLive);
     Logger.recordOutput("Robot/PositionHold", isHolding());
     Logger.recordOutput("Robot/IntakeOn", intakeOn);
     if (aim == null) {
@@ -1203,7 +1257,7 @@ public class Robot {
   public void setMinFeedSpacingS(double s) { aimedFeedGate.setMinFeedSpacingS(s); }
 
   private double tableRpmOffset(Aim aim) {
-    return aim == null || aim.backward || tuningMode ? 0 : ShootOnTheMoveConstants.HOODED_RPM_OFFSET;
+    return aim == null || aim.backward || (tuningMode && !tuningLive) ? 0 : ShootOnTheMoveConstants.HOODED_RPM_OFFSET;
   }
 
   /**
@@ -1219,6 +1273,15 @@ public class Robot {
     tuningHoodDeg = hoodDeg;
   }
 
+  /**
+   * Shot Tuning: the tables' shot for the direction set by {@link #setTuningShot}, with the moving corrections and
+   * the usual gate, instead of the fixed RPM and hood. For shots taken on the move.
+   */
+  public void setTuningLive(boolean on) { tuningLive = on; }
+
+  /** Shot Tuning: fires one ball once ready, as holding RB does. Release before asking for the next. */
+  public void setScriptedOneBall(boolean on) { scriptedOneBall = on; }
+
   /** This loop's aim, null with the Cell unknown. */
   public Aim getLastAim() { return lastAim; }
 
@@ -1230,6 +1293,26 @@ public class Robot {
 
   /** Turns to the shot and keeps the wheels and hood on it, as RB does, but fires nothing. */
   public void setForceAim(boolean on) { forceAim = on; }
+
+  /**
+   * Holds the robot on this field point {x, y}, as RB holds it in Lebot Teleop, while no drive is scripted;
+   * null lets it go. Unlike RB's spot it stays put on the field when the tags move the pose.
+   */
+  public void setHoldPoint(double[] point) { holdPoint = point == null ? null : point.clone(); }
+
+  /** The driver's drive and turn sticks do nothing while on; scripted drives and the aim still move the robot. */
+  public void setSticksLocked(boolean on) { sticksLocked = on; }
+
+  /** With the sticks locked and nothing aiming, turns as the turn stick pushed this far (-1..1) would. */
+  public void setTurnOverride(double turn) { turnOverride = turn; }
+
+  /** Seconds since the cameras last saw a tag; infinite if never. */
+  public double getTagsSeenAgoS() {
+    return lastVisionNanos == 0 ? Double.POSITIVE_INFINITY : (System.nanoTime() - lastVisionNanos) * 1e-9;
+  }
+
+  /** Switches to the other alliance when the cameras see its Cell while this alliance's Cell isn't known. */
+  public void setAllianceFromTags(boolean on) { allianceFromTags = on; }
 
   /** Aims at this field point {x, y} instead of the Cell, once the tags have placed the robot; null for the Cell. */
   public void setAimPointOverride(double[] point) { aimPointOverride = point == null ? null : point.clone(); }
