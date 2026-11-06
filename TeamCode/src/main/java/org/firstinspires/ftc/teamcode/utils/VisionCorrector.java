@@ -246,7 +246,8 @@ public final class VisionCorrector {
     double headingGain = 0;
     boolean steadyForHeading = Math.hypot(velocityXMps, velocityYMps) <= MAX_SPEED_FOR_VISION_HEADING_MPS
         && Math.abs(turnRateRadPerSec) <= MAX_OMEGA_FOR_VISION_HEADING_RAD_S;
-    if (!headingFixes.isEmpty() && (steadyForHeading || !headingValid)) {
+    boolean enoughPairs = headingValid || headingFixes.size() >= MIN_FIRST_HEADING_PAIRS;
+    if (!headingFixes.isEmpty() && enoughPairs && (steadyForHeading || !headingValid)) {
       double[] fixes = new double[headingFixes.size()];
       for (int k = 0; k < fixes.length; k++) {
         fixes[k] = headingFixes.get(k);

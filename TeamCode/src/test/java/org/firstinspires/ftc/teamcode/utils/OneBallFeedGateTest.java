@@ -44,6 +44,40 @@ public class OneBallFeedGateTest {
     assertTrue(gate.feedStarted());
   }
 
+  @Test public void feedSpacingHoldsEvenWhenNoBallIsSeenLeaving() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.2, 0.1, 0);
+    gate.setMinFeedSpacingS(1.6);
+    assertTrue(gate.update(0.00, true, true, 3505, TARGET));
+    assertFalse(gate.update(0.25, true, true, 3505, TARGET)); // Pulse ran out with no dip: paused
+    assertFalse(gate.update(0.40, true, true, 3505, TARGET)); // Pause over, but too soon after the last feed
+    assertFalse(gate.update(1.50, true, true, 3505, TARGET));
+    assertTrue(gate.update(1.61, true, true, 3505, TARGET));
+    assertTrue(gate.feedStarted());
+  }
+
+  @Test public void feederEmptyAfterAPulseWithNoBallUntilOneLeaves() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.3, 0.35, 0);
+    assertTrue(gate.update(0.00, true, true, 3505, TARGET));
+    assertFalse(gate.update(0.31, true, true, 3505, TARGET)); // Paused: a ball may still be on its way
+    assertFalse(gate.feederEmpty());
+    assertFalse(gate.update(0.67, true, false, 3505, TARGET)); // Pause over with no dip
+    assertTrue(gate.feederEmpty());
+    assertTrue(gate.update(0.70, true, true, 3505, TARGET)); // Longer pulse
+    assertFalse(gate.update(0.90, true, false, 3075, TARGET));
+    assertTrue(gate.ballLeft());
+    assertFalse(gate.feederEmpty());
+  }
+
+  @Test public void shorterPulsePausesSooner() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.3, 0.35, 0);
+    gate.setPulseS(0.15);
+    assertTrue(gate.update(0.00, true, true, 3505, TARGET));
+    assertTrue(gate.update(0.10, true, true, 3505, TARGET));
+    assertFalse(gate.update(0.16, true, true, 3505, TARGET)); // Paused, waiting for the dip
+    assertFalse(gate.update(0.25, true, false, 3075, TARGET));
+    assertTrue(gate.ballLeft());
+  }
+
   @Test public void oneBallModeStopsAfterOneBallUntilReleased() {
     OneBallFeedGate gate = new OneBallFeedGate();
     gate.update(0.00, true, true, 3505, TARGET, true);

@@ -27,9 +27,11 @@ public final class OneBallFeedGate {
 
   private final double readySeconds;
   private final double stopUnreadyAfterS;
-  private final double pulseS;
+  private double pulseS;
   private final double pauseS;
   private final double minGapS;
+  private double minFeedSpacingS = 0;
+  private double lastFeedStartS = Double.NEGATIVE_INFINITY;
   private State state = State.WAITING;
   private double readySinceS = Double.NaN;
   private double feedingSinceS = Double.NaN;
@@ -126,10 +128,11 @@ public final class OneBallFeedGate {
     switch (state) {
       case WAITING:
       case RECOVERING:
-        if (steady && nowS - ballLeftAtS >= minGapS) {
+        if (steady && nowS - ballLeftAtS >= minGapS && nowS - lastFeedStartS >= minFeedSpacingS) {
           state = State.FEEDING;
           feedStarted = true;
           feedingSinceS = nowS;
+          lastFeedStartS = nowS;
           peakRpm = rpm;
         }
         break;
@@ -170,9 +173,34 @@ public final class OneBallFeedGate {
     emptyPulses = 0;
   }
 
+  /**
+   * The shortest time from one feed starting to the next, from now on, whether or not a ball was seen leaving.
+   * A feed whose ball the speed reading missed otherwise refeeds after the pause alone.
+   */
+  public void setMinFeedSpacingS(double minFeedSpacingS) {
+    this.minFeedSpacingS = minFeedSpacingS;
+  }
+
+  /**
+   * The longest a feed runs before pausing for its ball's dip, from now on. The dip shows a ball 0.1-0.17 s
+   * after it left, and a second ball loaded tight behind the first went into the wheels with it.
+   */
+  public void setPulseS(double pulseS) {
+    this.pulseS = pulseS;
+  }
+
   /** For the log: WAITING, FEEDING, PAUSED, RECOVERING or DONE. */
   public String stateName() {
     return state.name();
+  }
+
+  /**
+   * True once a pulse and its pause have passed with no ball out, until one leaves: the next ball is further back,
+   * so the feeder should stop between pulses rather than hold backward and pull it back each time (6 Nov, 081243:
+   * the last ball rocked at the bottom of the indexer for 10 s).
+   */
+  public boolean feederEmpty() {
+    return emptyPulses > 0;
   }
 
   /** True on the loop a ball was seen leaving (the wheels dipped). */

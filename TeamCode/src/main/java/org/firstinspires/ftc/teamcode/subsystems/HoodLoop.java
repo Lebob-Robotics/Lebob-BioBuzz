@@ -111,6 +111,11 @@ final class HoodLoop implements Runnable {
   private final Object sampleLock = new Object();
   private final double[][] samples = new double[5][SAMPLE_CAPACITY]; // t, pos, setpoint, vel, power
   private int sampleCount;
+  // Recent |lift - goal| under position control, newest at errorNext - 1; NaN where none (open loop or idle)
+  private static final int ERROR_HISTORY = 64;
+  private final long[] errorNs = new long[ERROR_HISTORY];
+  private final double[] errorDeg = new double[ERROR_HISTORY];
+  private int errorNext;
 
   private HoodLoop(LynxModuleIntf revModule, int revPort, int revSign, DcMotorEx motor, double ticksPerDeg) {
     this.revModule = revModule;
@@ -261,6 +266,28 @@ final class HoodLoop implements Runnable {
   double periodMsAvg() { return periodMsAvg; }
   double periodMsMax() { return periodMsMax; }
 
+  /**
+   * The largest |lift - goal| over the last windowS, or infinity when the loop has not been controlling the hood
+   * for all of it. A single reading can catch a hood swinging through its goal.
+   */
+  double maxErrorDeg(double windowS) {
+    long fromNs = System.nanoTime() - (long) (windowS * 1e9);
+    double worst = 0;
+    synchronized (sampleLock) {
+      for (int k = 1; k <= ERROR_HISTORY; k++) {
+        int i = (errorNext - k + ERROR_HISTORY) % ERROR_HISTORY;
+        if (errorNs[i] == 0 || Double.isNaN(errorDeg[i])) {
+          return Double.POSITIVE_INFINITY;
+        }
+        worst = Math.max(worst, errorDeg[i]);
+        if (errorNs[i] <= fromNs) {
+          return worst; // This step's error held until the window began
+        }
+      }
+    }
+    return Double.POSITIVE_INFINITY; // History shorter than the window
+  }
+
   /** Every step since the last call: {seconds, lift, setpoint, speed, power}, each an array. */
   double[][] drainSamples() {
     synchronized (sampleLock) {
@@ -292,6 +319,7 @@ final class HoodLoop implements Runnable {
           return;
         }
         if (!active) {
+          recordError(System.nanoTime(), Double.NaN);
           lastPos = Double.NaN;
           follow.reset();
           ceilingS = 0;
@@ -405,6 +433,7 @@ final class HoodLoop implements Runnable {
         velDegPerSec = vel;
         power = p;
         record(nowNs / 1e9, pos, setpointDeg, vel, p);
+        recordError(nowNs, Double.isNaN(open) ? Math.abs(pos - goalNowDeg) : Double.NaN);
 
         double periodMs = (System.nanoTime() - startNs) / 1e6;
         periodMsAvg += 0.05 * (periodMs - periodMsAvg);
@@ -428,6 +457,14 @@ final class HoodLoop implements Runnable {
   /** The REV count as the SDK would report it, read fresh from the hub. */
   private int readRevTicks() throws Exception {
     return revSign * new LynxGetBulkInputDataCommand(revModule).sendReceive().getEncoder(revPort);
+  }
+
+  private void recordError(long ns, double deg) {
+    synchronized (sampleLock) {
+      errorNs[errorNext] = ns;
+      errorDeg[errorNext] = deg;
+      errorNext = (errorNext + 1) % ERROR_HISTORY;
+    }
   }
 
   private void record(double t, double pos, double sp, double vel, double p) {

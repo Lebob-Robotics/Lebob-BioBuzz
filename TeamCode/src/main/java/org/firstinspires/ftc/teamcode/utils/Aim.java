@@ -47,6 +47,24 @@ public final class Aim {
     this.headingToleranceRad = headingToleranceRad;
   }
 
+  /** This aim pointed rad further anticlockwise, the shot otherwise unchanged. */
+  public Aim turnedBy(double rad) {
+    return new Aim(shot, ShootOnTheMove.normalizeAngle(targetHeadingRad + rad),
+        ShootOnTheMove.normalizeAngle(lockHeadingRad + rad), lockRateRadPerSec, headingToleranceRad, backward,
+        hoodNowDeg, rpmNow, hoodRateDegPerSec, rpmRatePerSec);
+  }
+
+  /**
+   * This aim with a fixed RPM and hood angle in place of the table's, valid from anywhere, and at most
+   * maxToleranceRad of heading error. For tuning.
+   */
+  public Aim withShot(double rpm, double hoodDeg, double maxToleranceRad) {
+    Shot fixed = new Shot(Shot.Reason.OK, rpm, hoodDeg, Double.NaN, shot.turningRad,
+        shot.distanceToLipM, shot.speedTowardCellMps, shot.sidewaysSpeedMps);
+    return new Aim(fixed, targetHeadingRad, lockHeadingRad, lockRateRadPerSec,
+        Math.min(headingToleranceRad, maxToleranceRad), backward, hoodDeg, rpm, 0, 0);
+  }
+
   /** How far the robot still has to turn, anticlockwise positive. */
   public double headingErrorRad(double currentHeadingRad) {
     return ShootOnTheMove.normalizeAngle(targetHeadingRad - currentHeadingRad);

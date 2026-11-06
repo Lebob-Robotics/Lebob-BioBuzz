@@ -50,7 +50,9 @@ public class HoodSubsystem extends SubsystemBase {
   public static double FAST_KA = 0.00002;
   public static double FAST_KA_DECEL = 0.00015;
   public static double FAST_KG = 0.0;
-  public static double FAST_KP = 0.2;
+  // 0.2 hunted 2-3 degrees either side of 38-41 at 12 Hz, powered throughout, for seconds at a time (6 Nov: G8
+  // shots, and 2 of 10 Hood Tune holds). 0.12: no hunting in 10 holds, settles in 0.25 s mean, overshoot under 0.8.
+  public static double FAST_KP = 0.12;
   public static double FAST_KD = 0.003;
   /**
    * Settles (unpowered, the brake holds) inside this, tighter than DEADBAND_TICKS so the hood rests
@@ -60,6 +62,11 @@ public class HoodSubsystem extends SubsystemBase {
    * gate allows 1.
    */
   public static double FAST_DEADBAND_DEG = 0.3;
+  /**
+   * Ready to shoot only once the lift has stayed within tolerance this long: one reading passed the gate with
+   * the hood swinging 2.5 degrees either side of its goal at 12 Hz, and that ball hit the top lip (6 Nov, G8).
+   */
+  public static double STEADY_S = 0.1;
   public static double FAST_REENGAGE_DEG = 0.5;
   public static double FAST_RESYNC_DEG = 4.0;
   public static double FAST_MAX_POWER = 1.0;
@@ -727,5 +734,16 @@ public class HoodSubsystem extends SubsystemBase {
     double positionTicks = drivingFast && !Double.isNaN(fastLoop.posDeg())
         ? fastLoop.posDeg() * TICKS_PER_DEG : getPosition();
     return Math.abs(getTarget() - positionTicks) <= toleranceTicks;
+  }
+
+  /**
+   * As {@link #atTarget(int)}, and with the fast loop driving, also within it for the last {@link #STEADY_S}
+   * by every one of the loop's readings.
+   */
+  public boolean atTargetSteady(int toleranceTicks) {
+    if (!atTarget(toleranceTicks)) {
+      return false;
+    }
+    return !drivingFast || fastLoop.maxErrorDeg(STEADY_S) * TICKS_PER_DEG <= toleranceTicks;
   }
 }

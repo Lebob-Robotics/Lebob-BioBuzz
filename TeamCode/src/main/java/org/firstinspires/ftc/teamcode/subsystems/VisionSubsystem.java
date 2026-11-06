@@ -28,7 +28,9 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
 import org.opencv.core.Mat;
 import org.psilynx.psikit.core.Logger;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,6 +53,8 @@ public class VisionSubsystem extends SubsystemBase {
    * names cycling so a PC can pull them and see what the robot sees.
    */
   public static double SAVE_FRAME_EVERY_S = 0; // FrameRecorder keeps every frame now
+  /** Saves every camera frame for run videos (FrameRecorder). Off: it costs hub CPU and storage. */
+  public static boolean RECORD_FRAMES = false;
   private long lastFrameSaveNanos;
   private int frameSaves;
   public static float DECIMATION = 2; // Halves the detection work; 3.25-inch tags still read at 2+ m. 1 for range
@@ -139,6 +143,9 @@ public class VisionSubsystem extends SubsystemBase {
     if (Logger.isReplay()) {
       return;
     }
+    // Frees the last OpMode's AprilTag detectors (see detach): native memory never prompts a collection by itself
+    System.gc();
+    System.runFinalization();
 
     int[] viewIds = null;
     try {
@@ -173,9 +180,12 @@ public class VisionSubsystem extends SubsystemBase {
 
   private void setUpCamera(HardwareMap hardwareMap, Side side, String name, double[] lens, int viewId,
       AprilTagLibrary library, AprilTagLibrary extraLibrary) {
+    AprilTagProcessor processor = null;
+    AprilTagProcessor singleTagProcessor = null;
+    FrameRecorder recorder = null;
     try {
-      AprilTagProcessor processor = buildProcessor(library, lens);
-      AprilTagProcessor singleTagProcessor = extraLibrary == null ? null : buildProcessor(extraLibrary, lens);
+      processor = buildProcessor(library, lens);
+      singleTagProcessor = extraLibrary == null ? null : buildProcessor(extraLibrary, lens);
 
       VisionPortal.Builder builder = new VisionPortal.Builder()
           .setCamera(hardwareMap.get(WebcamName.class, name))
@@ -184,8 +194,10 @@ public class VisionSubsystem extends SubsystemBase {
           .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
           .addProcessor(processor)
           .addProcessor(frameClocks[side.ordinal()]);
-      FrameRecorder recorder = new FrameRecorder(side == Side.LEFT ? "camL" : "camR");
-      builder.addProcessor(recorder);
+      if (RECORD_FRAMES) {
+        recorder = new FrameRecorder(side == Side.LEFT ? "camL" : "camR");
+        builder.addProcessor(recorder);
+      }
       if (singleTagProcessor != null) {
         builder.addProcessor(singleTagProcessor);
       }
@@ -201,6 +213,10 @@ public class VisionSubsystem extends SubsystemBase {
     } catch (RuntimeException e) {
       cameraStatus[side.ordinal()] = e.toString();
       RobotLog.ee("BioBuzzVision", e, "Failed to open %s", name);
+      if (recorder != null) {
+        recorder.close();
+      }
+      detach(processor, singleTagProcessor, frameClocks[side.ordinal()], recorder);
       portals[side.ordinal()] = null;
       processors[side.ordinal()] = null;
       singleTagProcessors[side.ordinal()] = null;
@@ -478,16 +494,37 @@ public class VisionSubsystem extends SubsystemBase {
     return inputs[side.ordinal()].describe() + " | " + cameraStatus[side.ordinal()];
   }
 
+  /**
+   * Takes processors off the SDK's list of every processor ever added to a portal (VisionPortal.Builder's static
+   * attachedProcessors, never emptied), so a closed portal's can be collected. Each AprilTag processor holds a native
+   * detector of about 36 MB, freed only when finalized: kept on that list, every run added 36 MB per camera (missing
+   * ones too) until Android killed the app at 1 GB (6 Nov, 10:12).
+   */
+  private static void detach(VisionProcessor... gone) {
+    try {
+      Field field = VisionPortal.Builder.class.getDeclaredField("attachedProcessors");
+      field.setAccessible(true);
+      List<?> attached = (List<?>) field.get(null);
+      synchronized (attached) {
+        attached.removeAll(Arrays.asList(gone));
+      }
+    } catch (ReflectiveOperationException | RuntimeException e) {
+      RobotLog.ww("BioBuzzVision", "Can't free closed portal's processors: %s", e);
+    }
+  }
+
   /** Closes both portals. Call from the OpMode's stop(). */
   public void close() {
     cameraWorker.shutdownNow();
     for (int i = 0; i < portals.length; i++) {
-      if (recorders[i] != null) {
-        recorders[i].close();
+      FrameRecorder recorder = recorders[i];
+      if (recorder != null) {
+        recorder.close();
         recorders[i] = null;
       }
       if (portals[i] != null) {
         portals[i].close();
+        detach(processors[i], singleTagProcessors[i], frameClocks[i], recorder);
         portals[i] = null;
         processors[i] = null;
         singleTagProcessors[i] = null;

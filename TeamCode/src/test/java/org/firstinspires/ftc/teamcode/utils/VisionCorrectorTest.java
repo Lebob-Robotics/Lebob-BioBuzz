@@ -680,6 +680,21 @@ public class VisionCorrectorTest {
   }
 
   @Test
+  public void theFirstHeadingWaitsForEnoughTagPairs() {
+    Pose odometry = new Pose(0, 0, TRUE_POSE.headingRad + Math.toRadians(28));
+    VisionResult pair = corrector.process(list(observe(30, Cell.AUDIENCE, TRUE_POSE), observe(37, Cell.AUDIENCE, TRUE_POSE)),
+        stillHistory(odometry), odometry, 0, 0, 0, false, false, T0 + 100 * MS);
+    assertEquals(1, pair.headingPairs);
+    assertEquals(0, pair.headingGain, TOLERANCE);
+    assertFalse(pair.accepted);
+    VisionResult four = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0, 0, 0,
+        false, false, T0 + 100 * MS);
+    assertTrue(four.headingPairs >= ShootOnTheMoveConstants.MIN_FIRST_HEADING_PAIRS);
+    assertTrue(four.accepted);
+    assertEquals(TRUE_POSE.headingRad, four.newPose.headingRad, 1e-6);
+  }
+
+  @Test
   public void oneTagOrTagsTooCloseLeaveTheHeadingAlone() {
     Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
     VisionResult one = runHeading(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false);

@@ -19,8 +19,10 @@ public final class ShootOnTheMoveConstants {
   private ShootOnTheMoveConstants() {}
 
   // Fire command to ball leaving the shooter. The flywheels' RPM dips 0.12-0.30 s after the command, mostly
-  // about 0.2 s (nine feeds, 4-5 Nov logs)
-  public static double FEED_DELAY_S = 0.20;
+  // about 0.2 s (nine feeds, 4-5 Nov logs). One ball per pulse, the dip came 0.20-0.35 s after it, and the pose
+  // acted on is a loop (about 55 ms) old: at 0.20 two strafing shots clipped the Cell's edge on the side the robot
+  // was moving toward (6 Nov, 080732)
+  public static double FEED_DELAY_S = 0.30;
   public static double FEED_DELAY_MAX_S = 0.30; // Latest a ball leaves: the heading must still be on target then
 
   // ---- Shooter on the robot (CAD) --------------------------------------
@@ -59,12 +61,11 @@ public final class ShootOnTheMoveConstants {
   // ---- Field frame -----------------------------------------------------
   // The odometry heading is in the field frame (0 along +x, anticlockwise positive), so the camera can
   // use the tags' field positions. The drive stays driver relative: heading minus the forward below.
-  // Heading the driver calls "forward", standing at their wall. The tags now set the field heading, so
-  // these must match the real field. 4 Nov: the robot sat facing the red driver and the tags read 169
-  // degrees, so the red driver faces +x (the audience Cells, blue tags on the left). Blue assumes the
-  // same wall, as the Hive tags are mirrored across x. TODO confirm blue on the field.
-  public static double ALLIANCE_FORWARD_RED_RAD = 0;
-  public static double ALLIANCE_FORWARD_BLUE_RAD = 0;
+  // Heading the driver calls "forward", standing at their wall. The tags set the field heading, so these must
+  // match the real field. Each driver stands at the wall nearest their own Cells (red tags at -y, blue at +y), with
+  // both Cells off to the sides, 90 degrees from them: red faces +y, blue -y (6 Nov, from the drivers)
+  public static double ALLIANCE_FORWARD_RED_RAD = Math.PI / 2;
+  public static double ALLIANCE_FORWARD_BLUE_RAD = -Math.PI / 2;
 
   // ---- Vision pose correction (from Sean's feature/sotm) -----------------
   // The Hive tags give the robot's field position. Only each tag's ftcPose x/y/z is used, not the SDK's
@@ -114,6 +115,9 @@ public final class ShootOnTheMoveConstants {
   // Heading from the tags: two tags seen at once give the robot's heading from the line between them.
   public static boolean VISION_HEADING = true;
   public static double MIN_HEADING_BASELINE_M = 0.2; // Tags closer together than this give too noisy a heading
+  // The first heading fix is taken in full, so it waits for this many tag pairs: one pair put the start heading
+  // 28 degrees out, 9 to 13 pairs a few frames later agreed on the truth (6 Nov, 080409)
+  public static int MIN_FIRST_HEADING_PAIRS = 3;
   public static double HEADING_GAIN = 0.2; // Share of each heading correction applied. The first applies all of it
   public static double MAX_HEADING_JUMP_DEG = 20; // Larger corrections once the heading is trusted are ignored
   // ...unless this many frames in a row agree on it (within HEADING_OVERRIDE_AGREE_DEG): then the odometry
@@ -180,7 +184,7 @@ public final class ShootOnTheMoveConstants {
   // late, so feeds ran on into the next ball (5 Nov, 084355-092330). After the pulse the feeder holds backward
   // up to AIMED_FEED_PAUSE_S for the dip of a ball already on its way
   public static double AIMED_FEED_PULSE_S = 0.30;
-  public static double AIMED_FEED_PAUSE_S = 0.25;
+  public static double AIMED_FEED_PAUSE_S = 0.35; // At 0.25 s the third ball's dip came just after the pause (6 Nov, 080814)
   // The wheels lose 300-430 RPM per ball and need about this long to come back (5 Nov, 084355: refed 0.08 s on)
   public static double MIN_BALL_GAP_S = 0.35;
   // From each aimed feed command until this long after, the drive keeps the translation it had at the feed, so the
@@ -208,15 +212,26 @@ public final class ShootOnTheMoveConstants {
   public static boolean BACKWARD_SHOTS_ON = true;
   public static double BACKWARD_DIRECTION_RAD = 0; // Relative to robot forward
   public static double BACKWARD_LAUNCH_DEG = 99; // Hood on its lower stop (HoodSubsystem.ZERO_ANGLE_DEG)
-  public static final double[] BACKWARD_DIST_M = {0.95, 1.3, 1.8, 2.3};
-  public static final double[] BACKWARD_RPM = {3400, 3500, 3700, 4200};
-  // Closer than the table's first point, the first point's RPM is used. Untested below 0.95 m: without it,
-  // a driver at 0.6-0.8 m facing the Cell was turned 180 degrees to the hooded shot (5 Nov)
-  public static double BACKWARD_MIN_DIST_M = 0.65;
+  // 0.40 m (Shot Tuning, 6 Nov 082517): on its stop the hood never scored from 0.4-0.6 m (0 of 7 at 3400-3600 rpm,
+  // and the G1 grid 0 of 3 at 0.6 m, onto the Cell's bottom); 8 degrees up at 3200 rpm scored 4 of 5, 3150-3300
+  // 8 of 13. Shot Tuning 091010: 0.42 m at 90.3 degrees 8 of 10 against 0 of 2 at 91.3; 0.60 m 3270 rpm 94.0 degrees
+  // 5 of 7; 0.72-0.74 m as interpolated (3310-3320, 95.5-95.9) 14 of 25, misses unmarked
+  public static final double[] BACKWARD_DIST_M = {0.40, 0.60, 0.95, 1.3, 1.8, 2.3};
+  public static final double[] BACKWARD_RPM = {3200, 3270, 3400, 3500, 3700, 4200};
+  public static final double[] BACKWARD_HOOD_DEG = {90, 94, 99, 99, 99, 99};
+  // Closer than the table's first point, the first point's shot is used
+  public static double BACKWARD_MIN_DIST_M = 0.35;
+  // Lebot Teleop always takes the backward shot this close (its own distance to the lip) and the hooded one beyond.
+  // Standing (6 Nov): backward 0.42-0.60 m 13/17 against hooded ~50%; the drivers chose 0.72 m as the switch
+  public static double BACKWARD_PICK_MAX_DIST_M = 0.72;
   public static double BACKWARD_MAX_SPEED_MPS = 0.3; // Toward or sideways
   // A backward shot that stays blocked this long, by speed or by being too close, gives way to the hooded shot
   // if that has one. Driving around the Cell at full stick held a backward pick for 30 s with no shot (5 Nov, 094211)
   public static double BACKWARD_GIVE_UP_S = 1.0;
+
+  // Added to every hooded shot from the table. The standing grid (G0-G9, 6 Nov) at -75 hit no top lips, against 7 of
+  // 42 balls long at the table's RPM; short misses stayed at 3 and bounce-outs at 6 (21/30 in, against 26/42)
+  public static double HOODED_RPM_OFFSET = -75;
 
   // ---- Driver ----------------------------------------------------------
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming

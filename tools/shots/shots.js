@@ -32,6 +32,8 @@
     openingLengthM: 0.356,    // 14 in along the tilted face
     openingTiltDeg: 60,       // face rises away from the robot; confirm against manual Figure 9-10
     marginM: 0.02,            // clearance beyond the ball radius at each edge
+    liftCl: 0,                // Magnus lift coefficient from the flywheels' backspin; 0 is drag only
+    maxEntryFraction: undefined, // A ball entering further along the opening than this rattles out; unset is the far edge
     distMinM: 0.1, distMaxM: 1.5, distStepM: 0.075,
     velMinMps: -2.3, velMaxMps: 2.3, velStepMps: 0.1,
     rpmMin: 1500, rpmMax: 5500, rpmStep: 25,
@@ -72,12 +74,14 @@
 
   // Fly one ball from the shooter's exit point with nothing to hit, until it reaches the
   // tiles, 5 s, or x past maxXM (when every target of interest is behind). The robot's radial velocity adds to the ball's horizontal velocity. Quadratic drag,
-  // trapezoidal velocity step so the no-drag case reproduces the exact parabola. Each point is
+  // and backspin lift (liftCl) square to the velocity, upward while the ball goes forward;
+  // trapezoidal position step so the no-drag case reproduces the exact parabola. Each point is
   // [x, y, vy]. The flight does not depend on the Cell's distance, so one flight serves every distance.
   function fly(rpm, radialVelMps, p, maxXM) {
     if (maxXM === undefined) maxXM = Infinity;
     const r = p.ballDiameterM / 2;
     const k = 0.5 * RHO * p.dragCd * Math.PI * r * r / p.ballMassKg;
+    const kl = 0.5 * RHO * (p.liftCl || 0) * Math.PI * r * r / p.ballMassKg;
     // The ball leaves launchOffsetDeg steeper than the hood is set (fitted from shots that scored).
     const hoodRad = p.launchAngleDeg * Math.PI / 180, v0 = rpm * p.exitSpeedPerRpm;
     const a = (p.launchAngleDeg + (p.launchOffsetDeg || 0)) * Math.PI / 180;
@@ -86,7 +90,7 @@
     const pts = [[x, y, vy]];
     while (t < 5 && y >= 0 && x <= maxXM) {
       const v = Math.hypot(vx, vy);
-      const vx1 = vx - k * v * vx * p.dtS, vy1 = vy - (G + k * v * vy) * p.dtS;
+      const vx1 = vx - (k * vx + kl * vy) * v * p.dtS, vy1 = vy - (G + (k * vy - kl * vx) * v) * p.dtS;
       x += (vx + vx1) / 2 * p.dtS; y += (vy + vy1) / 2 * p.dtS;
       vx = vx1; vy = vy1; t += p.dtS;
       pts.push([x, y, vy]);
@@ -101,13 +105,15 @@
     const r = p.ballDiameterM / 2;
     const o = opening(distM, p);
     const clear = (r + p.marginM) / p.openingLengthM;  // edge clearance as a fraction of the opening
+    // Deeper entries rattle out: the far wall throws them back over the lip
+    const farLimit = p.maxEntryFraction === undefined ? 1 - clear : Math.min(1 - clear, p.maxEntryFraction);
     if (pts[pts.length - 1][0] < o.x0) return { result: 'short', end: pts.length - 1 };
     let lo = 1, hi = pts.length - 1;
     while (lo < hi) { const mid = (lo + hi) >> 1; if (pts[mid][0] < o.x0) lo = mid + 1; else hi = mid; }
     for (let i = lo; i < pts.length; i++) {
       const [x, y] = pts[i - 1], [nx, ny, vy] = pts[i];
       const u = crossing(x, y, nx, ny, o);
-      if (u !== null && vy < 0) return { result: u < clear ? 'lip' : u > 1 - clear ? 'far' : 'score', end: i };
+      if (u !== null && vy < 0) return { result: u < clear ? 'lip' : u > farLimit ? 'far' : 'score', end: i, u: u };
       if (nx >= o.x0 && ny < o.y0) return { result: 'short', end: i };   // into the front face below the lip
       if (nx > o.x1 && ny >= o.y1) return { result: 'long', end: i };     // over the far edge
       if (ny < 0) return { result: nx > o.x1 ? 'long' : 'short', end: i };
@@ -192,7 +198,7 @@
     const base = Object.assign({}, DEFAULTS, p0);
     const fails = [];
     // 1. With no drag the flight must match the closed-form parabola to 1 mm.
-    const p = Object.assign({}, base, { dragCd: 0, lipHeightM: 100 });  // nothing to hit
+    const p = Object.assign({}, base, { dragCd: 0, liftCl: 0, lipHeightM: 100 });  // nothing to hit
     const s = simulate(3000, 0.3, 2, p);
     const a = (p.launchAngleDeg + (p.launchOffsetDeg || 0)) * Math.PI / 180, v0 = 3000 * p.exitSpeedPerRpm;
     for (const frac of [0.25, 0.5, 0.75]) {

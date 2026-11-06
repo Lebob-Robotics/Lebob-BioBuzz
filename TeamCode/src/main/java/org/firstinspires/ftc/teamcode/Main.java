@@ -57,6 +57,7 @@ public class Main extends PsiKitIterativeOpMode {
   public static final boolean PANELS_ENABLED = true;
 
   private Robot robot;
+  private boolean wasBack;
 
   @Override
   protected int getRlogPort() {
@@ -103,8 +104,20 @@ public class Main extends PsiKitIterativeOpMode {
   @Override
   protected void onPsiKitInitLoop() {
     if (robot != null) {
+      pollDriverSide();
+      telemetry.addData("Driving from", robot.isDriverOnFarSide() ? "FAR side of the field (Share to change)"
+          : "alliance wall (Share to change)");
       robot.initLoop();
     }
+  }
+
+  /** Share turns the sticks round for a driver at the far wall, as when practising from the other side. */
+  private void pollDriverSide() {
+    boolean back = robot.getDriver().back;
+    if (back && !wasBack) {
+      robot.setDriverOnFarSide(!robot.isDriverOnFarSide());
+    }
+    wasBack = back;
   }
 
   @Override
@@ -116,6 +129,10 @@ public class Main extends PsiKitIterativeOpMode {
 
   @Override
   protected void onPsiKitLoop() {
+    pollDriverSide();
+    if (robot.isDriverOnFarSide()) {
+      telemetry.addData("Driving from", "FAR side (Share to change)");
+    }
     robot.periodic();
   }
 

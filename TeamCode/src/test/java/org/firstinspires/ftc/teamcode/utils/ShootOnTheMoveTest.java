@@ -347,10 +347,20 @@ public class ShootOnTheMoveTest {
     assertEquals(ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
   }
 
+  @Test public void backwardCloseInLiftsTheHoodOffItsStop() {
+    Shot close = ShootOnTheMove.calculateBackward(0.40, 0, 0);
+    assertEquals(3200, close.targetRpm, 1e-6);
+    assertEquals(90, close.hoodDeg, 1e-6);
+    Shot between = ShootOnTheMove.calculateBackward(0.775, 0, 0);
+    assertEquals(3335, between.targetRpm, 1e-6);
+    assertEquals(96.5, between.hoodDeg, 1e-6);
+  }
+
   @Test public void backwardJustInsideTheTableUsesItsFirstPoint() {
     Shot shot = ShootOnTheMove.calculateBackward(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M, 0, 0);
     assertTrue(shot.valid);
-    assertEquals(3400, shot.targetRpm, 1e-6);
+    assertEquals(ShootOnTheMoveConstants.BACKWARD_RPM[0], shot.targetRpm, 1e-6);
+    assertEquals(ShootOnTheMoveConstants.BACKWARD_HOOD_DEG[0], shot.hoodDeg, 1e-6);
     assertEquals(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M, shot.distanceToLipM, 1e-9);
   }
 

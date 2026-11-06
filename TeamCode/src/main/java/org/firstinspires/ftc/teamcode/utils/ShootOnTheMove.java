@@ -147,10 +147,13 @@ public final class ShootOnTheMove {
     Shot stillNow = calculateBackward(now.distanceToLipM, 0, 0);
     double rpmNow = shot.valid && shotNow.valid ? shotNow.targetRpm
         : shot.valid ? shot.targetRpm : stillNow.valid ? stillNow.targetRpm : still.targetRpm;
+    // Also while it waits for the robot to slow, so the hood is there already
+    double hoodNow = shotNow.valid ? shotNow.hoodDeg : shot.valid ? shot.hoodDeg
+        : stillNow.valid ? stillNow.hoodDeg : still.hoodDeg;
     double robotHeadingRad = normalizeAngle(g.directionToCellRad - BACKWARD_DIRECTION_RAD);
     double lockHeadingRad = normalizeAngle(now.directionToCellRad - BACKWARD_DIRECTION_RAD);
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
-        headingTolerance(g.distanceToClusterM), true, shot.hoodDeg, rpmNow, 0,
+        headingTolerance(g.distanceToClusterM), true, hoodNow, rpmNow, 0,
         still.valid && stillNow.valid ? rate(stillNow.targetRpm, still.targetRpm, MAX_RPM_RATE_PER_SEC) : 0);
   }
 
@@ -199,7 +202,8 @@ public final class ShootOnTheMove {
   }
 
   /**
-   * The backward shot: hood on its lower stop, RPM read straight between the calibrated distances.
+   * The backward shot: RPM and hood read straight between the calibrated distances (the hood on its lower stop
+   * from 0.95 m out).
    * Calibrated standing still, so it is refused while the robot is moving.
    */
   public static Shot calculateBackward(double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
@@ -222,7 +226,8 @@ public final class ShootOnTheMove {
     int i = Math.min(TableLookup.indexAtOrBelow(distances, tableDistM), distances.length - 2);
     double fraction = (tableDistM - distances[i]) / (distances[i + 1] - distances[i]);
     double rpm = BACKWARD_RPM[i] + fraction * (BACKWARD_RPM[i + 1] - BACKWARD_RPM[i]);
-    return new Shot(Shot.Reason.OK, rpm, BACKWARD_LAUNCH_DEG, Double.NaN, 0.0,
+    double hoodDeg = BACKWARD_HOOD_DEG[i] + fraction * (BACKWARD_HOOD_DEG[i + 1] - BACKWARD_HOOD_DEG[i]);
+    return new Shot(Shot.Reason.OK, rpm, hoodDeg, Double.NaN, 0.0,
         distanceToLipM, speedTowardCellMps, sidewaysSpeedMps);
   }
 

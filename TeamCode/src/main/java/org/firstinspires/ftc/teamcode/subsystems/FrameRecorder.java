@@ -34,8 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Configurable
 public class FrameRecorder implements VisionProcessor {
   /** Frames saved per second at most; 0 records nothing. Read every frame. */
-  public static double FPS = 10;
-  public static int WIDTH = 640;
+  public static double FPS = 5; // 10 fps at 640 wide slowed the robot loop from 67 to 88 ms (6 Nov)
+  public static int WIDTH = 480;
   public static int JPEG_QUALITY = 70;
   /** Runs kept on the hub; older ones are deleted when a new one starts. About 25 MB a minute at 10 FPS. */
   public static int KEEP_RUNS = 12;
@@ -79,7 +79,8 @@ public class FrameRecorder implements VisionProcessor {
     if (fps <= 0 || failed || saved >= MAX_FRAMES_PER_RUN) {
       return null;
     }
-    if (captureTimeNanos - lastFrameNanos < 1e9 / fps) {
+    // The first frame is always taken: now minus Long.MIN_VALUE overflows to a negative gap
+    if (lastFrameNanos != Long.MIN_VALUE && captureTimeNanos - lastFrameNanos < 1e9 / fps) {
       return null;
     }
     if (!busy.compareAndSet(false, true)) {
