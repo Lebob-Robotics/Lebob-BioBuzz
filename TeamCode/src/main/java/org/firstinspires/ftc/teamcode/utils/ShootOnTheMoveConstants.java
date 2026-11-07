@@ -219,10 +219,14 @@ public final class ShootOnTheMoveConstants {
   // 8 of 13. Shot Tuning 091010: 0.42 m at 90.3 degrees 8 of 10 against 0 of 2 at 91.3; 0.60 m 3270 rpm 94.0 degrees
   // 5 of 7; 0.72-0.74 m as interpolated (3310-3320, 95.5-95.9) 14 of 25, misses unmarked. Shot Tuning 080751 (7 Nov):
   // 0.77 m as interpolated (3320-3330, 95.9-96.5) 4 of 4, 23 degrees off the Cell's axis; 47-51 degrees off,
-  // 0.74-0.85 m scored 3 of 14 at 3370-3470 rpm and 94.7-97.7 degrees
-  public static final double[] BACKWARD_DIST_M = {0.40, 0.60, 0.95, 1.3, 1.8, 2.3};
-  public static final double[] BACKWARD_RPM = {3200, 3270, 3400, 3500, 3700, 4200};
-  public static final double[] BACKWARD_HOOD_DEG = {90, 94, 99, 99, 99, 99};
+  // 0.74-0.85 m scored 3 of 14 at 3370-3470 rpm and 94.7-97.7 degrees.
+  // Shot Tuning 085918 (7 Nov), each spot's RPM search at the old table's angle, the middle of what scored:
+  // 0.63 m 3000-3360 at 94.3 (7 of 7 at 3180), 0.73-0.74 m 3200-3340 and 3020-3350 at 95.8-95.9, 0.76 m 3280-3310
+  // at 96.5 (the line between 0.73 and 0.81 gives 3300 there), 0.81 m 3350-3420 at 97.0. 0.40 m: 88-94 degrees all
+  // scored at 3200 but none often (14 of 52 over the session), so 90 stays
+  public static final double[] BACKWARD_DIST_M = {0.40, 0.63, 0.73, 0.81, 0.95, 1.3, 1.8, 2.3};
+  public static final double[] BACKWARD_RPM = {3200, 3180, 3230, 3390, 3400, 3500, 3700, 4200};
+  public static final double[] BACKWARD_HOOD_DEG = {90, 94.3, 95.9, 97.0, 99, 99, 99, 99};
   // Closer than the table's first point, the first point's shot is used
   public static double BACKWARD_MIN_DIST_M = 0.35;
   // Lebot Teleop always takes the backward shot this close (its own distance to the lip) and the hooded one beyond.
@@ -235,9 +239,9 @@ public final class ShootOnTheMoveConstants {
   // if that has one. Driving around the Cell at full stick held a backward pick for 30 s with no shot (5 Nov, 094211)
   public static double BACKWARD_GIVE_UP_S = 1.0;
 
-  // Added to every hooded shot from the table. The standing grid (G0-G9, 6 Nov) at -75 hit no top lips, against 7 of
-  // 42 balls long at the table's RPM; short misses stayed at 3 and bounce-outs at 6 (21/30 in, against 26/42)
-  public static double HOODED_RPM_OFFSET = -75;
+  // Added to every hooded shot from the table. -75 (6 Nov) made up for the model's ball being too slow; the model
+  // refitted to Shot Tuning's 224 hooded balls (7 Nov) fires what they found without it
+  public static double HOODED_RPM_OFFSET = 0;
 
   // ---- Driver ----------------------------------------------------------
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming

@@ -351,9 +351,9 @@ public class ShootOnTheMoveTest {
     Shot close = ShootOnTheMove.calculateBackward(0.40, 0, 0);
     assertEquals(3200, close.targetRpm, 1e-6);
     assertEquals(90, close.hoodDeg, 1e-6);
-    Shot between = ShootOnTheMove.calculateBackward(0.775, 0, 0);
-    assertEquals(3335, between.targetRpm, 1e-6);
-    assertEquals(96.5, between.hoodDeg, 1e-6);
+    Shot between = ShootOnTheMove.calculateBackward(0.77, 0, 0); // Halfway from 0.73 to 0.81 m
+    assertEquals(3310, between.targetRpm, 1e-6);
+    assertEquals(96.45, between.hoodDeg, 1e-6);
   }
 
   @Test public void backwardJustInsideTheTableUsesItsFirstPoint() {
