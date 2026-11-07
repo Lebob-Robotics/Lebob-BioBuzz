@@ -27,6 +27,7 @@ public final class ShotSearch {
   private final int confirmBalls;
 
   private final List<Double> scoredReach = new ArrayList<>();
+  private final List<double[]> confirmMisses = new ArrayList<>(); // {reach, 1 if long} of confirming range misses
   private double shortestLongReach = Double.POSITIVE_INFINITY; // Least reach that went long
   private double longestShortReach = Double.NEGATIVE_INFINITY; // Most reach that went short
   private double nextReach;
@@ -72,6 +73,16 @@ public final class ShotSearch {
 
   /** Misses past the scoring values marked the other way: a short where it should go long, or a long where short. */
   public int contrary() { return contrary; }
+
+  /** The furthest-reaching setting marked short (whatever was marked, past the scoring values), NaN if none. */
+  public double furthestShort() {
+    return longestShortReach == Double.NEGATIVE_INFINITY ? Double.NaN : longestShortReach / longerSign;
+  }
+
+  /** The least-reaching setting marked long, NaN if none. */
+  public double nearestLong() {
+    return shortestLongReach == Double.POSITIVE_INFINITY ? Double.NaN : shortestLongReach / longerSign;
+  }
 
   /** True once both edges are known. */
   public boolean hasRange() {
@@ -121,9 +132,29 @@ public final class ShotSearch {
         longestShortReach = Math.max(longestShortReach, reach);
       }
     }
+    if (phase == Phase.CONFIRM && !mark.in && !mark.bounced && mark.hasRange()) {
+      confirmMisses.add(new double[] {reach, mark.longMiss ? 1 : 0});
+    }
     if (phase == Phase.CONFIRM || phase == Phase.DONE) {
       confirmFired++;
       confirmScored += mark.in ? 1 : 0;
+      if (phase == Phase.CONFIRM && confirmFired >= confirmBalls && confirmMisses.size() * 2 > confirmFired) {
+        // Most confirming balls missed on range: the search reopens, and the ins those misses contradict are
+        // dropped as older (7 Nov, 085204: called found at 3 of 10 in, its three confirming balls all long, two ins
+        // from an earlier session holding the range at -2.0 deg)
+        for (double[] m : confirmMisses) {
+          if (m[1] > 0) {
+            scoredReach.removeIf(r -> r >= m[0]);
+          } else {
+            scoredReach.removeIf(r -> r <= m[0]);
+          }
+        }
+        confirmMisses.clear();
+        confirmFired = 0;
+        confirmScored = 0;
+        plan();
+        return;
+      }
       if (confirmFired >= confirmBalls) {
         phase = Phase.DONE;
       }
@@ -150,8 +181,11 @@ public final class ShotSearch {
     }
     double highest = max(scoredReach);
     double lowest = min(scoredReach);
-    boolean longEdgeKnown = shortestLongReach - highest <= resolution || highest >= maxReach - 1e-9;
-    boolean shortEdgeKnown = lowest - longestShortReach <= resolution || lowest <= minReach + 1e-9;
+    // Fired settings are rounded to the quantum, so a limit off it is reached within half of one (7 Nov, 082948: the
+    // hood limit -3.93 deg, every ball fired at -3.9 went in and the long edge was never found, 38 balls)
+    double atLimit = Math.max(1e-9, quantum / 2 + 1e-9);
+    boolean longEdgeKnown = shortestLongReach - highest <= resolution || highest >= maxReach - atLimit;
+    boolean shortEdgeKnown = lowest - longestShortReach <= resolution || lowest <= minReach + atLimit;
     if (!longEdgeKnown) {
       phase = Phase.LONG_EDGE;
       nextReach = shortestLongReach == Double.POSITIVE_INFINITY ? highest + step : (highest + shortestLongReach) / 2;

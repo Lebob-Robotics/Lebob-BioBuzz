@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import android.graphics.Canvas;
+import android.os.Process;
 import android.util.Size;
 
 import com.bylazar.configurables.annotations.Configurable;
@@ -76,6 +77,18 @@ public class VisionSubsystem extends SubsystemBase {
    * frames a second old. Read at INIT.
    */
   public static boolean CLUSTERS_FROM_TAGS = true;
+  /**
+   * The cameras' frame threads, and the AprilTag workers they start, run at this nice value (0 normal, higher
+   * yields). At 0 they took half the hub's CPU and the robot loop ran 77 ms; at 10 it ran 54 ms and the cameras
+   * lost under 1 FPS (7 Nov, 092018). Kept under 10, where Android also caps the threads as background. Read
+   * when a camera starts.
+   */
+  public static int VISION_THREAD_NICE = 8;
+  /**
+   * Draws the cameras on the Control Hub's own screen, which nobody sees in a match. Its render thread runs at
+   * high priority and took as much CPU as the robot loop (7 Nov). Applied live.
+   */
+  public static boolean LIVE_VIEW = false;
   private boolean clustersFromTags;
 
   public enum Side {
@@ -103,6 +116,7 @@ public class VisionSubsystem extends SubsystemBase {
   private volatile int[] appliedExposure = {-1, -1};
   private volatile int[] appliedGain = {-1, -1};
   private final float[] appliedDecimation = {Float.NaN, Float.NaN};
+  private final int[] appliedLiveView = {-1, -1}; // -1 not yet set, else 0 off or 1 on
   /**
    * A camera that says it is streaming but gives no frames this long is stopped and started again. On
    * 4 Nov camera R hit a USB error starting its stream and sat at 0 FPS for a whole match.
@@ -122,6 +136,7 @@ public class VisionSubsystem extends SubsystemBase {
   private final long[] streamingSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
   private final boolean[] workerBusy = new boolean[2]; // Set by the loop, cleared by the worker; guarded by this
   private final FrameClock[] frameClocks = {new FrameClock(), new FrameClock()};
+  private final ThreadNice[] threadNices = {new ThreadNice(), new ThreadNice()};
   private final FrameRecorder[] recorders = new FrameRecorder[2]; // Null when the camera didn't open
 
   /**
@@ -135,6 +150,32 @@ public class VisionSubsystem extends SubsystemBase {
 
     @Override public Object processFrame(Mat frame, long captureTimeNanos) {
       lastFrameNanos = System.nanoTime();
+      return null;
+    }
+
+    @Override public void onDrawFrame(Canvas canvas, int onscreenWidth, int onscreenHeight,
+        float scaleBmpPxToCanvasPx, float scaleCanvasDensity, Object userContext) {}
+  }
+
+  /**
+   * First on each camera, so its frame thread yields to the robot loop before the AprilTag detector runs and
+   * starts its worker threads from it: they take the frame thread's priority when they start.
+   */
+  private static final class ThreadNice implements VisionProcessor {
+    private volatile Thread lowered;
+
+    @Override public void init(int width, int height, CameraCalibration calibration) {}
+
+    @Override public Object processFrame(Mat frame, long captureTimeNanos) {
+      Thread t = Thread.currentThread();
+      if (lowered != t) {
+        lowered = t;
+        try {
+          Process.setThreadPriority(Math.max(0, Math.min(9, VISION_THREAD_NICE)));
+        } catch (RuntimeException e) {
+          RobotLog.ee("BioBuzzVision", e, "Could not lower the camera thread's priority");
+        }
+      }
       return null;
     }
 
@@ -201,6 +242,7 @@ public class VisionSubsystem extends SubsystemBase {
           .setCameraResolution(RESOLUTION)
           // Compressed, so two 720p streams fit through the hub's USB
           .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
+          .addProcessor(threadNices[side.ordinal()])
           .addProcessor(processor)
           .addProcessor(frameClocks[side.ordinal()]);
       if (RECORD_FRAMES) {
@@ -225,7 +267,7 @@ public class VisionSubsystem extends SubsystemBase {
       if (recorder != null) {
         recorder.close();
       }
-      detach(processor, singleTagProcessor, frameClocks[side.ordinal()], recorder);
+      detach(processor, singleTagProcessor, frameClocks[side.ordinal()], threadNices[side.ordinal()], recorder);
       portals[side.ordinal()] = null;
       processors[side.ordinal()] = null;
       singleTagProcessors[side.ordinal()] = null;
@@ -306,6 +348,18 @@ public class VisionSubsystem extends SubsystemBase {
         singleTagProcessors[i].setDecimation(Math.max(1, DECIMATION));
       }
       appliedDecimation[i] = DECIMATION;
+    }
+    int liveViewWanted = LIVE_VIEW ? 1 : 0;
+    if (appliedLiveView[i] != liveViewWanted) {
+      appliedLiveView[i] = liveViewWanted; // The worker is free here, so the call below always runs
+      runOnWorker(i, () -> {
+        if (liveViewWanted == 1) {
+          portal.resumeLiveView();
+        } else {
+          portal.stopLiveView();
+        }
+      });
+      return;
     }
     final int exposureWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_EXPOSURE_MS : HOME_EXPOSURE_MS;
     final int gainWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_GAIN : HOME_GAIN;
@@ -533,7 +587,7 @@ public class VisionSubsystem extends SubsystemBase {
       }
       if (portals[i] != null) {
         portals[i].close();
-        detach(processors[i], singleTagProcessors[i], frameClocks[i], recorder);
+        detach(processors[i], singleTagProcessors[i], frameClocks[i], threadNices[i], recorder);
         portals[i] = null;
         processors[i] = null;
         singleTagProcessors[i] = null;

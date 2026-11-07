@@ -56,6 +56,22 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   // 8-degree tolerance (5 Nov, 084933), so the scale is back to 1 and only the least power is dropped.
   public static double HEADING_MOVING_SCALE = 1.0;
   public static double HEADING_MOVING_FULL_AT = 0.5;
+  // Driving twists the robot: per unit of robot-frame drive power, forward turned it CCW at +0.35 rad/s and
+  // strafing right turned it CW at -0.77, against 2.6 rad/s per unit of turn power while rolling (34k loops of
+  // 7 Nov passes; same within 10% for 0.05-0.25 s response models). Backing away-left at 0.45 m/s it turned CCW at
+  // 10-30 deg/s while the lock asked 0.14 CW, and sat 5-9 degrees off for the whole window: never fired, five runs
+  // (7 Nov, 080429). The lock and hold add the turn that cancels it, CCW per unit forward and right power. The fit
+  // gives -0.13 and +0.30, but at 90% of that the same pass sat 8 degrees off the other way (7 Nov, 082329): the
+  // fit's turn gain reads low. Half lands between the two; the integral below takes the rest
+  public static double TWIST_FF_FORWARD = -0.06;
+  public static double TWIST_FF_RIGHT = 0.15;
+  // Integral on the lock's error while the robot drives, for the twist the feedforward misses: nothing else in the
+  // lock cancels a steady push (its least power and stuck boost are off while moving). Turn power per rad-second,
+  // capped, built only within HEADING_KI_WITHIN_RAD and bled away while standing
+  public static double HEADING_KI = 1.5;
+  public static double HEADING_I_MAX = 0.12;
+  public static double HEADING_KI_WITHIN_RAD = Math.toRadians(15);
+  public static double HEADING_I_BLEED_S = 0.3;
   // While the heading lock turns, the drive gives way first, down to this share of the stick: at full stick
   // the shared scale-down left the lock 0.28 of the 0.48 it asked for, and the aim trailed by 15 degrees.
   public static double LOCK_MIN_TRANSLATION_SHARE = 0.4;
@@ -103,6 +119,8 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   private double headingErrorRad;
   private boolean lockedLastCall;
   private double ksBoost; // Added to HEADING_KS while stuck
+  private double headingIntegral; // Turn power, CCW, from HEADING_KI
+  private double twistFf; // Turn power, CCW, added against the drive's twist this loop
   private double lastLockS;
   private final ElapsedTime clock = new ElapsedTime();
 
@@ -161,6 +179,9 @@ public class MecanumDriveSubsystem extends SubsystemBase {
       right = r * Math.cos(theta);
     }
 
+    // The lock and hold paths (turnFirst) cancel the drive's twist; drive() takes CW, so it goes in negated
+    twistFf = turnFirst ? twistCompensation(forward, right) : 0.0;
+    rotate -= twistFf;
     if (turnFirst) {
       mixTurnFirst(forward, right, rotate, LOCK_MIN_TRANSLATION_SHARE, wheelPowers);
     } else {
@@ -187,6 +208,16 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   /** As above, but full stick gives maxPower. Just past the deadband is still STICK_MIN_POWER, so the robot moves. */
   public static double shapeStick(double stick, double maxPower) {
     return shapeStick(stick, maxPower, STICK_DEADBAND);
+  }
+
+  /** The stick {@link #shapeStick(double)} turns into this power: the curve run backward. 0 for no power. */
+  public static double stickForPower(double power) {
+    double p = Math.min(1.0, Math.abs(power));
+    if (p < 1e-9) {
+      return 0.0;
+    }
+    double past = p <= STICK_MIN_POWER ? 0.0 : Math.pow((p - STICK_MIN_POWER) / (1.0 - STICK_MIN_POWER), 1.0 / STICK_EXPONENT);
+    return Math.copySign(Math.min(1.0, STICK_DEADBAND + 1e-6 + past * (1.0 - STICK_DEADBAND)), power);
   }
 
   /** As {@link #shapeStick(double)}, for the turn stick, with TURN_STICK_DEADBAND. */
@@ -296,10 +327,13 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     double error = keepTurnDirection(AngleUnit.normalizeRadians(targetHeadingRad - currentHeadingRad),
         lockedLastCall ? headingErrorRad : Double.NaN);
     double nowS = clock.seconds();
-    ksBoost = lockedLastCall ? stuckBoost(ksBoost, error, headingRateRadPerSec, nowS - lastLockS) : 0.0;
+    double dtS = nowS - lastLockS;
     lastLockS = nowS;
+    ksBoost = lockedLastCall ? stuckBoost(ksBoost, error, headingRateRadPerSec, dtS) : 0.0;
+    double translation = Math.hypot(forward, right);
+    headingIntegral = lockedLastCall ? lockIntegral(headingIntegral, error, dtS, movingShare(translation)) : 0.0;
     double ccw = headingLockTurnWhileDriving(error, targetRateRadPerSec, headingRateRadPerSec, HEADING_KS + ksBoost,
-        Math.hypot(forward, right));
+        translation) + headingIntegral;
 
     // drive()'s rotate is clockwise positive, the opposite of heading.
     drive(forward, right, -ccw, true, currentHeadingRad, true);
@@ -343,6 +377,31 @@ public class MecanumDriveSubsystem extends SubsystemBase {
    * The next loop's extra least turn power: grows while off by more than HEADING_KS_ABOVE_RAD and not turning,
    * otherwise 0. A long loop counts as at most 0.1 s, so a pause doesn't add a big step.
    */
+  /** 0 standing, 1 with the drive at or above HEADING_MOVING_FULL_AT. */
+  static double movingShare(double translationPower) {
+    return Math.min(1.0, Math.abs(translationPower) / HEADING_MOVING_FULL_AT);
+  }
+
+  /**
+   * One step of the lock's integral (turn power, CCW): builds with the error while moving, by the moving share,
+   * within HEADING_KI_WITHIN_RAD; bleeds toward 0 by the standing share; capped at HEADING_I_MAX.
+   */
+  static double lockIntegral(double integral, double errorRad, double dtS, double moving) {
+    double dt = Math.max(0.0, Math.min(0.1, dtS));
+    if (Math.abs(errorRad) <= HEADING_KI_WITHIN_RAD) {
+      integral += HEADING_KI * errorRad * dt * moving;
+    }
+    if (HEADING_I_BLEED_S > 0) {
+      integral *= Math.exp(-dt * (1 - moving) / HEADING_I_BLEED_S);
+    }
+    return Math.max(-HEADING_I_MAX, Math.min(HEADING_I_MAX, integral));
+  }
+
+  /** Turn power, CCW, that cancels the twist driving at these robot-frame powers gives. */
+  static double twistCompensation(double forward, double right) {
+    return TWIST_FF_FORWARD * forward + TWIST_FF_RIGHT * right;
+  }
+
   static double stuckBoost(double boost, double errorRad, double headingRateRadPerSec, double dtS) {
     if (Math.abs(errorRad) <= HEADING_KS_ABOVE_RAD || Math.abs(headingRateRadPerSec) > HEADING_STUCK_RATE_RAD_S) {
       return 0.0;
@@ -354,7 +413,7 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   /** As {@link #headingLockTurn}, scaled down and without the least power as the drive power rises. */
   static double headingLockTurnWhileDriving(double errorRad, double targetRateRadPerSec, double headingRateRadPerSec,
       double ks, double translationPower) {
-    double moving = Math.min(1.0, Math.abs(translationPower) / HEADING_MOVING_FULL_AT);
+    double moving = movingShare(translationPower);
     return headingLockTurn(errorRad, targetRateRadPerSec, headingRateRadPerSec, ks * (1 - moving))
         * (1 - moving * (1 - HEADING_MOVING_SCALE));
   }
@@ -394,7 +453,17 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     Logger.recordOutput("Drive/HeadingLock/TargetRad", headingTargetRad);
     Logger.recordOutput("Drive/HeadingLock/ErrorRad", headingErrorRad);
     Logger.recordOutput("Drive/HeadingLock/KsBoost", ksBoost);
+    Logger.recordOutput("Drive/HeadingLock/Integral", headingIntegral);
+    Logger.recordOutput("Drive/HeadingLock/TwistFf", twistFf);
     Logger.recordOutput("Drive/WheelPowers", wheelPowers.clone());
+  }
+
+  /** Brakes the wheels at zero power instead of letting them roll (scripted passes); off by default. */
+  public void setBrake(boolean on) {
+    frontLeft.setBrake(on);
+    frontRight.setBrake(on);
+    backLeft.setBrake(on);
+    backRight.setBrake(on);
   }
 
   /** Cuts power to all four wheels. */

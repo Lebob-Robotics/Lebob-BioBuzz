@@ -37,6 +37,28 @@ public class ShootOnTheMoveTest {
   }
 
   @Test
+  public void aimVelocityAveragesOutLoopNoiseButFollowsASteadyChange() {
+    // 7 Nov, 100030: sideways noise of a few cm/s swung the aim heading 2.4-3.4 degrees rms
+    double[] v = ShootOnTheMove.smoothAimVelocity(null, new double[] {1.0, 0.0}, 0.07, 0.12);
+    assertEquals(1.0, v[0], 1e-12); // First sample taken whole
+    double maxDev = 0;
+    for (int i = 0; i < 40; i++) {
+      double noise = (i % 2 == 0 ? 0.1 : -0.1);
+      v = ShootOnTheMove.smoothAimVelocity(v, new double[] {1.0, noise}, 0.07, 0.12);
+      maxDev = Math.max(maxDev, Math.abs(v[1]));
+    }
+    assertTrue("alternating 0.1 m/s noise smoothed to " + maxDev, maxDev < 0.05);
+    for (int i = 0; i < 20; i++) { // 1.4 s at the new speed: settled
+      v = ShootOnTheMove.smoothAimVelocity(v, new double[] {0.0, 0.5}, 0.07, 0.12);
+    }
+    assertEquals(0.5, v[1], 0.01);
+    assertEquals(0.0, v[0], 0.01);
+    // Off, or after a gap, it is the raw velocity
+    assertEquals(0.3, ShootOnTheMove.smoothAimVelocity(v, new double[] {0.3, 0}, 0.07, 0)[0], 1e-12);
+    assertEquals(0.3, ShootOnTheMove.smoothAimVelocity(v, new double[] {0.3, 0}, 2.0, 0.12)[0], 1e-12);
+  }
+
+  @Test
   public void aShotFlatterThanTheHoodCanReachIsNoShot() {
     Shot far = ShootOnTheMove.calculate(1.0, 0, 0);
     Shot near = ShootOnTheMove.calculate(0.4, 0, 0);
@@ -237,6 +259,9 @@ public class ShootOnTheMoveTest {
     assertTrue(standing.shot.valid && strafing.shot.valid);
     assertTrue(ShootOnTheMove.readyToFire(standing, true, true, standing.lockHeadingRad, 0));
     assertFalse(ShootOnTheMove.readyToFire(strafing, true, true, strafing.lockHeadingRad, strafing.lockRateRadPerSec));
+    // SOTM Tuning fires it, to see whether it scores
+    assertTrue(ShootOnTheMove.readyToFire(strafing, true, true, strafing.lockHeadingRad, strafing.lockRateRadPerSec,
+        0, true));
   }
 
   @Test

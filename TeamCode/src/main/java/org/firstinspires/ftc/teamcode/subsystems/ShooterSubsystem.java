@@ -49,6 +49,12 @@ public class ShooterSubsystem extends SubsystemBase {
    */
   public static double LEAD_S = 0.1; // The lag behind 300-600 RPM/s ramps at P 150 (Flywheel Tune, 5 Nov)
   public static double IDLE_RPM = 2500; // Middle of the shot table, so any aimed shot is a short spin-up away
+  // Further below the target than this, AIM spins the wheels up at full power open loop. Back within HANDBACK_RPM
+  // of it, after being further than this either way, the hub's speed control starts afresh. Spinning up 0 to 7281
+  // RPM under speed control wound up the hub's integral, and the wheels then ran 100-340 RPM fast at 3300 for 20 s,
+  // so no shot was ever ready (7 Nov, 094905)
+  public static double OPEN_LOOP_BELOW_RPM = 400;
+  public static double HANDBACK_RPM = 150;
   private static final double SHOOTER_VELOCITY = 4000;
   /** Motor encoder ticks per motor revolution (goBILDA 5203 6000 RPM). */
   private static final double MOTOR_TICKS_PER_REV = 28.0; // TODO verify
@@ -77,6 +83,12 @@ public class ShooterSubsystem extends SubsystemBase {
   private double commandRpm = 0.0;
   // Last target actually sent, so slow drifts below TARGET_RESEND_RPM still go out.
   private double sentRpm = Double.NaN;
+  private SpinMode spinMode = SpinMode.SPEED;
+
+  /** How AIM drives the wheels: the hub's speed control, or out of it while far from the target. */
+  enum SpinMode {
+    SPEED, SPIN_UP, FAR_ABOVE
+  }
   private ShooterState previousShooterState = ShooterState.STOP;
   // Last PIDF sent to the motors, {p, i, d, f}.
   private final double[] sentPidf = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
@@ -137,9 +149,41 @@ public class ShooterSubsystem extends SubsystemBase {
         setShooterPower(-1.0);
         break;
       case AIM:
+        spinMode = SpinMode.SPEED;
         setShooterRpm(commandRpm);
         break;
     }
+  }
+
+  /** The next spin mode for a wheel speed errorRpm off the target (positive when fast). */
+  static SpinMode nextSpinMode(SpinMode mode, double errorRpm) {
+    if (errorRpm < -OPEN_LOOP_BELOW_RPM) {
+      return SpinMode.SPIN_UP;
+    }
+    if (mode == SpinMode.SPEED) {
+      return errorRpm > OPEN_LOOP_BELOW_RPM ? SpinMode.FAR_ABOVE : SpinMode.SPEED;
+    }
+    return Math.abs(errorRpm) < HANDBACK_RPM ? SpinMode.SPEED : errorRpm > 0 ? SpinMode.FAR_ABOVE : mode;
+  }
+
+  /** In AIM: full power while far below the target, and speed control started afresh on getting back near it. */
+  private void updateSpinMode() {
+    if (shooterState != ShooterState.AIM || stallGuard.isTripped()) {
+      spinMode = SpinMode.SPEED;
+      return;
+    }
+    SpinMode next = nextSpinMode(spinMode, getRpm() - commandRpm);
+    if (next == SpinMode.SPIN_UP) {
+      shooterRight.setOpenLoopPower(1.0);
+      shooterLeft.setOpenLoopPower(1.0);
+    } else if (next == SpinMode.FAR_ABOVE && spinMode == SpinMode.SPIN_UP) {
+      setShooterRpm(commandRpm); // Overshot: speed control brakes it; restarted once near the target
+    } else if (next == SpinMode.SPEED && spinMode != SpinMode.SPEED) {
+      shooterRight.restartSpeedControl();
+      shooterLeft.restartSpeedControl();
+      setShooterRpm(commandRpm);
+    }
+    spinMode = next;
   }
 
   public void setShooterState(ShooterState newShooterState) {
@@ -170,7 +214,7 @@ public class ShooterSubsystem extends SubsystemBase {
     targetRpm = rpm;
     commandRpm = Math.max(0.0, Math.min(max, rpm + rpmPerSec * LEAD_S));
     // doShooterState ignores unchanged states, so re-send the velocity here.
-    if (shooterState == ShooterState.AIM
+    if (shooterState == ShooterState.AIM && spinMode != SpinMode.SPIN_UP
         && !(Math.abs(commandRpm - sentRpm) <= TARGET_RESEND_RPM)) {
       setShooterRpm(commandRpm);
     }
@@ -282,6 +326,7 @@ public class ShooterSubsystem extends SubsystemBase {
   public void periodic() {
     applyVelocityPidf();
     checkStall();
+    updateSpinMode();
 
     Logger.recordOutput("Shooter/State", shooterState);
     Logger.recordOutput("Shooter/VelocityLeft", shooterLeft.getVelocity());
@@ -290,6 +335,7 @@ public class ShooterSubsystem extends SubsystemBase {
     Logger.recordOutput("Shooter/AtSpeedThreshold", SHOOTER_VELOCITY);
     Logger.recordOutput("Shooter/TargetRpm", targetRpm);
     Logger.recordOutput("Shooter/CommandRpm", commandRpm);
+    Logger.recordOutput("Shooter/SpinMode", spinMode.name());
     Logger.recordOutput("Shooter/Rpm", getRpm());
     Logger.recordOutput("Shooter/RpmLeft", getRpmLeft());
     Logger.recordOutput("Shooter/RpmRight", getRpmRight());

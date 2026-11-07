@@ -23,6 +23,7 @@ public class GobildaMotor {
   private double commandedPower = 0.0;
   private final DcMotor.RunMode constructionMode;
   private boolean cut = false; // True from cut() until the next setPower or setVelocity
+  private boolean brake;
 
   /**
    * A motor under the hub's speed control. Needs the motor's own encoder plugged in: without it the
@@ -52,6 +53,7 @@ public class GobildaMotor {
     motor.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
     motor.setMode(mode);
     motor.setZeroPowerBehavior(brake ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+    this.brake = brake;
     maxVelocityTicksPerSec = MAX_OUTPUT * motor.getMotorType().getAchieveableMaxTicksPerSecond(); // From the motor type in the robot configuration
   }
 
@@ -61,6 +63,14 @@ public class GobildaMotor {
     motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
     motor.setMode(previous);
     return this;
+  }
+
+  /** Brakes (true) or floats at zero power. Written to the hub only when it changes. */
+  public void setBrake(boolean on) {
+    if (on != brake) {
+      brake = on;
+      motor.setZeroPowerBehavior(on ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+    }
   }
 
   /** Capped to MAX_OUTPUT either way. Skips the hardware write if unchanged. */
@@ -94,12 +104,50 @@ public class GobildaMotor {
       motor.setPower(0.0);
       return;
     }
-    if (cut) {
+    if (cut && lastPower == 0.0) {
       return; // Already off
     }
-    motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    if (!cut) {
+      motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
     motor.setPower(0.0); // Direct, so the power cache cannot skip it
+    lastPower = 0.0;
     cut = true;
+  }
+
+  /**
+   * Open-loop power, out of the hub's speed control until the next setPower or setVelocity, which set the run
+   * mode again and so start the speed control afresh. Speed-controlled motors only.
+   */
+  public void setOpenLoopPower(double power) {
+    power = Math.max(-MAX_OUTPUT, Math.min(MAX_OUTPUT, power));
+    commandedPower = power;
+    if (!cut) {
+      motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+      cut = true;
+      lastPower = Double.NaN;
+    }
+    if (!Double.isNaN(lastPower) && Math.abs(power - lastPower) < POWER_MIN) {
+      return;
+    }
+    lastPower = power;
+    motor.setPower(power);
+  }
+
+  /**
+   * Starts the hub's speed control afresh, dropping the integral it built up: out of speed control and back.
+   * The next setVelocity sets the speed.
+   */
+  public void restartSpeedControl() {
+    if (constructionMode != DcMotor.RunMode.RUN_USING_ENCODER) {
+      return;
+    }
+    if (!cut) {
+      motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+    motor.setMode(constructionMode);
+    cut = false;
+    lastPower = Double.NaN;
   }
 
   private void resumeIfCut() {

@@ -39,7 +39,11 @@ public class HoodSubsystem extends SubsystemBase {
   // ---- Fast loop (HoodLoop), in lift degrees, seconds and power at 12 V ------
   /** Off: the hub's RUN_TO_POSITION drives the hood instead. */
   public static boolean FAST_LOOP = true;
-  public static double FAST_PERIOD_MS = 5;
+  // Every step is a REV bulk read on the Control Hub plus writes to the Expansion Hub over RS485, on the same
+  // serial link as the main loop: at 5 ms the main loop ran 65 ms against 40 without it (7 Nov, 092936)
+  public static double FAST_PERIOD_MS = 8;
+  /** Power changes smaller than this are not re-sent: at 0.002 nearly every step wrote. */
+  public static double FAST_POWER_DEADBAND = 0.01;
   public static double FAST_MAX_VEL_DEG_S = 200;
   public static double FAST_ACCEL_DEG_S2 = 4000;
   public static double FAST_DECEL_DEG_S2 = 3000;

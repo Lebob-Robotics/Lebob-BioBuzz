@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.util.RobotLog;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.AimTrimSearch;
+import org.firstinspires.ftc.teamcode.utils.BackwardShotSearch;
 import org.firstinspires.ftc.teamcode.utils.BallMark;
 import org.firstinspires.ftc.teamcode.utils.MarkKeys;
 import org.firstinspires.ftc.teamcode.utils.Pose;
@@ -40,8 +41,8 @@ import java.util.Map;
  *
  * <p>At each spot a search ({@link ShotSearch}) starts from the table's shot. Mark every ball and it moves the hood
  * for the next one: out from the first scoring angle until a ball goes long, then short, halving the gap until both
- * edges are known, then {@link ShotTuningSettings#CONFIRM_BALLS} at the middle. Where the table's hood is on a stop
- * it searches the RPM instead. Left and right misses move the aim trim ({@link AimTrimSearch}). The report
+ * edges are known, then {@link ShotTuningSettings#CONFIRM_BALLS} at the middle. Where the table's hood is on a stop,
+ * and for every backward shot, it searches the RPM instead at the table's launch angle. Left and right misses move the aim trim ({@link AimTrimSearch}). The report
  * (sotm-tools/tuning_report.py) turns the ranges into table rows.
  *
  * <p>Controls (gamepad 1), otherwise as Lebot Teleop:
@@ -114,7 +115,9 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   // The search at this spot
   private ShotSearch search;
   private int searchId = 0;
-  private boolean searchRpm; // Searching the RPM, the table's hood being on a stop
+  private boolean searchRpm; // Searching the RPM, the table's hood being on a stop, or the backward shot
+  private BackwardShotSearch backSearch; // The backward shot's: steps the hood, its RPM search is search
+  private double searchStartLaunchDeg;
   private String searchKey = "";
   private double searchX;
   private double searchY;
@@ -295,13 +298,14 @@ public class ShotTuning extends PsiKitIterativeOpMode {
           .put(e.getKey(), TuningResume.summary(e.getValue()));
     }
     List<TuningResume.Ball> run = r.currentSearchRun();
-    if (run.isEmpty() || !ShotTuningSettings.AUTO_SEARCH) {
+    if (run.isEmpty() || !ShotTuningSettings.AUTO_SEARCH || (r.backward && !fromBackwardTable(run.get(0)))) {
       restartSearch = true; // A new search at this spot once the Cell is known
     } else {
       TuningResume.Ball first = run.get(0);
       TuningResume.Ball last = run.get(run.size() - 1);
       searchRpm = first.search.startsWith("rpm:");
       searchId++;
+      searchStartLaunchDeg = first.launchDeg;
       beginSearch(searchRpm ? first.rpm : first.launchDeg);
       for (TuningResume.Ball b : run) {
         if (b.mark != null) {
@@ -322,6 +326,18 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     resumeNote = String.format(Locale.US, "carried on %s: %d balls, at %s", session, r.balls.size(),
         search == null ? "a new search here" : searchKey);
     lastAdjust = resumeNote;
+  }
+
+  /**
+   * Whether a backward run began as a search starts now: on the RPM, from the table's launch angle for where it
+   * stood. Runs that searched the launch angle went the wrong way; Shot Tuning 085918 (7 Nov) began one at 0.90 m's
+   * angle from 0.64 m, the table loaded for a Cell guessed before the tags were seen.
+   */
+  private static boolean fromBackwardTable(TuningResume.Ball first) {
+    double[] table = ShootOnTheMoveConstants.BACKWARD_DIST_M;
+    Shot shot = ShootOnTheMove.calculateBackward(
+        Math.max(table[0], Math.min(table[table.length - 1], first.lipM)), 0, 0);
+    return first.search.startsWith("rpm:") && shot.valid && Math.abs(first.launchDeg - shot.hoodDeg) <= 0.6;
   }
 
   /** GRID's spot, mirrored onto the Cell in use; GRID is for the Cell at -x, -y. */
@@ -475,8 +491,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
         replaySearch();
         applySearchValue();
         noteSearch();
-        lastAdjust = name + " (changed): " + (searchRpm ? String.format(Locale.US, "next %.0f rpm", search.next())
-            : String.format(Locale.US, "next launch %.1f deg", search.next()));
+        lastAdjust = name + " (changed): " + nextText();
       } else {
         lastAdjust = "mark changed to " + name;
       }
@@ -497,8 +512,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     if (search != null && lastShotSearchId == searchId) {
       recordSearchBall(lastShotValue, mark);
       applySearchValue();
-      adjust.append(searchRpm ? String.format(Locale.US, "next %.0f rpm", search.next())
-          : String.format(Locale.US, "next launch %.1f deg", search.next()));
+      adjust.append(nextText());
       noteSearch();
     } else if (search != null) {
       adjust.append(lastShotSearchId < 0 ? "(fired off the spot: not counted in the search)"
@@ -519,8 +533,12 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     searchDistM = distM;
     searchKey = (backward ? "BACK " : "FRONT ") + (spot < 0 ? String.format(Locale.US, "%.2fm", distM) : "G" + spot);
     double launch = launchDeg();
-    // On a stop the hood can't move one way, so the RPM moves the ball instead
-    searchRpm = launch >= HoodSubsystem.ZERO_ANGLE_DEG - 0.5 || launch <= HoodSubsystem.MIN_ANGLE_DEG + 0.5;
+    // On a stop the hood can't move one way, so the RPM moves the ball instead. The backward shot always searches
+    // the RPM: flatter reaches further but comes in under the rim, steeper falls short, and both get marked short
+    // (Shot Tuning 085918, 7 Nov: back G1 lowered 94 -> 88 degrees, 12 of 12 short). More RPM raises and lengthens it.
+    searchRpm = backward
+        || launch >= HoodSubsystem.ZERO_ANGLE_DEG - 0.5 || launch <= HoodSubsystem.MIN_ANGLE_DEG + 0.5;
+    searchStartLaunchDeg = launch;
     beginSearch(searchRpm ? rpm : launch);
     applySearchValue();
     lastAdjust = "search started at " + (searchRpm ? String.format(Locale.US, "%.0f rpm", rpm)
@@ -537,27 +555,51 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   private void recordSearchBall(double value, BallMark mark) {
     searchValues.add(value);
     searchMarks.add(mark);
-    search.record(value, mark);
+    record(value, mark);
+  }
+
+  private void record(double value, BallMark mark) {
+    if (backSearch != null) {
+      backSearch.record(value, mark);
+      search = backSearch.rpm();
+    } else {
+      search.record(value, mark);
+    }
   }
 
   private void replaySearch() {
     search = newSearch(searchStart);
     for (int i = 0; i < searchValues.size(); i++) {
-      search.record(searchValues.get(i), searchMarks.get(i));
+      record(searchValues.get(i), searchMarks.get(i));
     }
+  }
+
+  /** What the search fires next, for the driver. */
+  private String nextText() {
+    if (backSearch != null) {
+      return String.format(Locale.US, "next %.0f rpm at launch %.1f deg%s", search.next(), backSearch.launchDeg(),
+          backSearch.steepened() > 0 ? " (hood steeper: no window flatter)" : "");
+    }
+    return searchRpm ? String.format(Locale.US, "next %.0f rpm", search.next())
+        : String.format(Locale.US, "next launch %.1f deg", search.next());
   }
 
   /** A search of the RPM or the launch angle, by {@link #searchRpm}, from this value. */
   private ShotSearch newSearch(double start) {
+    backSearch = null;
+    if (searchRpm && backward) {
+      backSearch = new BackwardShotSearch(searchStartLaunchDeg, start, ShotTuningSettings.BACKWARD_STEEPEN_DEG,
+          ShotTuningSettings.BACKWARD_STEEPEST_DEG, ShotTuningSettings.SEARCH_RPM_STEP,
+          ShotTuningSettings.SEARCH_RPM_RESOLUTION, MIN_RPM, robot.shooter.getMaxRpm(), ShotTuningSettings.CONFIRM_BALLS);
+      return backSearch.rpm();
+    }
     if (searchRpm) {
       return new ShotSearch(start, 1, ShotTuningSettings.SEARCH_RPM_STEP, ShotTuningSettings.SEARCH_RPM_RESOLUTION,
           10, MIN_RPM, robot.shooter.getMaxRpm(), ShotTuningSettings.CONFIRM_BALLS);
     }
-    // A flatter hooded shot goes further. A higher backward launch angle is flatter too, but it comes in lower and
-    // under the rim: back G0, 6 Nov, scored at 90-94 and fell short from 96 up
+    // A flatter hooded shot goes further
     return new ShotSearch(start, -1, ShotTuningSettings.SEARCH_HOOD_STEP_DEG,
-        ShotTuningSettings.SEARCH_HOOD_RESOLUTION_DEG, 0.1,
-        backward ? ShotTuningSettings.BACKWARD_SEARCH_MIN_DEG : HoodSubsystem.MIN_ANGLE_DEG,
+        ShotTuningSettings.SEARCH_HOOD_RESOLUTION_DEG, 0.1, HoodSubsystem.MIN_ANGLE_DEG,
         HoodSubsystem.ZERO_ANGLE_DEG, ShotTuningSettings.CONFIRM_BALLS);
   }
 
@@ -567,6 +609,9 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     }
     if (searchRpm) {
       rpm = search.next();
+      if (backSearch != null) {
+        hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodSubsystem.ZERO_ANGLE_DEG - backSearch.launchDeg()));
+      }
     } else {
       hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodSubsystem.ZERO_ANGLE_DEG - search.next()));
     }
@@ -581,6 +626,9 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     String text = Double.isNaN(r[0]) ? String.format(Locale.US, "%d balls, none in", search.balls())
         : String.format(Locale.US, searchRpm ? "%.0f (%.0f-%.0f) %s, %d/%d in" : "%.1f (%.1f-%.1f) %s, %d/%d in",
             search.centre(), r[0], r[1], unit, search.scored(), search.balls());
+    if (backSearch != null) {
+      text += String.format(Locale.US, " at launch %.1f deg", backSearch.launchDeg());
+    }
     if (search.phase() == ShotSearch.Phase.DONE) {
       found.put(searchKey, text);
       inProgress.remove(searchKey);
@@ -596,7 +644,8 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     if (search == null) {
       return "starts at a spot (B) or with Y";
     }
-    String what = searchRpm ? String.format(Locale.US, "rpm, next %.0f", search.next())
+    String what = backSearch != null ? "rpm, " + nextText()
+        : searchRpm ? String.format(Locale.US, "rpm, next %.0f", search.next())
         : String.format(Locale.US, "hood, next launch %.1f deg", search.next());
     String phase;
     switch (search.phase()) {
@@ -1027,6 +1076,10 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   private void loadTable() {
     Aim aim = robot.getLastAim();
     if (aim == null) {
+      return;
+    }
+    // A new search waits for the robot to be placed at its spot: before the tags are seen the Cell may be a guess
+    if (restartSearch && (resumeSpotPending || camerasToHive() || !robot.isPoseValid())) {
       return;
     }
     double[] table = tableShot();

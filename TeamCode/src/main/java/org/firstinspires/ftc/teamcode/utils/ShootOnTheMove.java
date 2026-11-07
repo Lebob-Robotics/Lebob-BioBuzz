@@ -115,14 +115,29 @@ public final class ShootOnTheMove {
     return aimHooded(robot, velocityXMps, velocityYMps, cellX, cellY);
   }
 
+  /**
+   * One step of the low-pass on the aim's velocity {x, y}: moves {@code smoothed} toward {@code raw} by the share
+   * a first-order filter with time constant {@code tauS} covers in {@code dtS}. Returns {@code raw} when off, on the
+   * first sample, or after a gap.
+   */
+  public static double[] smoothAimVelocity(double[] smoothed, double[] raw, double dtS, double tauS) {
+    if (smoothed == null || tauS <= 0 || !(dtS > 0) || dtS > 0.5) {
+      return new double[] {raw[0], raw[1]};
+    }
+    double a = 1.0 - Math.exp(-dtS / tauS);
+    return new double[] {smoothed[0] + a * (raw[0] - smoothed[0]), smoothed[1] + a * (raw[1] - smoothed[1])};
+  }
+
   /** The hooded shot out of the shooter's side, whether or not the table has one. */
   public static Aim aimHooded(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
     Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, FEED_DELAY_S);
     Geometry now = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, 0);
-    Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
+    Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps * SOTM_TOWARD_GAIN,
+        g.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     // Calculated rather than taken back off the shot by its rate: rate noise times the feed delay swung the
     // hood target 6 degrees loop to loop (5 Nov, 082111)
-    Shot shotNow = calculate(now.distanceToLipM, now.speedTowardCellMps, now.sidewaysSpeedMps);
+    Shot shotNow = calculate(now.distanceToLipM, now.speedTowardCellMps * SOTM_TOWARD_GAIN,
+        now.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     boolean both = shot.valid && shotNow.valid;
     double robotHeadingRad = normalizeAngle(g.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
     double lockHeadingRad = normalizeAngle(now.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
@@ -249,18 +264,34 @@ public final class ShootOnTheMove {
    */
   public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
       double turnRateRadPerSec, double turningRateRadPerSec) {
+    return readyToFire(aim, flywheelsReady, hoodReady, headingRad, turnRateRadPerSec, turningRateRadPerSec, false);
+  }
+
+  /**
+   * As above; with {@code closeMovingAllowed} it also fires moving close to the lip ({@link #tooCloseToShootMoving}),
+   * for SOTM Tuning to find out whether those shots score once the heading holds.
+   */
+  public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
+      double turnRateRadPerSec, double turningRateRadPerSec, boolean closeMovingAllowed) {
     double errorNowRad = normalizeAngle(aim.lockHeadingRad - headingRad);
     double targetRateRadPerSec = aim.lockRateRadPerSec + turningRateRadPerSec;
     double errorAtLatestExitRad = errorNowRad + (targetRateRadPerSec - turnRateRadPerSec) * FEED_DELAY_MAX_S;
-    boolean movingClose = Math.hypot(aim.shot.speedTowardCellMps, aim.shot.sidewaysSpeedMps) >= MOVING_SHOT_SPEED_MPS
-        && aim.shot.distanceToLipM < MIN_MOVING_SHOT_LIP_M;
     return aim.shot.valid
-        && !movingClose
+        && (closeMovingAllowed || !tooCloseToShootMoving(aim.shot))
         && Math.abs(aim.hoodRateDegPerSec) <= MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC
         && flywheelsReady
         && hoodReady
         && Math.abs(errorNowRad) <= aim.headingToleranceRad
         && Math.abs(errorAtLatestExitRad) <= aim.headingToleranceRad;
+  }
+
+  /**
+   * True when the robot moves too fast this close to the lip to fire (MIN_MOVING_SHOT_LIP_M): such shots missed
+   * on 5 Nov, with the heading error growing during the feed. The match's fire gate refuses them.
+   */
+  public static boolean tooCloseToShootMoving(Shot shot) {
+    return Math.hypot(shot.speedTowardCellMps, shot.sidewaysSpeedMps) >= MOVING_SHOT_SPEED_MPS
+        && shot.distanceToLipM < MIN_MOVING_SHOT_LIP_M;
   }
 
   /**

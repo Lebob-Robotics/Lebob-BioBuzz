@@ -2,7 +2,8 @@ package org.firstinspires.ftc.teamcode.utils;
 
 /**
  * Shot Tuning's aim trim, from the balls marked left or right: each one turns the aim the other way by a step, halved
- * each time the misses swap sides. Anticlockwise (left) positive, as Robot#setHeadingTrimDeg.
+ * each time the misses swap sides and doubled (to at most twice the first step) from the third miss in a row on one
+ * side. Anticlockwise (left) positive, as Robot#setHeadingTrimDeg.
  */
 public final class AimTrimSearch {
   private final double startStepDeg;
@@ -10,6 +11,7 @@ public final class AimTrimSearch {
   private double trimDeg;
   private double stepDeg;
   private int lastSide; // +1 the last side miss went left, -1 right, 0 none yet
+  private int sameSideRun; // Side misses in a row on lastSide, no ball in between
 
   public AimTrimSearch(double stepDeg, double minStepDeg) {
     this.startStepDeg = stepDeg;
@@ -19,12 +21,21 @@ public final class AimTrimSearch {
 
   /** Turns the aim away from a left or right miss. Returns the change, degrees. */
   public double record(BallMark mark) {
+    if (mark.in) {
+      sameSideRun = 0;
+    }
     if (mark.in || mark.bounced || !mark.hasSide()) {
       return 0;
     }
     int side = mark.left ? 1 : -1;
     if (lastSide != 0 && side != lastSide) {
       stepDeg = Math.max(minStepDeg, stepDeg / 2);
+      sameSideRun = 0;
+    }
+    sameSideRun++;
+    if (sameSideRun >= 3) {
+      // Still missing the same way: halved to 0.25 deg it took 8 balls left in a row 1.75 deg (7 Nov, 080156)
+      stepDeg = Math.min(2 * startStepDeg, stepDeg * 2);
     }
     lastSide = side;
     double change = -side * stepDeg;
@@ -32,11 +43,20 @@ public final class AimTrimSearch {
     return change;
   }
 
+  /** As {@link #record(BallMark)}, for a ball fired at firedDeg: replayed balls move on from the trim they had. */
+  public double record(BallMark mark, double firedDeg) {
+    if (!Double.isNaN(firedDeg)) {
+      trimDeg = firedDeg;
+    }
+    return record(mark);
+  }
+
   /** The driver set the trim by hand: searching goes on from there, at the full step. */
   public void set(double deg) {
     trimDeg = deg;
     stepDeg = startStepDeg;
     lastSide = 0;
+    sameSideRun = 0;
   }
 
   public double trimDeg() { return trimDeg; }

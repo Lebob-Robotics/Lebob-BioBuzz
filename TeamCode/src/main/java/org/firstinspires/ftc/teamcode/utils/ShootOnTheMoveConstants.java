@@ -24,6 +24,11 @@ public final class ShootOnTheMoveConstants {
   // was moving toward (6 Nov, 080732)
   public static double FEED_DELAY_S = 0.30;
   public static double FEED_DELAY_MAX_S = 0.30; // Latest a ball leaves: the heading must still be on target then
+  // Time constant of the low-pass on the velocity the aim uses. The ball leaves FEED_DELAY_S after the decision, so
+  // it needs the mean velocity over that time, not one loop's Pinpoint sample. Unsmoothed, the sideways speed's noise
+  // swung the aim heading 2.4-3.4 degrees rms during passes and the lock chased it (7 Nov, 100030). Cost: through a
+  // steady 0.4 m/s^2 sideways change the aim lags about 2.5 degrees; the steady gate refuses faster changes. 0 is off
+  public static double AIM_VELOCITY_SMOOTHING_S = 0.12;
 
   // ---- Shooter on the robot (CAD) --------------------------------------
   public static double SHOOTER_DIRECTION_RAD = Math.PI; // Relative to robot forward. PI fires out of the back
@@ -242,6 +247,37 @@ public final class ShootOnTheMoveConstants {
   // Added to every hooded shot from the table. -75 (6 Nov) made up for the model's ball being too slow; the model
   // refitted to Shot Tuning's 224 hooded balls (7 Nov) fires what they found without it
   public static double HOODED_RPM_OFFSET = 0;
+
+  // Aim turned anticlockwise on every shot outside the tuning tools, which set their own. Shot Tuning's aim search
+  // settled at these (session 085918) and both tuning tools fire with them; SOTM Tuning's 16 finished hooded spots
+  // (7 Nov) put the hooded one at +1.92 far, +2.01 mid, +1.85 near. TeleOp had none and aimed ~2 deg right of them
+  public static double HOODED_HEADING_TRIM_DEG = 2.0;
+  public static double BACKWARD_HEADING_TRIM_DEG = 1.5;
+
+  // Moving-shot corrections, scaled for fitting them to SOTM Tuning's balls (sotm-tools/sotm_report.py). 1 is the
+  // model as built: the sideways speed the shooter turns to cancel, and the speed toward the Cell the table looks up
+  public static double SOTM_SIDEWAYS_GAIN = 1.0;
+  public static double SOTM_TOWARD_GAIN = 1.0;
+  // Straight corrections per m/s of the speed the shot was looked up with, from SOTM Tuning's spot searches: launch
+  // angle added for speed toward the Cell, RPM added for it, and aim turned anticlockwise for sideways speed (left +).
+  // Fitted 7 Nov to 16 finished hooded spots (0.3-0.7 m/s, 0.8-1.6 m), all left at 0 as within noise:
+  //   hood -1.22 +/- 1.02 deg per m/s toward (scatter 1.35 deg; standing error by band far +0.8, mid +0.75, near -1.6)
+  //   aim -0.13 +/- 0.32 deg per m/s sideways (scatter 0.41 deg), release delay 0.292 +/- 0.031 s against FEED_DELAY_S
+  //   0.30: the moving model is right as built. Left out: F ARC left 0.60 at 0.98 m, whose aim (-5.25) came from 8
+  //   balls left in a row at a +6 deg hood trim while the aim step was stuck at 0.25 deg
+  public static double SOTM_HOOD_DEG_PER_TOWARD_MPS = 0;
+  // Launch angle added to a moving hooded shot by its distance to the lip, in TeleOp only (the tuning tools measure
+  // against the bare table). Straight between the points, held past the ends; full from MOVING_SHOT_SPEED_MPS, none at
+  // rest. All 17 found spots' hood centres run with distance, not speed: -0.88 +/- 0.18 deg at 1.2 m, +5.53 +/- 0.76
+  // deg per m (scatter 1.29 deg; adding toward -0.64 +/- 0.52, adding |sideways| -1.92 +/- 1.37: noise). Standing balls don't show it (Shot Tuning 085918 centres -2.5..+2.4 deg either side of
+  // the table at every distance). With it all 16 spots' scoring windows hold the shot (worst 0.57 deg inside); without
+  // it, toward-right 0.50 at 0.91 m (window -3.7..-1.5) and field -y 0.70 at 1.14 m (-4.0..-0.5) miss
+  public static final double[] SOTM_HOOD_TRIM_DIST_M = {0.95, 1.48};
+  public static final double[] SOTM_HOOD_TRIM_DEG = {-2.3, 0.7};
+  public static double SOTM_RPM_PER_TOWARD_MPS = 0;
+  public static double SOTM_HEADING_DEG_PER_SIDEWAYS_MPS = 0;
+  public static double SOTM_BACKWARD_RPM_PER_TOWARD_MPS = 0;
+  public static double SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS = 0;
 
   // ---- Driver ----------------------------------------------------------
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming

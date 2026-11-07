@@ -59,4 +59,30 @@ public class ShotMarkingTest {
     assertEquals(2.0, t.trimDeg(), 1e-9);
     assertEquals(1.0, t.stepDeg(), 1e-9);
   }
+
+  @Test
+  public void aimStepGrowsWhileMissesKeepGoingOneWay() {
+    // 7 Nov, 080156: halved to 0.25 deg, 8 balls left in a row moved the aim only 1.75 deg
+    AimTrimSearch t = new AimTrimSearch(1.0, 0.25);
+    BallMark left = BallMark.miss(false, false, true, false);
+    BallMark right = BallMark.miss(false, false, false, true);
+    t.record(left);
+    t.record(right);
+    t.record(left);
+    t.record(right); // Step down to 0.25
+    assertEquals(0.25, t.stepDeg(), 1e-9);
+    t.record(left);
+    t.record(left);
+    t.record(left);
+    t.record(left);
+    t.record(left);
+    assertEquals(2.0, t.stepDeg(), 1e-9);
+  }
+
+  @Test
+  public void replayedBallsMoveOnFromTheTrimTheyWereFiredWith() {
+    AimTrimSearch t = new AimTrimSearch(1.0, 0.25);
+    t.record(BallMark.miss(false, false, true, false), 3.0);
+    assertEquals(2.0, t.trimDeg(), 1e-9);
+  }
 }

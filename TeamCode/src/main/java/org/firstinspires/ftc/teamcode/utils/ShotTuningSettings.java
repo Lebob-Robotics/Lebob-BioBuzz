@@ -7,16 +7,17 @@ import com.bylazar.configurables.annotations.Configurable;
 public final class ShotTuningSettings {
   private ShotTuningSettings() {}
 
-  // ---- Search at each spot: each marked ball moves the hood (or the RPM, where the table's hood is on a stop)
+  // ---- Search at each spot: each marked ball moves the hood (or the RPM, where the table's hood is on a stop, and for the backward shot)
   public static boolean AUTO_SEARCH = true;
   public static double SEARCH_HOOD_STEP_DEG = 2.0; // Before the range is bracketed
   public static double SEARCH_HOOD_RESOLUTION_DEG = 0.5; // Each edge is found to within this
   public static double SEARCH_RPM_STEP = 100;
   public static double SEARCH_RPM_RESOLUTION = 25;
   public static int CONFIRM_BALLS = 3; // At the middle of the range, once both edges are known
+  // The backward shot searches the RPM; an angle whose short and long meet with none in steps the hood this much steeper
+  public static double BACKWARD_STEEPEN_DEG = 2.0;
+  public static double BACKWARD_STEEPEST_DEG = 90; // Straight up
   public static double SEARCH_MOVED_M = 0.15; // Further than this from where the search began, marks no longer feed it
-  // Past vertical (90) the backward shot leans back over the robot; 90 scored from 0.4 m
-  public static double BACKWARD_SEARCH_MIN_DEG = 88;
 
   // ---- Backward spots: the cameras face away from the Cell, so the robot turns them to the Hive to move and to
   // check the spot, then turns around to shoot

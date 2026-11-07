@@ -47,6 +47,14 @@ final class HoodLoop implements Runnable {
    * it the main loop has stalled and the goal stays where it got to.
    */
   private static final double GOAL_EXTRAPOLATE_MAX_S = 0.15;
+  /**
+   * The motor encoder is its own round trip to the Expansion Hub, so it is read every few steps only: it feeds
+   * the follow check and the ceiling, not the control. Near the ceiling it is read every step.
+   */
+  private static final int MOTOR_READ_EVERY = 4;
+  private static final double CEILING_NEAR_DEG = 10;
+  private static final int CEILING_NEAR_MOTOR_TICKS =
+      (int) Math.ceil(CEILING_NEAR_DEG * HoodSubsystem.TICKS_PER_DEG * HoodMotorTargeting.MOTOR_PER_REV);
 
   /** The goal as the main loop last set it, read whole by the loop thread. */
   private static final class Goal {
@@ -311,6 +319,9 @@ final class HoodLoop implements Runnable {
     double stallS = 0;
     double ceilingS = 0;
     int errors = 0;
+    boolean haveMotor = false;
+    int motorRaw = 0;
+    int stepsSinceMotorRead = 0;
     try {
       while (!Thread.currentThread().isInterrupted()) {
         long startNs = System.nanoTime();
@@ -323,15 +334,22 @@ final class HoodLoop implements Runnable {
           lastPos = Double.NaN;
           follow.reset();
           ceilingS = 0;
+          haveMotor = false;
           Thread.sleep(IDLE_PERIOD_MS);
           lastNs = System.nanoTime();
           continue;
         }
         int ticks;
-        int motorRaw;
+        boolean motorFresh = false;
         try {
           ticks = readRevTicks();
-          motorRaw = motor.getCurrentPosition();
+          boolean nearCeiling = haveMotor && motorRaw - motorHomeTicks >= motorCeilingTicks - CEILING_NEAR_MOTOR_TICKS;
+          if (!haveMotor || nearCeiling || ++stepsSinceMotorRead >= MOTOR_READ_EVERY) {
+            motorRaw = motor.getCurrentPosition();
+            haveMotor = true;
+            motorFresh = true;
+            stepsSinceMotorRead = 0;
+          }
           errors = 0;
         } catch (InterruptedException e) {
           throw e;
@@ -348,7 +366,7 @@ final class HoodLoop implements Runnable {
         double pos = (ticks - revZero) / ticksPerDeg;
         int motorUp = motorRaw - motorHomeTicks;
         motorTicks = motorUp;
-        if (follow.update(ticks, motorRaw)) {
+        if (motorFresh && follow.update(ticks, motorRaw)) { // Both read this step, so they compare
           fail("REV not following the motor: unplugged, loose on its shaft, or the belt skipping", true);
           return;
         }
@@ -424,7 +442,7 @@ final class HoodLoop implements Runnable {
         }
         p = Math.max(-1, Math.min(1, p));
         synchronized (powerLock) {
-          if (active && (Double.isNaN(lastWritten) || Math.abs(p - lastWritten) > 0.002 || p == 0 && lastWritten != 0)) {
+          if (active && (Double.isNaN(lastWritten) || Math.abs(p - lastWritten) > HoodSubsystem.FAST_POWER_DEADBAND || p == 0 && lastWritten != 0)) {
             motor.setPower(p);
             lastWritten = p;
           }

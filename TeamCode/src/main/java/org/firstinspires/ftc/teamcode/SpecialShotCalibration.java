@@ -55,22 +55,23 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   static final double LIP_GAP_M = 0.5;
 
   /*
-   * Starting shots, from tools/shots' ball model with inputs.json (drag 0.1, 0.00156 m/s per rpm, the ball 8.5 deg
-   * steeper than the hood) flown from 1.10 m out: clear of the near Cell's top edge (1.67 m) by a ball and 8 cm,
-   * crossing the far opening inward away from its edges. Launch angle as Shot Tuning shows it (hood angle).
+   * Starting shots, from tools/shots' ball model with inputs.json (drag 0.1, 0.001576 m/s per rpm, the ball 9.5 deg
+   * steeper than the hood, refitted to the Shot Tuning balls) flown from 1.10 m out: clear of the near Cell's top
+   * edge (1.67 m) by a ball and 8 cm, crossing the far opening inward away from its edges. Launch angle as Shot
+   * Tuning shows it (hood angle).
    *
-   * Far Cell up (mirror of the near one, lip 1.36 m, face at 60 deg): 72 deg scores 4910-5010 rpm, the middle
-   * falling at 78 deg after a 3.1 m apex, 1.3 s up. 70 deg gives 4550-4620; 74 deg 5430-5570. Steeper is wider but
-   * needs more rpm. The model was fitted to shots under 4200 rpm and leaves out backspin lift, which carries the ball
-   * further, so it should need less than this: walk the rpm down first.
+   * Far Cell up (mirror of the near one, lip 1.36 m, face at 60 deg): 72 deg scores 5000-5220 rpm, 1.4 s up.
+   * 70 deg gives 4570-4780; 74 deg 5660-5900. Steeper is wider but needs more rpm. The model was fitted to shots
+   * under about 4200 rpm and leaves out backspin lift, which carries the ball further, so it should need less than
+   * this: walk the rpm down first. The first try, 4960 rpm at 72 deg (the old model's pick), missed.
    *
-   * Far Cell down: guessed lip 1.00 m and face at 70 deg. Only 74-75 deg at 5390-5800 rpm got in, in a 50-70 rpm
-   * band; with the face at 80 deg nothing does. Try it last.
+   * Far Cell down: guessed lip 1.00 m and face at 70 deg. 74 deg scores 5540-5730 rpm; 74.5 deg would need
+   * 5760-5960, past the model's 5800 rpm top. Try it last.
    */
-  static final double START_RPM_FAR_UP = 4960;
+  static final double START_RPM_FAR_UP = 5110;
   static final double START_LAUNCH_DEG_FAR_UP = 72;
-  static final double START_RPM_FAR_DOWN = 5580;
-  static final double START_LAUNCH_DEG_FAR_DOWN = 74.5;
+  static final double START_RPM_FAR_DOWN = 5630;
+  static final double START_LAUNCH_DEG_FAR_DOWN = 74;
 
   private static final double RPM_STEP = 25; // The modelled band is 100 rpm wide
   private static final double HOOD_STEP_DEG = 0.5;
