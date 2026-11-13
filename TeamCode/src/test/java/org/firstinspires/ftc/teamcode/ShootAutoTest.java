@@ -50,9 +50,60 @@ public class ShootAutoTest {
   }
 
   @Test
-  public void parkKeepsEnoughPowerToMoveWhenClose() {
-    assertEquals(ShootAuto.PARK_MIN_POWER, ShootAuto.parkStick(0.15), 1e-9); // 193927 stalled here at 0.22
-    assertEquals(ShootAuto.PARK_POWER, ShootAuto.parkStick(2.0), 1e-9);
+  public void parkPushesWhenStuckCloseAndGoesFullFromFar() {
+    double[] stuck = ShootAuto.parkStick(0.15, 0, 0, 0, 0);
+    assertTrue(Math.hypot(stuck[0], stuck[1]) >= 0.45); // 193927 sat 0.15 m short at stick 0.22
+    double[] far = ShootAuto.parkStick(2.0, 0, 0, 0, 0);
+    assertEquals(1.0, far[0], 1e-9);
+  }
+
+  @Test
+  public void parkBrakesBeforeTheGoal() {
+    double[] eases = ShootAuto.parkStick(0.3, 0, 0, 1.6, 0); // Full speed 0.3 m out: off the throttle
+    assertTrue("eases off, got " + eases[0], eases[0] < 0.25);
+    double[] brakes = ShootAuto.parkStick(0.2, 0, 0, 1.6, 0); // 0.2 m out: reverses
+    assertTrue("brakes, got " + brakes[0], brakes[0] < 0);
+  }
+
+  @Test
+  public void parkStopsInTheZoneInsteadOfRunningPastIt() {
+    // 13 Nov 215133: red, shot from (1.56, -0.74); full stick ran to x -1.354, 0.44 m past the zone's middle.
+    // Robot model from that log: 1.6 m/s top speed, 0.3 s lag, 3.4 m/s^2 grip, 0.1 s loop, velocity a loop old
+    double f = ShootOnTheMoveConstants.ALLIANCE_FORWARD_RED_RAD;
+    double[][] route = ShootAuto.parkRoute(f, 1.56, -0.74);
+    double x = 1.56, y = -0.74, vx = 0, vy = 0, seenVx = 0, seenVy = 0, minX = x;
+    int leg = 0;
+    double t = 0;
+    for (; t < ShootAuto.PARK_TIMEOUT_S; t += 0.1) {
+      double[] goal = route[leg];
+      boolean last = leg == route.length - 1;
+      if (!last && Math.hypot(goal[0] - x, goal[1] - y) <= ShootAuto.PARK_WAYPOINT_M) {
+        goal = route[++leg];
+        last = leg == route.length - 1;
+      }
+      if (last && Math.hypot(goal[0] - x, goal[1] - y) <= ShootAuto.PARK_DONE_M) {
+        break;
+      }
+      double[] s = ShootAuto.parkStick(goal[0] - x, goal[1] - y, last ? 0 : ShootAuto.PARK_CORNER_MPS, seenVx, seenVy);
+      seenVx = vx;
+      seenVy = vy;
+      for (int i = 0; i < 10; i++) {
+        double ax = (s[0] * 1.6 - vx) / 0.3, ay = (s[1] * 1.6 - vy) / 0.3, a = Math.hypot(ax, ay);
+        if (a > 3.4) {
+          ax *= 3.4 / a;
+          ay *= 3.4 / a;
+        }
+        vx += ax * 0.01;
+        vy += ay * 0.01;
+        x += vx * 0.01;
+        y += vy * 0.01;
+      }
+      minX = Math.min(minX, x);
+    }
+    assertTrue("timed out", t < ShootAuto.PARK_TIMEOUT_S);
+    assertTrue("ran to x " + minX, minX > -1.22 + 0.10); // Robot centre: never more than half off the zone's far edge
+    assertEquals(-0.915, x, ShootAuto.PARK_DONE_M);
+    assertEquals(-1.52, y, ShootAuto.PARK_DONE_M);
   }
 
   @Test
