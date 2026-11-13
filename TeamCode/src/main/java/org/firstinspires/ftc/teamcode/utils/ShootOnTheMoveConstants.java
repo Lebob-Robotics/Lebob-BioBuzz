@@ -49,6 +49,11 @@ public final class ShootOnTheMoveConstants {
   public static double CELL_SWITCH_AFTER_S = 1.0; // Switch to another of our Cells once the held one is unseen this long
   // Aim at the up Cell's field position once the tags have placed the robot; the tracker's Cell before that
   public static boolean AIM_AT_FIELD_CELL = true;
+  // Aim at our Cell on the robot's side of the Hive (x > 0 AUDIENCE, x < 0 SCORING), not the one the tags vote up:
+  // the vote flipped 2-7 times a run on 13 Nov, and the far volleys went to the far Cell, past and right of the
+  // near one the driver meant. Which Cell is right is the driver's call (14 Nov). False: the voted up Cell
+  public static boolean AIM_AT_FRONT_CELL = true;
+  public static double FRONT_CELL_SWITCH_M = 0.15; // Past x = 0 by this much before the Cell changes sides
   // Drive power at full stick while RT or RB is held. Full: the hood, wheels and heading follow the shot's rates
   // now, so the driver doesn't have to slow down to shoot
   public static double AIM_DRIVE_MAX_POWER = 1.0;

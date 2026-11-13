@@ -145,6 +145,7 @@ public class Robot {
   private boolean poseValid = false; // True once a tag fix has placed the robot on the field. Nothing is gated on it yet
   // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
   private boolean headingValid = false;
+  private VisionCorrector.Cell frontCell = null; // Our Cell on the robot's side of the Hive
   private boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
   private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
   private long lastVisionNanos = 0;
@@ -720,6 +721,26 @@ public class Robot {
    * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
    * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
    */
+  /** The Cell on the robot's side of the Hive, changing only once the robot is FRONT_CELL_SWITCH_M past the middle. */
+  static VisionCorrector.Cell frontCell(VisionCorrector.Cell current, double xM) {
+    double margin = ShootOnTheMoveConstants.FRONT_CELL_SWITCH_M;
+    if (current == null) {
+      return xM >= 0 ? VisionCorrector.Cell.AUDIENCE : VisionCorrector.Cell.SCORING;
+    }
+    if (current == VisionCorrector.Cell.AUDIENCE && xM < -margin) {
+      return VisionCorrector.Cell.SCORING;
+    }
+    if (current == VisionCorrector.Cell.SCORING && xM > margin) {
+      return VisionCorrector.Cell.AUDIENCE;
+    }
+    return current;
+  }
+
+  /** The Cell aimed at: the one in front ({@link #frontCell}), or the tags' up Cell with AIM_AT_FRONT_CELL off. */
+  private VisionCorrector.Cell aimCell() {
+    return ShootOnTheMoveConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
+  }
+
   private Aim aimAtCell(Pose pose, double[] velocity, long nowNanos, boolean aiming) {
     tracker.recordPose(nowNanos, pose);
     // Every loop, aiming or not, so it has settled by the time RT is pressed. Only the aim uses it
@@ -747,8 +768,12 @@ public class Robot {
     // Once the tags have placed the robot and shown which of our Cells is up, aim at that Cell's place on the
     // field. The tracker's Cell, last seen 6-20 s before, had been dragged 0.38 m toward the down Cell by the
     // pose corrections it follows, and the balls went into the down Cell (5 Nov, 081558)
+    if (!aiming || frontCell == null) { // Held for the whole shot
+      frontCell = frontCell(frontCell, pose.xM);
+    }
     aimingAtFieldCell = ShootOnTheMoveConstants.AIM_AT_FIELD_CELL
-        && (poseValid && visionCorrector.upCellConfirmed(alliance) || poseSeeded);
+        && (poseValid && (ShootOnTheMoveConstants.AIM_AT_FRONT_CELL || visionCorrector.upCellConfirmed(alliance))
+            || poseSeeded);
     double cellX;
     double cellY;
     if (aimPointOverride != null) {
@@ -758,7 +783,7 @@ public class Robot {
       cellX = aimPointOverride[0];
       cellY = aimPointOverride[1];
     } else if (aimingAtFieldCell) {
-      double[] point = VisionCorrector.upCellAimPoint(alliance, visionCorrector.upCell(alliance));
+      double[] point = VisionCorrector.upCellAimPoint(alliance, aimCell());
       cellX = point[0];
       cellY = point[1];
     } else if (tracker.knowsCell(nowNanos)) {
@@ -1455,6 +1480,7 @@ public class Robot {
     Logger.recordOutput("SOTM/CellY", aimCellY);
     Logger.recordOutput("SOTM/AimingAtFieldCell", aimingAtFieldCell);
     Logger.recordOutput("SOTM/UpCell", visionCorrector.upCell(alliance).name());
+    Logger.recordOutput("SOTM/AimCell", aimCell().name());
     Logger.recordOutput("SOTM/TrackerCellX", tracker.getCellX()); // To compare with the field Cell
     Logger.recordOutput("SOTM/TrackerCellY", tracker.getCellY());
     // For AdvantageScope's field views: a line from the robot to the Cell it is aiming at, none when unknown
@@ -1550,7 +1576,7 @@ public class Robot {
     } else {
       telemetry.addData("Distance", String.format("%.2f m to lip  %s  (%s)", aim.shot.distanceToLipM,
           aim.backward ? "BACKWARD, hood down" : "FRONT, hooded",
-          aimingAtFieldCell ? alliance + " " + visionCorrector.upCell(alliance) + " up, from tags"
+          aimingAtFieldCell ? alliance + " " + aimCell() + (ShootOnTheMoveConstants.AIM_AT_FRONT_CELL ? " (in front)" : " up, from tags")
               : cellSeenAgoS < 0.5 ? "camera sees Cell" : String.format("odometry, seen %.1f s ago", cellSeenAgoS)));
       telemetry.addData("Shot", aim.shot.valid ? "OK" : aim.shot.reason);
       telemetry.addData("Dist", String.format("%.2f m  toward %.2f  sideways %.2f m/s",
