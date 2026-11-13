@@ -38,6 +38,7 @@ public class IntakeSubsystem extends SubsystemBase {
   }
 
   private IntakeState intakeState;
+  private double intakePower = 1.0; // INTAKE only; eject always runs at full
   private final ElapsedTime clock = new ElapsedTime();
   // Intake encoder is untrusted: allow 0.75 s to coast, then ramp for 0.75 s.
   private final MotorReversalGuard reversal = new MotorReversalGuard(0.75, 0.75, 0);
@@ -71,7 +72,12 @@ public class IntakeSubsystem extends SubsystemBase {
     }
     int direction = intakeState == IntakeState.INTAKE ? 1 : intakeState == IntakeState.EJECT ? -1 : 0;
     double scale = reversal.update(direction, clock.seconds(), 0);
-    intakeMotor.setPower(direction * scale);
+    intakeMotor.setPower(direction * scale * (direction > 0 ? intakePower : 1.0));
+  }
+
+  /** Power for INTAKE, 0-1: lowered while the stack is packed ({@code StackPressure}). */
+  public void setIntakePower(double power) {
+    intakePower = Math.max(0, Math.min(1, power));
   }
 
   public void setIntakeState(IntakeState newIntakeState) {

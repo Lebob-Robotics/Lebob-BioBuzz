@@ -50,4 +50,19 @@ public class IndexerControlTest {
     assertEquals(IndexerState.STOP, Robot.indexerCommand(false, false, false, 0, false, false));
   }
 
+
+  @Test public void packedStackLoadsWithTheLastRollerStopped() {
+    assertEquals(IndexerState.STAGE, Robot.packedLoad(IndexerState.LOAD, true));
+    assertEquals(IndexerState.LOAD, Robot.packedLoad(IndexerState.LOAD, false));
+    assertEquals(IndexerState.FEED, Robot.packedLoad(IndexerState.FEED, true)); // Shots and eject unchanged
+    assertEquals(IndexerState.EJECT, Robot.packedLoad(IndexerState.EJECT, true));
+  }
+
+  @Test public void trippedIntakeRumblesUntilReset() {
+    assertEquals(0, Robot.intakeLockRumbleMs(false, 5, Double.NaN));
+    assertEquals(Robot.INTAKE_LOCK_RUMBLE_MS, Robot.intakeLockRumbleMs(true, 5, Double.NaN)); // Trips
+    assertEquals(0, Robot.intakeLockRumbleMs(true, 6, 5));
+    assertEquals(Robot.INTAKE_LOCK_REMIND_MS, Robot.intakeLockRumbleMs(true, 5 + Robot.INTAKE_LOCK_REMIND_S, 5));
+    assertEquals(0, Robot.intakeLockRumbleMs(false, 9, 5)); // LB reset it
+  }
 }

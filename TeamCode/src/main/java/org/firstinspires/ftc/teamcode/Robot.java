@@ -28,6 +28,7 @@ import com.bylazar.field.PanelsField;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.ManualFeedGate;
+import org.firstinspires.ftc.teamcode.utils.StackPressure;
 import org.firstinspires.ftc.teamcode.utils.WheelContact;
 import org.firstinspires.ftc.teamcode.utils.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
@@ -254,6 +255,8 @@ public class Robot {
   private boolean wasFull = false;
   private final WheelContact wheelContact = new WheelContact();
   private boolean wheelContactFull = false; // A loading ball touched the wheels: the stack is full
+  private final StackPressure stackPressure = new StackPressure();
+  private boolean stackPacked = false; // The intake pushed a packed stack: it eases off and the last roller stops
   private boolean wasLtPressed = false;
   private double lastShotKnownS = Double.NEGATIVE_INFINITY;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
@@ -261,6 +264,10 @@ public class Robot {
   private boolean wasDpadDown = false;
   private boolean wasLeftBumper = false;
   private boolean shooterWasStalled = false;
+  private double intakeLockRumbleS = Double.NaN; // Last rumble for a tripped intake; NaN while it runs
+  static final int INTAKE_LOCK_RUMBLE_MS = 1000;
+  static final int INTAKE_LOCK_REMIND_MS = 400;
+  static final double INTAKE_LOCK_REMIND_S = 2.0;
   private final HeadingHold headingHold = new HeadingHold();
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
   private Pose lastPose = new Pose(0, 0, 0);
@@ -618,6 +625,13 @@ public class Robot {
       physicalDriver.rumble(STALL_RUMBLE_MS);
     }
     shooterWasStalled = shooter.isStalled();
+    int lockRumbleMs = intakeLockRumbleMs(intake.isOverloaded(), clock.seconds(), intakeLockRumbleS);
+    if (lockRumbleMs > 0) {
+      physicalDriver.rumble(lockRumbleMs);
+      intakeLockRumbleS = clock.seconds();
+    } else if (!intake.isOverloaded()) {
+      intakeLockRumbleS = Double.NaN;
+    }
 
     long tLog = System.nanoTime();
     // The Driver Station shows it at 4 Hz at most, and its formatting cost 10-18 ms a loop (7 Nov, 080123)
@@ -864,6 +878,20 @@ public class Robot {
       intake.resetOverload();
     }
     wasLeftBumper = driver.left_bumper;
+  }
+
+  /**
+   * How long to rumble this loop for a tripped intake, which stays off until LB: long when it trips, then a short
+   * reminder every {@link #INTAKE_LOCK_REMIND_S} while it is still off. 0 for no rumble.
+   */
+  static int intakeLockRumbleMs(boolean tripped, double nowS, double lastRumbleS) {
+    if (!tripped) {
+      return 0;
+    }
+    if (Double.isNaN(lastRumbleS)) {
+      return INTAKE_LOCK_RUMBLE_MS;
+    }
+    return nowS - lastRumbleS >= INTAKE_LOCK_REMIND_S ? INTAKE_LOCK_REMIND_MS : 0;
   }
 
   private static boolean justPressed(boolean pressedNow, boolean pressedLastLoop) {
@@ -1211,6 +1239,7 @@ public class Robot {
     // Full until a ball leaves, B ejects or LT is pressed again (the way out if a bump looked like a touch)
     if ((ltPressed && !wasLtPressed) || ejecting || feedGate.ballLeft()) {
       wheelContactFull = false;
+      stackPacked = false;
     }
     wasLtPressed = ltPressed;
     boolean watchingWheels = loading && !wheelContactFull && !tuningMode
@@ -1219,6 +1248,14 @@ public class Robot {
       wheelContactFull = true;
     }
     Logger.recordOutput("Intake/WheelContactFull", wheelContactFull);
+    // Not in the auto, whose intake pushes into the Flower's balls the whole time and has no LT to start over
+    boolean watchingIntake = loading && !stackPacked && !autoIntake && !tuningMode
+        && indexer.getIndexerState() == IndexerState.LOAD && intake.getIntakeState() == IntakeState.INTAKE;
+    if (stackPressure.update(clock.seconds(), watchingIntake, intake.getAmps())) {
+      stackPacked = true;
+    }
+    Logger.recordOutput("Intake/StackPacked", stackPacked);
+    intake.setIntakePower(stackPacked ? StackPressure.PACKED_INTAKE_POWER : 1.0);
     boolean full = intake.isFull() || wheelContactFull;
     if (full && !wasFull) {
       physicalDriver.rumble(300);
@@ -1235,6 +1272,7 @@ public class Robot {
     double indexerPower = volleyMode && volleyShot && feeding ? volleyIndexerPower() : 1.0;
     IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
         holdFire || loadingShooter.blocksSpin(), full);
+    indexerCommand = packedLoad(indexerCommand, stackPacked);
     if (!ejecting && (loadingShooter.clearing() || (loading && !loadingShooter.canLoad())
         || (spinOnlyOnFire && enabledShot && !feeding && feedGate.feedStarts() == 0))) {
       indexerCommand = IndexerState.STOP;
@@ -1271,6 +1309,11 @@ public class Robot {
     }
     if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
     feeder.setFeederState(feederCommand, feederPower);
+  }
+
+  /** A packed stack loads with its last roller stopped, so nothing creeps the first ball into the wheels. */
+  static IndexerState packedLoad(IndexerState command, boolean packed) {
+    return packed && command == IndexerState.LOAD ? IndexerState.STAGE : command;
   }
 
   /** Intake protection only controls its motor; LT, eject and shot gates still control the indexer. */
