@@ -1560,7 +1560,54 @@ public class Robot {
     return text + String.format(" (%.1fs ago) | ", sinceS) + upCell;
   }
 
+  /** Every subsystem's state on the Driver Station: the tuning OpModes, or TELEMETRY_DETAIL from Panels. */
+  public boolean isTelemetryDetail() {
+    return tuningMode || ShootOnTheMoveConstants.TELEMETRY_DETAIL;
+  }
+
   private void addTelemetry(Aim aim, Pose pose) {
+    if (isTelemetryDetail()) {
+      addDetailTelemetry(aim, pose);
+    } else {
+      addDriverTelemetry(aim, pose);
+    }
+  }
+
+  /** The driver's lines: which shot, whether it's ready and what it waits for, and only the problems to act on. */
+  private void addDriverTelemetry(Aim aim, Pose pose) {
+    if (aim == null) {
+      telemetry.addData("Shot", Double.isInfinite(cellSeenAgoS) ? "no Cell yet: point the cameras at the tags"
+          : "Cell lost: point the cameras at the tags");
+    } else {
+      telemetry.addData("Shot", String.format("%s  %.2f m  %s", aimingAtFieldCell ? alliance + " " + aimCell()
+          : "camera's Cell", aim.shot.distanceToLipM, aim.backward ? "BACKWARD" : "HOODED"));
+      String state;
+      if (aimState == AimState.LINING_UP) {
+        state = String.format("lining up  wheels %.0f/%.0f  hood %.1f/%.1f  turn %.0f deg", shooter.getRpm(),
+            shooter.getTargetRpm(), HoodSubsystem.ticksToAngle(hood.getPosition()),
+            HoodSubsystem.ticksToAngle(hood.getTarget()), Math.toDegrees(aim.headingErrorRad(pose.headingRad)));
+      } else if (aimState == AimState.NO_SAFE_SHOT) {
+        state = "no safe shot: " + aim.shot.reason;
+      } else {
+        state = aimState == AimState.OFF ? "RT to aim" : aimState.toString();
+      }
+      telemetry.addData("Aim", state + (rpmTrim != 0 ? String.format("  (trim %+.0f)", rpmTrim) : ""));
+    }
+    if (volleyMode && volleyShot) {
+      telemetry.addData("Volley", "balls out %d", volleyFeedGate.ballsLeft());
+    }
+    if (!poseValid) {
+      telemetry.addLine("! Pose not placed: point the cameras at the tags");
+    }
+    if (shooter.isStalled()) {
+      telemetry.addLine("! Flywheels " + shooter.getStallStatus());
+    }
+    if (hood.hasEncoderFault()) {
+      telemetry.addLine("! Hood " + hood.getEncoderFaultText());
+    }
+  }
+
+  private void addDetailTelemetry(Aim aim, Pose pose) {
     telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet")
         + (headingValid ? ", heading set" : ", heading from start"));
     telemetry.addData("Aim", aimState);
@@ -1622,6 +1669,12 @@ public class Robot {
         : a >= 7 || load >= 0.7 ? "!! HOT - let it rest"
         : a >= 5 || load >= 0.35 ? "! warm"
         : "ok";
+    if (!isTelemetryDetail()) { // One line, the flags only when they need doing something about
+      String batteryFlag = batteryMinVolts < 11.0 ? "  !! LOW - swap" : batteryVolts < 12.0 ? "  ! low" : "";
+      telemetry.addData("Power", String.format("battery %.1f V%s   intake %.1f A %s%s", batteryVolts, batteryFlag,
+          a, intakeFlag, shooter.isStalled() ? "   FLYWHEELS STALLED" : ""));
+      return;
+    }
     telemetry.addData("INTAKE", String.format("%.1f A  load %.0f%%  %s", a, 100 * load, intakeFlag));
     String shooterFlag = shooter.isStalled() ? "STALLED" : "ok";
     telemetry.addData("FLYWHEELS", String.format("L %.1f  R %.1f A  %s",
@@ -1646,7 +1699,7 @@ public class Robot {
     }
     Logger.recordOutput("Robot/BatteryVolts", batteryVolts);
     Logger.recordOutput("Robot/BatteryMinVolts", batteryMinVolts);
-    if (telemetryDue) {
+    if (telemetryDue && isTelemetryDetail()) {
       telemetry.addData("Battery", "%.2f V (lowest %.2f V)", batteryVolts, batteryMinVolts);
     }
   }

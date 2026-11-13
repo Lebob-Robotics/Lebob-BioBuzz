@@ -164,7 +164,7 @@ public class Main extends PsiKitIterativeOpMode {
     }
     if (volley != null) {
       applyVolleySettings();
-    } else if (usesTunedVolley() || getClass() == Main.class) {
+    } else if ((usesTunedVolley() || getClass() == Main.class) && robot.isTelemetryDetail()) {
       telemetry.addData(ShootOnTheMoveConstants.VOLLEY_ON_RT ? "Volley (RB still, RT moving)" : "Volley (RB)",
           "constants (full feed, matched speed each ball)");
     }
@@ -188,7 +188,9 @@ public class Main extends PsiKitIterativeOpMode {
       source = (volley.isConfirmed(volleySpot) ? "confirmed" : "best so far") + " at spot " + (volleySpot + 1)
           + (near ? "" : ", guessed for here");
     }
-    telemetry.addData("Volley (RB)", source);
+    if (robot.isTelemetryDetail()) {
+      telemetry.addData("Volley (RB)", source);
+    }
   }
 
   @Override

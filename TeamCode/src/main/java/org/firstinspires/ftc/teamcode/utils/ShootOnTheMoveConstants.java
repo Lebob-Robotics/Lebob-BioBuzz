@@ -53,6 +53,9 @@ public final class ShootOnTheMoveConstants {
   // the vote flipped 2-7 times a run on 13 Nov, and the far volleys went to the far Cell, past and right of the
   // near one the driver meant. Which Cell is right is the driver's call (14 Nov). False: the voted up Cell
   public static boolean AIM_AT_FRONT_CELL = true;
+  // TeleOp's Driver Station: false shows the driver's few lines (shot, aim, power, problems); true every subsystem's
+  // state, as before 14 Nov. The tuning OpModes always show it all
+  public static boolean TELEMETRY_DETAIL = false;
   public static double FRONT_CELL_SWITCH_M = 0.15; // Past x = 0 by this much before the Cell changes sides
   // Drive power at full stick while RT or RB is held. Full: the hood, wheels and heading follow the shot's rates
   // now, so the driver doesn't have to slow down to shoot
