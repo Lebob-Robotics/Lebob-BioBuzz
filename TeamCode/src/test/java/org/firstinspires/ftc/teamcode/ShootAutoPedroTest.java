@@ -16,14 +16,16 @@ import org.junit.Test;
 
 /**
  * Shoot Auto's Pedro park on a robot modelled on 13 Nov 220620's park: 1.75 m/s top speed forward (1.4 sideways),
- * 0.3 s to reach a new speed, at most 4.3 m/s^2, a 0.068 s loop, and the pose and speed a loop old when used.
+ * 0.3 s to speed up and 0.16 s to slow down, at most 4.3 m/s^2, a 0.068 s loop, and the pose and speed a loop old when used.
  * The powers go through the Robot's stick curve, as on the robot.
  */
 public class ShootAutoPedroTest {
   private static final double DT = 0.068;
   private static final double TOP_FORWARD_MPS = 1.75;
   private static final double TOP_STRAFE_MPS = 1.4;
-  private static final double LAG_S = 0.3;
+  private static final double LAG_S = 0.3; // Speeding up
+  // Slowing down, the motors on BRAKE: no power stopped it from 1.25 m/s in 0.37 s and 0.20 m (13 Nov 220620)
+  private static final double SLOWING_LAG_S = 0.16;
   private static final double MAX_ACCEL = 4.3;
 
   @Test
@@ -91,7 +93,8 @@ public class ShootAutoPedroTest {
       seenVx = vx;
       seenVy = vy;
       for (int i = 0; i < 10; i++) {
-        double accX = (wantX - vx) / LAG_S, accY = (wantY - vy) / LAG_S, acc = Math.hypot(accX, accY);
+        double lag = wantX * vx + wantY * vy < vx * vx + vy * vy ? SLOWING_LAG_S : LAG_S;
+        double accX = (wantX - vx) / lag, accY = (wantY - vy) / lag, acc = Math.hypot(accX, accY);
         if (acc > MAX_ACCEL) {
           accX *= MAX_ACCEL / acc;
           accY *= MAX_ACCEL / acc;

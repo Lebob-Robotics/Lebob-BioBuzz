@@ -112,7 +112,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   @Override
   protected void onPsiKitInitLoop() {
     if (PARK_WITH_PEDRO && !Constants.TUNED) {
-      telemetry.addLine("Pedro park on guessed constants: run the Foresight Tuner");
+      telemetry.addLine("Pedro park on guessed constants");
     }
     robot.initLoop();
   }

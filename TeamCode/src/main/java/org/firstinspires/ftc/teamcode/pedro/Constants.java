@@ -22,14 +22,24 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
  */
 public final class Constants {
   /**
-   * False while {@link #foresightConfig} holds guesses. Run "Foresight Tuner" (Sloth tuning menu) on the robot,
-   * paste the code it prints into foresightConfig, and set this true. The autonomous warns in INIT until then.
+   * True once {@link #foresightConfig} holds measured values. The speeds, decelerations and braking come from the
+   * Pinpoint in 13 Nov's logs (what the Foresight Tuner measures, taken from the auto's and TeleOp's own driving);
+   * the translational kPs are still guesses, to check against Shoot Auto's park.
    */
-  public static final boolean TUNED = false;
+  public static final boolean TUNED = true;
 
   private Constants() {}
 
-  /** Guesses for a 312 RPM mecanum until the tuner has run. Inches. */
+  /**
+   * Inches. Measured from 13 Nov's logs (sysid over 42 runs), drive motors on BRAKE as Shoot Auto runs them:
+   * top speed the mean of 10 readings at full power (p95 forward, the most strafing reached); deceleration and braking
+   * from the auto's stops with no power (forward 102 to 142 in/s^2 from over 0.9 m/s; stop = 0.1425 v + 0.00041 v^2,
+   * 0.5 in rms over 8 stops), rounded toward braking early. Strafe braking had 2 stops, so it takes forward's: with
+   * the power off the two slid about the same. The guesses were float mode's (31 in from 60 in/s against 10 in).
+   * Linear braking also carries 0.07 s of control delay (the pose a loop old, the motors' response): it travels at
+   * full speed before braking starts. Without it the measured values ran 6.6 cm past in ShootAutoPedroTest's model;
+   * with it none, in 3.0 s; 0.12 s and more stopped 4 cm short.
+   */
   public static ForesightConfig foresightConfig() {
     return new ForesightConfig(c -> {
       Controller primaryTranslationalForward = Controller.proportional(0.10);
@@ -46,13 +56,13 @@ public final class Constants {
       c.headingFeedback.set(Controller.proportional(1.0));
       c.headingBrakeCoefficients.set(Vector2D.cartesian(0.10, 0.03));
 
-      c.linearBrakeCoefficients.set(Matrix.diag(0.10, 0.12));
-      c.quadraticBrakeCoefficients.set(Matrix.diag(0.007, 0.008));
+      c.linearBrakeCoefficients.set(Matrix.diag(0.22, 0.23)); // 0.1425 measured + 0.07 s delay, rounded up
+      c.quadraticBrakeCoefficients.set(Matrix.diag(0.00045, 0.0005));
 
-      c.maxAchievableForwardVelocity.set(55.0);
-      c.maxAchievableStrafeVelocity.set(45.0);
-      c.naturalForwardDeceleration.set(70.0);
-      c.naturalStrafeDeceleration.set(60.0);
+      c.maxAchievableForwardVelocity.set(65.0);
+      c.maxAchievableStrafeVelocity.set(48.0);
+      c.naturalForwardDeceleration.set(120.0);
+      c.naturalStrafeDeceleration.set(110.0);
     });
   }
 
