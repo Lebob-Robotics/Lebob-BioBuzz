@@ -99,4 +99,27 @@ public class FieldRouteTest {
     double[] stuck = FieldRoute.goToStick(at, -1.5, -1.5, -1.30, -0.60, 1.0, FieldRoute.RELOAD_STICK);
     assertEquals(FieldRoute.GOTO_STICK, Math.hypot(stuck[0], stuck[1]), 1e-9);
   }
+  @Test public void perimeterEntryIsInwardOnlyAndDoesNotExpandNormalRoutes() {
+    assertTrue(FieldRoute.pathClearEntering(-1.578, -.362, -1, .32));
+    assertTrue(!FieldRoute.pathClear(-1.578, -.362, -1, .32));
+    assertTrue(!FieldRoute.pathClearEntering(-1.578, -.362, -1.59, .32));
+    assertTrue(!FieldRoute.pathClearEntering(-1.61, -.362, -1, .32));
+  }
+
+  @Test public void perimeterEntryStillCannotCrossTheHive() {
+    assertTrue(!FieldRoute.pathClearEntering(-1.578, -.362, 1, .32));
+    double x = -1.578, y = -.362;
+    for (double[] p : FieldRoute.route(x, y, 1, .32)) {
+      assertTrue(FieldRoute.pathClearEntering(x, y, p[0], p[1]));
+      x = p[0]; y = p[1];
+    }
+  }
+
+  @Test public void perimeterEntryStopsBeforeAnOutwardCoastWouldReachTheWall() {
+    Pose p = new Pose(-1.578, -.362, 0);
+    assertTrue(FieldRoute.headedSafelyEntering(p, new double[]{.2, 0, 0}));
+    assertTrue(!FieldRoute.headedSafelyEntering(p, new double[]{-.5, 0, 0}));
+    assertTrue(!FieldRoute.headedSafelyEntering(new Pose(-1.61, -.362, 0), new double[3]));
+  }
+
 }

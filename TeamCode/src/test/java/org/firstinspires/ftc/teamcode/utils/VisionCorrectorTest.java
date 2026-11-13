@@ -720,4 +720,162 @@ public class VisionCorrectorTest {
     assertEquals(0, result.newPose.xM, TOLERANCE);
     assertEquals(Math.PI, Math.abs(result.newPose.headingRad), 1e-6);
   }
+
+  private VisionResult initialPair(Pose truth, Pose odometry, long elapsedMs) {
+    return initialPair(truth, odometry, elapsedMs, 0, 36, 39);
+  }
+
+  private VisionResult initialPair(Pose truth, Pose odometry, long elapsedMs, double speed, int a, int b) {
+    long frame = T0 + elapsedMs * MS;
+    PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+    history.add(frame - MS, odometry); history.add(frame + MS, odometry);
+    return corrector.process(list(observe(LEFT, truth, a, Cell.AUDIENCE, Double.NaN, frame),
+        observe(RIGHT, truth, b, Cell.AUDIENCE, Double.NaN, frame)),
+        history, odometry, speed, 0, 0, false, false, frame + MS);
+  }
+
+  @Test public void aWidePairCanBootstrapFromFourFreshConsistentFrames() {
+    Pose odometry = new Pose(0, 0, TRUE_POSE.headingRad + Math.toRadians(134));
+    for (int i = 0; i < 3; i++) {
+      assertFalse(initialPair(TRUE_POSE, odometry, 100 + i * 500).accepted);
+    }
+    VisionResult fixed = initialPair(TRUE_POSE, odometry, 1600);
+    assertTrue(fixed.accepted); assertEquals(1, fixed.headingGain, TOLERANCE);
+    assertEquals(TRUE_POSE.headingRad, fixed.newPose.headingRad, 1e-6);
+    assertEquals(TRUE_POSE.xM, fixed.newPose.xM, 1e-6);
+    assertEquals(TRUE_POSE.yM, fixed.newPose.yM, 1e-6);
+  }
+
+  @Test public void replayingTheSamePairFrameCannotBootstrap() {
+    Pose odometry = new Pose(0, 0, 0);
+    for (int i = 0; i < 8; i++) { assertFalse(initialPair(TRUE_POSE, odometry, 100).accepted); }
+    assertFalse(initialPair(TRUE_POSE, odometry, 600).accepted);
+    assertFalse(initialPair(TRUE_POSE, odometry, 1100).accepted);
+    assertTrue(initialPair(TRUE_POSE, odometry, 1600).accepted);
+  }
+
+  @Test public void staleEvidenceAndResetCannotCompleteAFirstHeading() {
+    Pose odometry = new Pose(0, 0, 0);
+    for (int i = 0; i < 3; i++) { initialPair(TRUE_POSE, odometry, 100 + i * 500); }
+    assertFalse(initialPair(TRUE_POSE, odometry, 4000).accepted);
+    assertFalse(initialPair(TRUE_POSE, odometry, 4500).accepted);
+    assertFalse(initialPair(TRUE_POSE, odometry, 5000).accepted);
+    corrector.reset();
+    assertFalse(initialPair(TRUE_POSE, odometry, 5500).accepted);
+  }
+
+  @Test public void inconsistentPairHeadingsOrPositionsRestartConfirmation() {
+    Pose odometry = new Pose(0, 0, 0);
+    for (int i = 0; i < 3; i++) { initialPair(TRUE_POSE, odometry, 100 + i * 500); }
+    Pose rotated = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(10));
+    assertFalse(initialPair(rotated, odometry, 1600).accepted);
+    assertFalse(initialPair(TRUE_POSE, odometry, 2100).accepted);
+    assertFalse(initialPair(TRUE_POSE, odometry, 2600).accepted);
+    Pose moved = new Pose(TRUE_POSE.xM + 0.2, TRUE_POSE.yM, TRUE_POSE.headingRad);
+    assertFalse(initialPair(moved, odometry, 3100).accepted);
+  }
+
+  @Test public void coincidentPairAndMovingPairCannotUseTemporalBootstrap() {
+    Pose odometry = new Pose(0, 0, 0);
+    for (int i = 0; i < 8; i++) {
+      assertFalse(initialPair(TRUE_POSE, odometry, 100 + i * 500, 0, 30, 30).accepted);
+    }
+    for (int i = 0; i < 8; i++) {
+      assertFalse(initialPair(TRUE_POSE, odometry, 5000 + i * 500, 0.4, 36, 39).accepted);
+    }
+  }
+
+  @Test public void loggedNovemberNineTwoTagViewBootstrapsAfterRepeatedAgreement() {
+    // Raw right-camera detections from VolleyTuning 20261109_133512, first four pair frames.
+    double[][] samples = {
+      {4695962113061.0, 4695767604042L, -0.00281684249651443, 0.0017286517499545925, 1.505723936472043, -0.002816800594329834, 0.0017292962074279788, 1.5057149092343192, 5.869425949640577e-07, 9.204228408634663e-06, -0.00012899182636066228, -0.2242087951660156, 1.2989484268188476, -0.28127495822906495, 44.146461486816406, -0.7187237655639648, 1.3777570854187011, -0.20047271976470946, 57.351806640625},
+      {4696700250594.0, 4696531311410L, -0.002816868912899357, 0.0017282249702883388, 1.5057299263320074, -0.002816685914993286, 0.0017311090230941774, 1.5056895176556448, -1.9434280693531058e-05, -0.0003045870363712311, 0.004268617324537458, -0.2236796365737915, 1.296077187347412, -0.28049947261810304, 45.23434829711914, -0.7171062770843506, 1.3747081436157227, -0.2001549097061157, 60.73168182373047},
+      {4697480674547.0, 4697311374863L, -0.002815975824770538, 0.001742196794312798, 1.5055341312442012, -0.0028156647682189943, 0.0017470703125000001, 1.505465836324964, -3.179271519184115e-05, -0.0004965097904205322, 0.006958407684848562, -0.22419576301574706, 1.2990519088745116, -0.2813400463104248, 44.949073791503906, -0.7167881763458251, 1.3741814315795897, -0.20002628383636473, 57.8216552734375},
+      {4698882156355.0, 4698722357130L, -0.004476212775325933, 0.002974521803718562, 1.4592086076818764, -0.00447624683380127, 0.002974218606948853, 1.45921287039784, -8.46834154799581e-07, -7.654430344700813e-06, 0.00010770802628114828, -0.17675920839309692, 1.3040672035217284, -0.2779656398773193, 41.55519485473633, -0.6622377754211426, 1.3946982994079589, -0.18270280151367188, 52.12730026245117},
+    };
+    VisionResult result = null;
+    for (int i = 0; i < samples.length; i++) {
+      double[] row = samples[i];
+      long now = (long) row[0], frame = (long) row[1];
+      Pose atFrame = new Pose(row[2], row[3], row[4]);
+      Pose odometry = new Pose(row[5], row[6], row[7]);
+      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      history.add(frame - MS, atFrame); history.add(frame + MS, atFrame);
+      result = corrector.process(list(new TagObservation(36, RIGHT, row[11], row[12], row[13], row[14], frame),
+          new TagObservation(39, RIGHT, row[15], row[16], row[17], row[18], frame)),
+          history, odometry, row[8], row[9], row[10], false, false, now);
+      if (i < 3) { assertFalse(result.accepted); }
+    }
+    assertEquals(Reason.ACCEPTED, result.reason);
+    assertTrue(corrector.upCellConfirmed(Alliance.BLUE));
+    assertEquals(1, result.headingGain, TOLERANCE);
+    assertTrue(result.spreadM < 0.05);
+  }
+
+  @Test public void loggedAdjacentTagViewBootstrapsAfterRepeatedAgreement() {
+    // Raw left-camera detections from VolleyTuning 20261109_135640, first four pair frames.
+    double[][] samples = {
+      {6007364592616.0, 6007151535928L, -0.020057160161133708, -0.044437067188100754, 2.579309263161799, -0.020053493499755864, -0.044439403533935544, 2.579374031224523, -1.4060030691325665e-05, 8.83099064230919e-06, -0.00023221428573645228, 0.4218749759674072, 1.2177379768371581, -0.3691796459197998, 27.63983726501465, 0.29111958503723145, 1.1784482238769531, -0.400250036239624, 31.083492279052734},
+      {6008686740791.0, 6008509448565L, -0.02006179585564588, -0.04443426229789407, 2.579244140228688, -0.0200640983581543, -0.044432815551757814, 2.57920761505631, 0.0002345646470785141, -0.0001473861932754517, 0.0038744819667733406, 0.4225403423309326, 1.2198320350646972, -0.3698909397125244, 28.40828514099121, 0.2916225824356079, 1.1803638046264648, -0.4007834581375122, 28.86903190612793},
+      {6008982439779.0, 6008768435757L, -0.02006271609571001, -0.04443368617597474, 2.579232402545142, -0.020071798324584965, -0.044427986145019534, 2.5790841142323355, -0.0005429808497428894, 0.0003412488400936127, -0.00896936634560255, 0.422960326385498, 1.2210745948791504, -0.3702558399200439, 26.914892196655273, 0.2909491012573242, 1.1782230438232422, -0.40019134311676025, 28.871126174926758},
+      {6009238225929.0, 6009055467869L, -0.02007336613863901, -0.044427015220929476, 2.5790571262691957, -0.020029365539550786, -0.044454730987548825, 2.5790745774891715, -6.140373274683952e-05, 3.8590084761381157e-05, -0.0010143093088477062, 0.42135184898376465, 1.216073931121826, -0.3684538423538208, 28.66648292541504, 0.2916223402023315, 1.1808970085144042, -0.40104107322692867, 29.309232711791992},
+    };
+    VisionResult result = null;
+    for (int i = 0; i < samples.length; i++) {
+      double[] row = samples[i];
+      long now = (long) row[0], frame = (long) row[1];
+      Pose atFrame = new Pose(row[2], row[3], row[4]);
+      Pose odometry = new Pose(row[5], row[6], row[7]);
+      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      history.add(frame - MS, atFrame); history.add(frame + MS, atFrame);
+      result = corrector.process(list(new TagObservation(35, LEFT, row[11], row[12], row[13], row[14], frame),
+          new TagObservation(36, LEFT, row[15], row[16], row[17], row[18], frame)),
+          history, odometry, row[8], row[9], row[10], false, false, now);
+      if (i < 3) { assertFalse(result.accepted); }
+    }
+    assertEquals(Reason.ACCEPTED, result.reason);
+    assertEquals(1, result.headingGain, TOLERANCE);
+    assertTrue(result.spreadM < 0.05);
+  }
+
+  @Test public void adjacentPairsNeedFourFramesAndDoNotChangeTrustedHeadingRules() {
+    Pose odometry = new Pose(0, 0, 0);
+    for (int i = 0; i < 3; i++) {
+      assertFalse(initialPair(TRUE_POSE, odometry, 100 + i * 500, 0, 30, 31).accepted);
+    }
+    VisionResult fixed = initialPair(TRUE_POSE, odometry, 1600, 0, 30, 31);
+    assertEquals(Reason.ACCEPTED, fixed.reason);
+    assertEquals(TRUE_POSE.headingRad, fixed.newPose.headingRad, 1e-6);
+    Pose trusted = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
+    for (int i = 0; i < 8; i++) {
+      VisionResult trim = runHeading(list(observe(30, Cell.AUDIENCE, TRUE_POSE),
+          observe(31, Cell.AUDIENCE, TRUE_POSE)), trusted, true);
+      assertEquals(0, trim.headingPairs); assertEquals(0, trim.headingGain, TOLERANCE);
+    }
+  }
+
+  @Test public void temporalBootstrapHonorsDisabledVisionHeading() {
+    ShootOnTheMoveConstants.VISION_HEADING = false;
+    for (int i = 0; i < 8; i++) {
+      assertFalse(initialPair(TRUE_POSE, new Pose(0, 0, 0), 100 + i * 500).accepted);
+    }
+  }
+
+  @Test public void aClosePairWithInconsistentRangeCannotBootstrapEvenWhenRepeated() {
+    Pose odometry = new Pose(0, 0, 0);
+    for (int i = 0; i < 8; i++) {
+      long frame = T0 + (100 + i * 500) * MS;
+      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      history.add(frame - MS, odometry); history.add(frame + MS, odometry);
+      TagObservation a = observe(LEFT, TRUE_POSE, 35, Cell.AUDIENCE, Double.NaN, frame);
+      TagObservation b = observe(LEFT, TRUE_POSE, 36, Cell.AUDIENCE, Double.NaN, frame);
+      TagObservation badRange = new TagObservation(b.id, b.camera, b.rightM,
+          b.forwardM + 0.10, b.upM, b.decisionMargin, frame);
+      VisionResult result = corrector.process(list(a, badRange), history, odometry, 0, 0, 0,
+          false, false, frame + MS);
+      assertEquals(2, result.tagsUsed); assertEquals(TagReject.NONE, result.firstTagReject);
+      assertFalse(result.accepted); assertEquals(0, result.headingGain, TOLERANCE);
+    }
+  }
+
 }

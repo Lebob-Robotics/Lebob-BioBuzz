@@ -182,6 +182,14 @@ final class FieldRoute {
     return inBox(stopX, stopY, limit, SPOT_FENCE_SLACK_M, SPOT_FENCE_SLACK_M);
   }
 
+  /** Entering from the perimeter still respects the physical wall and Hive stopping bounds. */
+  static boolean headedSafelyEntering(Pose pose, double[] velocity) {
+    if (inBox(pose.xM, pose.yM, 0, 0)) { return headedSafely(pose, velocity); }
+    if (!inBox(pose.xM, pose.yM, MAX_REACH_M, 0, 0)) { return false; }
+    return inBox(pose.xM + stopDistance(velocity[0]), pose.yM + stopDistance(velocity[1]),
+        MAX_REACH_M, 0, 0);
+  }
+
   /** Field limit for the drive to the reload spot: wide enough to reach it, never past the robot's reach of the wall. */
   static double reloadLimit(double x, double y) {
     return Math.min(MAX_REACH_M, Math.max(FIELD_LIMIT_M, Math.max(Math.abs(x), Math.abs(y)) + RELOAD_MARGIN_M));
@@ -196,10 +204,25 @@ final class FieldRoute {
 
   /** Every point of the straight line from one point to another is inside the area and out of the Hive's footprint. */
   static boolean pathClear(double x0, double y0, double x1, double y1) {
+    return pathClearWithin(x0, y0, x1, y1, FIELD_LIMIT_M);
+  }
+
+  /**
+   * Permit an initial inward leg from the perimeter margin to the normal travel area.
+   * The start must remain inside the physical wall reach, and the destination must be in
+   * the ordinary area. Every later leg consequently uses the ordinary limit again.
+   */
+  static boolean pathClearEntering(double x0, double y0, double x1, double y1) {
+    if (!inBox(x0, y0, MAX_REACH_M, 0, 0) || !inBox(x1, y1, 0, 0)) { return false; }
+    double entryLimit = Math.max(FIELD_LIMIT_M, Math.max(Math.abs(x0), Math.abs(y0)));
+    return pathClearWithin(x0, y0, x1, y1, entryLimit);
+  }
+
+  private static boolean pathClearWithin(double x0, double y0, double x1, double y1, double limit) {
     int steps = (int) Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.02);
     for (int i = 0; i <= steps; i++) {
       double f = steps == 0 ? 0 : (double) i / steps;
-      if (!inBox(x0 + f * (x1 - x0), y0 + f * (y1 - y0), 0, 0)) {
+      if (!inBox(x0 + f * (x1 - x0), y0 + f * (y1 - y0), limit, 0, 0)) {
         return false;
       }
     }

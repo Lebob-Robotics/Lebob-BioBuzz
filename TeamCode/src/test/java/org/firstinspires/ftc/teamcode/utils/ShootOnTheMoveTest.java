@@ -423,6 +423,49 @@ public class ShootOnTheMoveTest {
     assertFalse(ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, clusterX, 0).backward);
   }
 
+  private static boolean backwardQuicker(double lipM, double headingRad, double towardMps, boolean hoodAndWheelsAtBackward) {
+    double clusterX = lipM + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Pose pose = new Pose(0, 0, headingRad);
+    Aim hooded = ShootOnTheMove.aimHooded(pose, towardMps, 0, clusterX, 0);
+    Aim backward = ShootOnTheMove.aimBackward(pose, towardMps, 0, clusterX, 0);
+    Aim at = hoodAndWheelsAtBackward ? backward : hooded;
+    return ShootOnTheMove.backwardQuicker(hooded, backward, headingRad, at.hoodNowDeg, at.rpmNow);
+  }
+
+  @Test
+  public void closeInFacingTheHoodedWayTakesTheHoodedShot() {
+    // 0.6 m was always backward on the old 0.80 m arc; facing the hooded way it is now the hooded shot
+    assertFalse(backwardQuicker(0.6, Math.PI, 0, false));
+    assertTrue(backwardQuicker(0.6, 0, 0, true));
+  }
+
+  @Test
+  public void facingTheBackwardWayTakesTheBackwardShot() {
+    assertTrue(backwardQuicker(0.7, 0, 0, true));
+    assertTrue(backwardQuicker(0.7, 0, 0, false)); // Hood and wheels elsewhere, but no 180 degree turn
+  }
+
+  @Test
+  public void pastTheCalibratedBackwardSpotsIsNeverBackward() {
+    // The backward table reaches 2.3 m, but only 0.40-0.81 m was ever shot
+    assertFalse(backwardQuicker(1.5, 0, 0, true));
+    assertFalse(backwardQuicker(3.0, 0, 0, true));
+  }
+
+  @Test
+  public void aBackwardShotBlockedBySpeedCountsLater() {
+    double clusterX = 0.7 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Pose sideways = new Pose(0, 0, Math.PI / 2);
+    Aim fast = ShootOnTheMove.aimBackward(sideways, 1.0, 0, clusterX, 0);
+    Aim slow = ShootOnTheMove.aimBackward(sideways, 0, 0, clusterX, 0);
+    assertFalse(fast.shot.valid);
+    assertEquals(ShootOnTheMoveConstants.SHOT_PICK_BLOCKED_S,
+        ShootOnTheMove.secondsToReady(fast, Math.PI / 2, Double.NaN, Double.NaN)
+            - ShootOnTheMove.secondsToReady(slow, Math.PI / 2, Double.NaN, Double.NaN), 1e-9);
+    // Side on and driving at it: both need 90 degrees, so the hooded shot, which it can take moving, wins
+    assertFalse(backwardQuicker(0.7, Math.PI / 2, 1.0, true));
+  }
+
   @Test
   public void aimBackwardKeepsItsHeadingWhenMovingTooFast() {
     // Cell 1.5 m along +x; the robot drives toward it faster than the backward table allows
@@ -436,5 +479,35 @@ public class ShootOnTheMoveTest {
   public void aimHoodedNeverPicksBackward() {
     Aim aim = ShootOnTheMove.aimHooded(new Pose(0, 0, 0), 0, 0, 1.5, 0);
     assertFalse(aim.backward);
+  }
+
+  @Test
+  public void hoodSteepensForWheelsAboveTheTableRpm() {
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 0), TOLERANCE);
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, -100), TOLERANCE); // Below the table: none
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(Double.NaN, 0, 200), TOLERANCE);
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(9.0, 0, 200), TOLERANCE); // Off the table
+    double previous = 0;
+    for (int rpm = 50; rpm <= 600; rpm += 50) {
+      double offset = ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, rpm);
+      assertTrue("never falls as the wheels speed up: " + rpm, offset >= previous - 1e-9);
+      previous = offset;
+    }
+    assertTrue("+300 RPM at 1.2 m needs several degrees more", ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 300) > 3);
+    assertEquals(ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 600),
+        ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 900), TOLERANCE); // Held past the last step
+  }
+
+  @Test
+  public void inFrontOfCellIsAWedgeOutFromTheCellsWall() {
+    // Cell on the +x wall: out from it is -x
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0.1, 0), 1.5, 0, 30));
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0.25, 0), 1.5, 0, 30)); // 26.6 deg
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0.4, 0), 1.5, 0, 30)); // 38.7 deg
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(2.0, 0, 0), 1.5, 0, 30)); // Behind the wall
+    // Cell on the -x wall: out from it is +x
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.0, -0.1, 0), -1.5, 0, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-2.0, 0, 0), -1.5, 0, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0, 0), 1.5, 0, 0)); // Off
   }
 }

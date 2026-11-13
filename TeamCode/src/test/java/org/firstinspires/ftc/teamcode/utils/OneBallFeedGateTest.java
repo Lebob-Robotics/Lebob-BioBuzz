@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.utils;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
@@ -168,4 +169,128 @@ public class OneBallFeedGateTest {
     assertTrue(gate.update(0.10, true, true, 3505, TARGET));
     assertFalse(gate.update(0.11, false, true, 3505, TARGET));
   }
+
+  @Test public void countsFeedsAndBallsInOnePressAndResetsOnRelease() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.3, 0.2, 0.05);
+    assertTrue(gate.update(0.00, true, true, 3510, TARGET));
+    assertEquals(1, gate.feedStarts());
+    assertEquals(0, gate.ballsLeft());
+    gate.update(0.02, true, true, 3560, TARGET); // Peak during the feed
+    gate.update(0.04, true, false, 3380, TARGET); // 180 under the peak: the ball left
+    assertTrue(gate.ballLeft());
+    assertEquals(1, gate.ballsLeft());
+    assertEquals(3560, gate.peakAtLeaveRpm(), 1e-9);
+    gate.update(0.06, true, false, 3200, TARGET); // Still falling
+    gate.update(0.08, true, false, 3300, TARGET); // Recovering: the dip keeps its deepest
+    assertEquals(360, gate.lastDipDepthRpm(), 1e-9);
+    assertTrue(gate.update(0.15, true, true, 3500, TARGET)); // Back at speed and past the gap: the next ball
+    assertEquals(2, gate.feedStarts());
+    gate.update(0.20, false, true, 3500, TARGET);
+    assertEquals(0, gate.feedStarts());
+    assertEquals(0, gate.ballsLeft());
+    assertTrue(Double.isNaN(gate.lastDipDepthRpm()));
+  }
+  @Test public void volleyRejectsTheTwoShallowFalseCountsFrom203128() {
+    OneBallFeedGate gate = volleyGate();
+    double[][] dryPulses = {{3320.496894, 3166.770186}, {3351.242236, 3259.006211, 3197.515528}};
+    for (double[] pulse : dryPulses) {
+      gate.update(0, false, false, 3350, 3350);
+      for (int i = 0; i < pulse.length; i++) {
+        gate.update(i * .08, true, i == 0, pulse[i], 3350);
+        assertFalse("Near-target fluctuations must not count as departures", gate.ballLeft());
+      }
+      assertEquals(0, gate.ballsLeft());
+    }
+  }
+
+  @Test public void volleyWaitsPastOvershootUntilTheBallLoadsTheWheels() {
+    OneBallFeedGate gate = volleyGate();
+    gate.update(0, true, true, 3289.819876, 3350);
+    gate.update(.10, true, false, 3843.167702, 3350);
+    gate.update(.14, true, false, 3689.440994, 3350);
+    assertFalse("Falling from an overshoot is not a ball", gate.ballLeft());
+    gate.update(.22, true, false, 2521.118012, 3350);
+    assertTrue(gate.ballLeft());
+    assertEquals(1, gate.ballsLeft());
+  }
+
+  @Test public void volleyAcceptsTheSmallerRecordedLoadedDip() {
+    OneBallFeedGate gate = volleyGate();
+    gate.update(0, true, true, 3289.819876, 3350);
+    gate.update(.10, true, false, 3013.043478, 3350);
+    assertTrue(gate.ballLeft()); // A 277 RPM fall: a ball under speed control (the old 300 waited for more)
+  }
+
+  @Test public void volleyCountsTheShallowBallsSpeedControlRecoversFrom() {
+    // 12 Nov, 213719: balls 1 and 3 fell 216 and 277 RPM from the peak, and the 300 rule missed both
+    double[][] balls = {{3536, 3474, 3320}, {3536, 3505, 3320, 3259}};
+    for (double[] feed : balls) {
+      OneBallFeedGate gate = volleyGate();
+      gate.update(0, false, false, 3500, 3504);
+      gate.update(.10, true, true, feed[0], 3504);
+      for (int i = 1; i < feed.length; i++) { gate.update(.10 + i * .06, true, false, feed[i], 3504); }
+      assertEquals(1, gate.ballsLeft());
+    }
+  }
+
+  @Test public void volleyIgnoresTheWheelsWanderingAtRest() {
+    // 12 Nov, 213719: 3443-3566 RPM around a 3500 target between balls
+    OneBallFeedGate gate = volleyGate();
+    double[] wander = {3566, 3443, 3505, 3566, 3443, 3474, 3536, 3443};
+    for (int i = 0; i < wander.length; i++) { gate.update(i * .05, true, true, wander[i], 3500); }
+    assertEquals(0, gate.ballsLeft());
+  }
+
+  @Test public void shallowFluctuationsCannotCompleteAFourBallTrial() {
+    OneBallFeedGate gate = volleyGate();
+    VolleyTrial trial = new VolleyTrial();
+    trial.input(0, false, true, false);
+    trial.input(.1, true, true, false);
+    double[][] samples = {
+        {.2, 3413}, {.3, 3812}, {.4, 3536}, {.5, 2952},
+        {.8, 3382}, {.9, 3935}, {1, 3382}, {1.1, 2952},
+        {1.4, 3320}, {1.5, 3167}, {1.6, 3351}, {1.7, 3259}, {1.8, 3198}};
+    for (double[] sample : samples) {
+      boolean ready = Math.abs(sample[1] - 3350) <= 75;
+      gate.update(sample[0], true, ready, sample[1], 3350);
+      trial.observe(gate.feedStarted(), gate.ballLeft());
+    }
+    assertEquals(2, trial.balls());
+    assertTrue(trial.active());
+    assertFalse(trial.takeFinished());
+    gate.update(1.9, false, false, 3350, 3350);
+    assertFalse(gate.ballLeft());
+  }
+
+  @Test public void confirmedVolleyStillStopsAfterFourLoadedDepartures() {
+    OneBallFeedGate gate = volleyGate();
+    VolleyTrial trial = new VolleyTrial();
+    trial.input(0, false, true, false);
+    trial.input(.1, true, true, false);
+    for (int i = 0; i < 4; i++) {
+      double now = .2 + i;
+      gate.update(now, true, true, 3350, 3350);
+      trial.observe(gate.feedStarted(), gate.ballLeft());
+      gate.update(now + .1, true, false, 2900, 3350);
+      trial.observe(gate.feedStarted(), gate.ballLeft());
+    }
+    assertEquals(4, trial.balls());
+    assertFalse(trial.active());
+    assertTrue(trial.takeFinished());
+  }
+
+  @Test public void volleyCannotImmediatelyRefeedTheSameRecoveryDip() {
+    OneBallFeedGate gate = volleyGate();
+    gate.update(0, true, true, 3350, 3350);
+    gate.update(.1, true, false, 2900, 3350);
+    assertTrue(gate.ballLeft());
+    assertFalse(gate.update(.15, true, true, 3350, 3350));
+    assertFalse(gate.update(.29, true, true, 3350, 3350));
+    assertTrue(gate.update(.31, true, true, 3350, 3350));
+  }
+
+  private OneBallFeedGate volleyGate() {
+    return new OneBallFeedGate(0, .4, .3, .2, .2, true);
+  }
+
 }

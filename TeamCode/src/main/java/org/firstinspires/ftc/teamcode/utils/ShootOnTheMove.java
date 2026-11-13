@@ -66,6 +66,34 @@ public final class ShootOnTheMove {
   }
 
   /**
+   * Hood degrees to add to the table's shot here when the wheels run rpmAbove faster than its RPM
+   * ({@link ShotTableRpm}): steeper, so the faster ball still lands in the middle. 0 at or below the table's speed,
+   * held at the table's last step above it, and 0 outside the table.
+   */
+  public static double hoodOffsetForRpmAbove(double distanceToLipM, double speedTowardCellMps, double rpmAbove) {
+    double[] distances = ShotTable.DIST_M;
+    double[] speeds = ShotTable.VEL_MPS;
+    if (!(rpmAbove > 0) || !(distanceToLipM >= distances[0] && distanceToLipM <= distances[distances.length - 1])
+        || !(speedTowardCellMps >= speeds[0] && speedTowardCellMps <= speeds[speeds.length - 1])) {
+      return 0;
+    }
+    TableLookup lookup = new TableLookup(distanceToLipM, speedTowardCellMps);
+    double spread = lookup.spread(ShotTable.HOOD_DEG);
+    boolean blend = !Double.isNaN(spread) && spread <= MAX_HOOD_DIFFERENCE_TO_BLEND_DEG;
+    double[] above = ShotTableRpm.RPM_ABOVE;
+    double r = Math.min(rpmAbove, above[above.length - 1]);
+    int k = 0;
+    while (k < above.length - 2 && above[k + 1] <= r) {
+      k++;
+    }
+    double lower = blend ? lookup.blended(ShotTableRpm.OFFSET_DEG[k]) : lookup.nearest(ShotTableRpm.OFFSET_DEG[k]);
+    double upper = blend ? lookup.blended(ShotTableRpm.OFFSET_DEG[k + 1])
+        : lookup.nearest(ShotTableRpm.OFFSET_DEG[k + 1]);
+    double offset = lower + (upper - lower) * (r - above[k]) / (above[k + 1] - above[k]);
+    return Double.isNaN(offset) ? 0 : offset;
+  }
+
+  /**
    * The turn for a shot the table can't make, from its nearest shot, so the robot keeps lining up through a
    * moment without one. Turning 0 then jumped the aim heading 25 degrees and back while strafing (5 Nov, 094211).
    */
@@ -170,6 +198,50 @@ public final class ShootOnTheMove {
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
         headingTolerance(g.distanceToClusterM), true, hoodNow, rpmNow, 0,
         still.valid && stillNow.valid ? rate(stillNow.targetRpm, still.targetRpm, MAX_RPM_RATE_PER_SEC) : 0);
+  }
+
+  /**
+   * About how long until {@code aim} can fire, from the robot's heading, the hood's launch angle and the wheels' speed
+   * now: the longest of the turn, the hood's move and the wheels' change (they happen together), plus
+   * SHOT_PICK_BLOCKED_S when the shot can't be taken yet. Infinite when it is out of range or has no safe shot.
+   */
+  public static double secondsToReady(Aim aim, double headingRad, double hoodDeg, double rpm) {
+    Shot.Reason reason = aim.shot.reason;
+    if (reason == Shot.Reason.OUT_OF_RANGE || reason == Shot.Reason.NO_SAFE_SHOT) {
+      return Double.POSITIVE_INFINITY;
+    }
+    double turnDeg = Math.abs(Math.toDegrees(normalizeAngle(aim.targetHeadingRad - headingRad)));
+    double turnS = turnDeg < 3 ? 0 : SHOT_PICK_TURN_BASE_S + turnDeg / SHOT_PICK_TURN_DEG_PER_S;
+    double hoodMoveDeg = Double.isNaN(hoodDeg) || Double.isNaN(aim.hoodNowDeg) ? 0 : Math.abs(aim.hoodNowDeg - hoodDeg);
+    double hoodS = hoodMoveDeg < 1 ? 0 : SHOT_PICK_HOOD_BASE_S + hoodMoveDeg / SHOT_PICK_HOOD_DEG_PER_S;
+    double rpmS = Double.isNaN(rpm) || Double.isNaN(aim.rpmNow) ? 0 : Math.abs(aim.rpmNow - rpm) / SHOT_PICK_RPM_PER_S;
+    return Math.max(turnS, Math.max(hoodS, rpmS)) + (aim.shot.valid ? 0 : SHOT_PICK_BLOCKED_S);
+  }
+
+  /**
+   * Whether the robot is straight in front of the Cell, within halfAngleDeg either side of its axis (along field x,
+   * out from the Cell's wall toward the field's middle).
+   */
+  public static boolean inFrontOfCell(Pose robot, double cellX, double cellY, double halfAngleDeg) {
+    if (!(halfAngleDeg > 0)) {
+      return false;
+    }
+    double outX = cellX > 0 ? -1 : 1;
+    double dx = (robot.xM - cellX) * outX;
+    double dy = robot.yM - cellY;
+    return dx > 0 && Math.abs(Math.toDegrees(Math.atan2(dy, dx))) <= halfAngleDeg;
+  }
+
+  /**
+   * The backward shot is ready sooner than the hooded one; a tie goes to the hooded shot. Never past
+   * SHOT_PICK_BACKWARD_MAX_LIP_M, where the backward table isn't calibrated.
+   */
+  public static boolean backwardQuicker(Aim hooded, Aim backward, double headingRad, double hoodDeg, double rpm) {
+    if (!(backward.shot.distanceToLipM <= SHOT_PICK_BACKWARD_MAX_LIP_M)) {
+      return false;
+    }
+    double b = secondsToReady(backward, headingRad, hoodDeg, rpm);
+    return b < secondsToReady(hooded, headingRad, hoodDeg, rpm);
   }
 
   /** From the shot for a ball leaving now to the one leaving FEED_DELAY_S on. */

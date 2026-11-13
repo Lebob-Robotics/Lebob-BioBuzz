@@ -8,15 +8,16 @@ import org.firstinspires.ftc.teamcode.hardware.CrServo;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Controls the feeder, the last stage before the shooter. It is driven by two
- * Melonbotics Super Servos in continuous mode, both belted to the same feeder
- * shaft at the same gear ratio, so they always get the same power.
+ * Controls the feeder after the independent last indexer roller. The current three-servo
+ * robot uses FeederServo on Control Hub port 1; the two other servos belong to the indexer.
+ * Optional L/R names are retained for configurations with a paired feeder drive.
  * {@link FeederState#HOLD} runs it backward so the indexer can queue balls
  * against it without any reaching the shooter.
  */
 public class FeederSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
+  private double feedPower = FEED_POWER; // A volley's (Lebot Teleop RB) can be lower
   private static final double EJECT_POWER = 1.0;
   private static final double HOLD_POWER = 1.0;
 
@@ -31,19 +32,14 @@ public class FeederSubsystem extends SubsystemBase {
   }
 
   private FeederState feederState;
-  private FeederState previousFeederState = FeederState.STOP;
 
   public FeederSubsystem(HardwareMap hardwareMap) {
     // R is the original feeder servo. Reversed: on Mark 3 a positive raw power
     // runs the tunnel backward (Servo Check and driving, 27 Oct).
-    // TODO: the robot configuration still names it "FeederServo" and has no
-    // FeederServoL, which crashed the OpMode. Fall back until the configuration
-    // is updated, then use get() for both again.
+    // Current three-servo robot uses the legacy FeederServo name on Control Hub port 1.
     CrServo r = find(hardwareMap, "FeederServoR", true);
     feederServoR = r != null ? r : find(hardwareMap, "FeederServo", true);
-    // L sits on the other end of the shaft, so it faces the other way and is
-    // not reversed. Direction is to be verified on the robot with Servo Check:
-    // if the two servos fight each other, flip this.
+    // Optional opposite-facing paired output; absent on the current three-servo robot.
     feederServoL = find(hardwareMap, "FeederServoL", false);
 
     setFeederState(FeederState.STOP);
@@ -54,31 +50,37 @@ public class FeederSubsystem extends SubsystemBase {
     return hardwareMap.tryGet(CRServo.class, name) == null ? null : new CrServo(hardwareMap, name, reversed);
   }
 
-  private void doFeederState() {
-    if (previousFeederState == feederState) {
-      return;
-    }
-
-    switch (feederState) {
+  static double powerFor(FeederState state, double feed) {
+    switch (state) {
       case STOP:
-        setFeederPower(0.0);
-        break;
+        return 0.0;
       case FEED:
-        setFeederPower(FEED_POWER);
-        break;
+        return Math.max(0, Math.min(1, feed));
       case HOLD:
-        setFeederPower(-HOLD_POWER);
-        break;
+        return -HOLD_POWER;
       case EJECT:
-        setFeederPower(-EJECT_POWER);
-        break;
+        return -EJECT_POWER;
+      default:
+        throw new IllegalArgumentException("Unknown feeder state " + state);
     }
   }
 
   public void setFeederState(FeederState newFeederState) {
-    previousFeederState = feederState;
+    setFeederState(newFeederState, feedPower);
+  }
+
+  /** Set state and power together, so returning to HOLD never briefly writes forward power. */
+  public void setFeederState(FeederState newFeederState, double power) {
+    double p = Math.max(0, Math.min(1, power));
+    if (feederState == newFeederState && feedPower == p) { return; }
     feederState = newFeederState;
-    doFeederState();
+    feedPower = p;
+    setFeederPower(powerFor(feederState, feedPower));
+  }
+
+  /** Power while feeding, 0-1; the default is full. Applies at once if feeding now. */
+  public void setFeedPower(double power) {
+    setFeederState(feederState, power);
   }
 
   public FeederState getFeederState() {
@@ -91,7 +93,7 @@ public class FeederSubsystem extends SubsystemBase {
     Logger.recordOutput("Feeder/CommandedPower", commandedPower);
   }
 
-  /** Both servos drive the same shaft at the same ratio, so they get the same power. */
+  /** Apply the stage command to each configured feeder output. */
   private void setFeederPower(double power) {
     commandedPower = power;
     if (feederServoL != null) {

@@ -30,6 +30,14 @@ public final class OneBallFeedGate {
   private double pulseS;
   private final double pauseS;
   private final double minGapS;
+  private final boolean confirmedDip;
+  // A volley's ball counts once the wheels are this far below target and have fallen this far from their highest
+  // reading in the feed. Volley 9 Nov 203128: 153 RPM falls 152-183 under target counted dry pulses as the third and
+  // fourth balls, under the old ringing recovery. Under speed control a ball's fall is 216-368 (12 Nov, 213719) and
+  // the wheels at rest wander 60 under to 66 over, but 300 missed two of the four balls, which cost a pause and a
+  // retry each and let a second ball follow the first unseen
+  public static double VOLLEY_DIP_RPM = 150;
+  public static double VOLLEY_PEAK_DROP_RPM = 200;
   private double minFeedSpacingS = 0;
   private double lastFeedStartS = Double.NEGATIVE_INFINITY;
   private State state = State.WAITING;
@@ -41,6 +49,11 @@ public final class OneBallFeedGate {
   private int emptyPulses;
   private boolean ballLeft;
   private boolean feedStarted;
+  // Counted from when held goes true until it is released: one press of the trigger
+  private int feedStarts;
+  private int ballsLeft;
+  private double peakAtLeaveRpm = Double.NaN; // The wheels' highest reading in the feed of the last ball seen leaving
+  private double troughRpm = Double.NaN; // Their lowest since it left
 
   /** Waits {@link #READY_SECONDS}. */
   public OneBallFeedGate() {
@@ -70,6 +83,13 @@ public final class OneBallFeedGate {
    */
   public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS, double pulseS, double pauseS,
       double minGapS) {
+    this(readySeconds, stopUnreadyAfterS, pulseS, pauseS, minGapS, false);
+  }
+
+  /** Volley confirmation requires both a loaded speed below target and a substantial fall from the peak. */
+  public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS, double pulseS, double pauseS,
+      double minGapS, boolean confirmedDip) {
+    this.confirmedDip = confirmedDip;
     this.readySeconds = readySeconds;
     this.stopUnreadyAfterS = stopUnreadyAfterS;
     this.pulseS = pulseS;
@@ -120,7 +140,14 @@ public final class OneBallFeedGate {
     if (!held) {
       state = State.WAITING;
       emptyPulses = 0;
+      feedStarts = 0;
+      ballsLeft = 0;
+      peakAtLeaveRpm = Double.NaN;
+      troughRpm = Double.NaN;
       return false;
+    }
+    if (!Double.isNaN(troughRpm)) {
+      troughRpm = Math.min(troughRpm, rpm);
     }
     if (state == State.DONE && !oneBall) {
       state = State.WAITING;
@@ -131,6 +158,7 @@ public final class OneBallFeedGate {
         if (steady && nowS - ballLeftAtS >= minGapS && nowS - lastFeedStartS >= minFeedSpacingS) {
           state = State.FEEDING;
           feedStarted = true;
+          feedStarts++;
           feedingSinceS = nowS;
           lastFeedStartS = nowS;
           peakRpm = rpm;
@@ -139,7 +167,7 @@ public final class OneBallFeedGate {
       case FEEDING:
         peakRpm = Math.max(peakRpm, rpm);
         if (dipped(rpm, targetRpm)) {
-          leave(nowS, oneBall);
+          leave(nowS, oneBall, rpm);
         } else if (shotLost || (!atSpeed && nowS - feedingSinceS >= stopUnreadyAfterS)) {
           state = State.WAITING;
         } else if (nowS - feedingSinceS >= Math.min(PULSE_LIMIT_S, pulseS + emptyPulses * PULSE_GROWTH_S)) {
@@ -149,7 +177,7 @@ public final class OneBallFeedGate {
         break;
       case PAUSED:
         if (dipped(rpm, targetRpm)) {
-          leave(nowS, oneBall);
+          leave(nowS, oneBall, rpm);
         } else if (nowS - pausedSinceS >= pauseS) {
           emptyPulses++;
           state = State.WAITING;
@@ -162,12 +190,19 @@ public final class OneBallFeedGate {
   }
 
   private boolean dipped(double rpm, double targetRpm) {
+    if (!Double.isFinite(rpm) || !Double.isFinite(targetRpm) || targetRpm <= 0) { return false; }
+    if (confirmedDip) {
+      return rpm < targetRpm - VOLLEY_DIP_RPM && rpm < peakRpm - VOLLEY_PEAK_DROP_RPM;
+    }
     return rpm < targetRpm - DIP_RPM || rpm < peakRpm - DIP_FROM_PEAK_RPM;
   }
 
-  private void leave(double nowS, boolean oneBall) {
+  private void leave(double nowS, boolean oneBall, double rpm) {
     state = oneBall ? State.DONE : State.RECOVERING;
     ballLeft = true;
+    ballsLeft++;
+    peakAtLeaveRpm = peakRpm;
+    troughRpm = rpm;
     ballLeftAtS = nowS;
     readySinceS = Double.NaN;
     emptyPulses = 0;
@@ -206,6 +241,29 @@ public final class OneBallFeedGate {
   /** True on the loop a ball was seen leaving (the wheels dipped). */
   public boolean ballLeft() {
     return ballLeft;
+  }
+
+  /** Feeds started since the trigger was pressed; 0 while it is released. */
+  public int feedStarts() {
+    return feedStarts;
+  }
+
+  /** Balls seen leaving (dips) since the trigger was pressed; 0 while it is released. */
+  public int ballsLeft() {
+    return ballsLeft;
+  }
+
+  /** The wheels' highest reading during the feed of the last ball seen leaving: about the speed it left at. NaN if none. */
+  public double peakAtLeaveRpm() {
+    return peakAtLeaveRpm;
+  }
+
+  /**
+   * How far the wheels have fallen from {@link #peakAtLeaveRpm} since the last ball left, so far: it grows until they
+   * recover. A dip much deeper than one ball's is two balls leaving together. NaN if none has left.
+   */
+  public double lastDipDepthRpm() {
+    return peakAtLeaveRpm - troughRpm;
   }
 
   /** True on the loop feeding started at full speed: the moment to record the shot's speed and angle. */

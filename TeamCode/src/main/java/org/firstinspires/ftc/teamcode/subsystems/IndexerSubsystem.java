@@ -7,57 +7,73 @@ import org.firstinspires.ftc.teamcode.hardware.CrServo;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Controls the indexer, two Melonbotics Super Servos in continuous mode that
- * carry balls from the intake up to the feeder. It only runs on driver input;
- * there are no beam breaks.
+ * Controls two independent indexer stages. IndexerServoL on Expansion Hub port 0 drives
+ * the upstream rollers; IndexerServoR on Control Hub port 0 drives the last roller.
+ * Loading advances the last roller gently against the backward-held feeder until capacity.
+ * Between shot feeds the upstream stage keeps indexing while the last roller holds still.
  */
 public class IndexerSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
+  private double feedPower = FEED_POWER; // A volley's (Lebot Teleop RB) can be lower
   private static final double EJECT_POWER = 1.0;
+  private static final double LAST_ROLLER_LOAD_POWER = 0.30;
 
   // ---- Hardware --------------------------------------------------------
   private final CrServo indexerServoL;
   private final CrServo indexerServoR;
 
   public enum IndexerState {
-    STOP, FEED, EJECT
+    STOP, LOAD, STAGE, FEED, EJECT
   }
 
   private IndexerState indexerState;
-  private IndexerState previousIndexerState = IndexerState.STOP;
 
   public IndexerSubsystem(HardwareMap hardwareMap) {
-    // The servos face each other, so one is reversed. Direction is to be
-    // verified on the robot.
+    // Independent stages, retaining their verified forward directions.
     indexerServoL = new CrServo(hardwareMap, "IndexerServoL", true);
     indexerServoR = new CrServo(hardwareMap, "IndexerServoR", false);
 
     setIndexerState(IndexerState.STOP);
   }
 
-  private void doIndexerState() {
-    if (previousIndexerState == indexerState) {
-      return;
-    }
-
-    switch (indexerState) {
+  /** Logical {upstream, last roller} powers, separating loading from shot staging and feeding. */
+  static double[] powersFor(IndexerState state, double power) {
+    double feed = Math.max(0, Math.min(1, power));
+    switch (state) {
+      case LOAD:
+        return new double[] {feed, Math.min(feed, LAST_ROLLER_LOAD_POWER)};
+      case STAGE:
+        return new double[] {feed, 0.0};
       case STOP:
-        setIndexerPower(0.0);
-        break;
+        return new double[] {0.0, 0.0};
       case FEED:
-        setIndexerPower(FEED_POWER);
-        break;
+        return new double[] {feed, feed};
       case EJECT:
-        setIndexerPower(-EJECT_POWER);
-        break;
+        return new double[] {-EJECT_POWER, -EJECT_POWER};
+      default:
+        throw new IllegalArgumentException("Unknown indexer state " + state);
     }
   }
 
   public void setIndexerState(IndexerState newIndexerState) {
-    previousIndexerState = indexerState;
+    setIndexerState(newIndexerState, feedPower);
+  }
+
+  /** Apply state and power together: no brief forward pulse on release when power changes. */
+  public void setIndexerState(IndexerState newIndexerState, double power) {
+    double p = Math.max(0, Math.min(1, power));
+    if (indexerState == newIndexerState && feedPower == p) { return; }
     indexerState = newIndexerState;
-    doIndexerState();
+    feedPower = p;
+    double[] powers = powersFor(indexerState, feedPower);
+    indexerServoL.setPower(powers[0]);
+    indexerServoR.setPower(powers[1]);
+  }
+
+  /** Forward power, 0-1. Shot staging keeps the last roller stopped; loading caps its power. */
+  public void setFeedPower(double power) {
+    setIndexerState(indexerState, power);
   }
 
   public IndexerState getIndexerState() {
@@ -68,10 +84,7 @@ public class IndexerSubsystem extends SubsystemBase {
   public void periodic() {
     Logger.recordOutput("Indexer/State", indexerState);
     Logger.recordOutput("Indexer/CommandedPower", indexerServoL.getCommandedPower());
-  }
-
-  private void setIndexerPower(double power) {
-    indexerServoL.setPower(power);
-    indexerServoR.setPower(power);
+    Logger.recordOutput("Indexer/UpstreamPower", indexerServoL.getCommandedPower());
+    Logger.recordOutput("Indexer/LastRollerPower", indexerServoR.getCommandedPower());
   }
 }

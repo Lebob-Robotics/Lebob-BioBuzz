@@ -168,6 +168,7 @@ public final class ShootOnTheMoveConstants {
   public static double RPM_LOOKAHEAD_S = 0.08;
   public static double RPM_TREND_WINDOW_S = 0.2;
   public static boolean PRESPIN_ON = true; // Flywheels track the aimed RPM whenever the Cell is known
+  public static double PRESPIN_HOLD_S = 1.5; // Keeps that speed this long after the shot goes invalid
   public static double HOOD_TOLERANCE_DEG = 1.0;
   // Otherwise it grows large at short range. The geometric clearance leaves nothing for the other errors: every
   // moving ball that scored left within 1.1 degrees, the misses 7.7 and 13.6 degrees off, all going the way the
@@ -243,6 +244,30 @@ public final class ShootOnTheMoveConstants {
   // A backward shot that stays blocked this long, by speed or by being too close, gives way to the hooded shot
   // if that has one. Driving around the Cell at full stick held a backward pick for 30 s with no shot (5 Nov, 094211)
   public static double BACKWARD_GIVE_UP_S = 1.0;
+  // Both TeleOps take whichever shot, hooded or backward, is ready soonest (8 Nov), now that Shot Tuning and SOTM Tuning
+  // have calibrated both: no more backward arc. False goes back to the arc above (BACKWARD_PICK_MAX_DIST_M).
+  // The time to ready is the longest of the turn, the hood's move and the wheels' change, plus BLOCKED_S if the shot
+  // can't be taken yet (too fast for it). Fitted to Lebot Teleop's logs (1-7 Nov, 40 logs): 58 heading-lock turns,
+  // median 0.50 s for 10-30 degrees, 0.77-0.92 s for 30-90 and 1.15 s for 90-180; 128 hood moves, median 0.23 s for
+  // 4-8 degrees, 0.41 s for 15-25 and 0.47 s for 25-40. The wheels: about 4000 rpm/s at full power
+  public static boolean SHOT_PICK_QUICKEST = true;
+  public static double SHOT_PICK_TURN_BASE_S = 0.35;
+  public static double SHOT_PICK_TURN_DEG_PER_S = 180;
+  public static double SHOT_PICK_HOOD_BASE_S = 0.15;
+  public static double SHOT_PICK_HOOD_DEG_PER_S = 90;
+  public static double SHOT_PICK_RPM_PER_S = 4000;
+  public static double SHOT_PICK_BLOCKED_S = 1.0;
+  // Beyond this the hooded shot is always taken: the backward table is calibrated standing at 0.40-0.81 m only (Shot
+  // Tuning: 331 balls at 0.4-0.8 m, 5 past 0.85), and SOTM Tuning has no backward passes. Its 0.95-2.3 m points
+  // were never shot. Raise once Shot Tuning has searched backward spots out there
+  public static double SHOT_PICK_BACKWARD_MAX_LIP_M = 0.85;
+
+  // Straight in front of the Hive (the Cell's axis runs along field x, out from its wall) and this many degrees to
+  // either side, only the backward shot is taken (13 Nov): the hooded shot's backspin affected shots from there.
+  // Ignores SHOT_PICK_QUICKEST and the distance cap above (the backward table is calibrated at 0.40-0.81 m only, so
+  // a far shot in the wedge uses its uncalibrated points), and doesn't give way to the hooded shot when blocked.
+  // 0 is off
+  public static double BACKWARD_ONLY_WEDGE_DEG = 30;
 
   // Added to every hooded shot from the table. -75 (6 Nov) made up for the model's ball being too slow; the model
   // refitted to Shot Tuning's 224 hooded balls (7 Nov) fires what they found without it
@@ -279,7 +304,82 @@ public final class ShootOnTheMoveConstants {
   public static double SOTM_BACKWARD_RPM_PER_TOWARD_MPS = 0;
   public static double SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS = 0;
 
+  // ---- Volley (Lebot Teleop RB, RT while VOLLEY_ON_RT, and Volley Tuning) ----
+  // A volley is RT's aimed hooded shot fired as a burst: each ball goes as soon as the wheels are back at the matched
+  // speed, instead of the one-ball pulse, pause and gap above. One flywheel can't launch four balls at the same
+  // instant; the burst is limited by the wheels' recovery between balls.
+  //
+  // Balls in a burst must leave at the same wheel speed and hood. Modelled (tools/shots, collide.js), two balls 0.1 s
+  // apart at matched speed stay 0.12-0.18 m apart in flight (ball 0.071 m), but a second ball 200-300 RPM slower
+  // lands first and the paths cross within 0.01-0.05 m. So each ball waits for the matched band below, and the feed
+  // power sets how tightly the queue follows the ball ahead.
+  //
+  // RPM added to the table's for a volley, with the hood steepened for it (ShotTableRpm). Boost doesn't widen the
+  // scoring room: modelled at 32 cells it is 75-125 RPM either side at +0, 25 above at +150, 75 either side at +200
+  // to +300. So it stays 0 unless Volley Tuning shows the burst needs the headroom
+  public static double VOLLEY_BOOST_RPM = 0;
+  // How much the hood follows the wheels' predicted speed off the volley target (0 = fixed hood for the burst). Within
+  // the band below the steepening is under 1.5 deg, inside HOOD_TOLERANCE_DEG, and the reading lags 100-250 RPM at
+  // full-power recovery, so following would chase noise and move the hood between balls
+  public static double VOLLEY_HOOD_FOLLOW_GAIN = 0;
+  // Matched band: each ball feeds only with the wheels' mean and their speed RPM_LOOKAHEAD_S ahead this close to
+  // the volley target. Below is RT's 100: the hub's speed control sits 50-80 RPM under the target at rest, so 75
+  // flickered in and out, and in Volley Tuning balls fed 50-100 under went in as often as balls fed on it (12 Nov)
+  public static double VOLLEY_READY_BELOW_RPM = 100;
+  public static double VOLLEY_READY_ABOVE_RPM = 75;
+  // Backward shots burst too (13 Nov, for the Hive-front wedge). Shot Tuning's 138 standing backward balls dipped the
+  // wheels as hooded ones do (median 307 RPM, p90 369 against 307/400 for 225 hooded), so the recovery and the
+  // double-ball check carry over. But fed above the table's speed they go long: hood within 1.5 deg of the table,
+  // fed -50..0 RPM scored 14 of 19, -100..-50 6 of 12, 0..+50 3 of 8 (3 long), +50..+100 2 of 5 (3 long). So the
+  // band's top is 25 for a backward burst; its bottom stays VOLLEY_READY_BELOW_RPM (the wheels sit 50-80 under at
+  // rest). No boost and no hood trims: the backward hood follows its own table
+  public static boolean VOLLEY_BACKWARD_ON = true;
+  public static double VOLLEY_BACKWARD_READY_ABOVE_RPM = 25;
+  // Launch angle added for the first ball and for balls 2-4. 0: each ball is now fed like RT's calibrated one-ball
+  // shot (full feeder from the held stack, at the matched speed), so the shot table's own angle applies. Volley
+  // Tuning's 12 Nov trims (+0.9 / -1.0) came from balls fed mid-way through the recovery ringing below, at 0.6 feed
+  public static double VOLLEY_FIRST_BALL_TRIM_DEG = 0;
+  public static double VOLLEY_LATER_BALL_TRIM_DEG = 0;
+  // Lebot Teleop's RB reads Volley Tuning's CSV for its settings. Off: the CSV's results so far were tuned with the
+  // ringing recovery and slow feed, which these constants replace (12 Nov)
+  public static boolean VOLLEY_USE_TUNING_CSV = false;
+  // Lebot Teleop's RT shoot on the move fires its aimed hooded shots as a volley too, with RB's feed, recovery and
+  // matched band; the robot keeps moving and the aim keeps leading it. False: RT one ball at a time as before
+  public static boolean VOLLEY_ON_RT = true;
+  // Feeder power while a volley ball feeds. Full, as RT's shot: the ball the feeder has moves away from the next
+  // one, which the indexer's last roller brings up at VOLLEY_INDEXER_SCALE of it, so the gap opens 3x as fast as
+  // the queue closes it. At 0.6 the feed took 0.21-0.24 s a ball, and 0.6/0.3 left the 4th ball stuck (12 Nov)
+  public static double VOLLEY_FEED_POWER = 1.0;
+  // Indexer power while a ball feeds, as a share of the feeder's. Between balls the indexer stages the rest of the
+  // stack at full power against its stopped last roller, so the next ball is always there (it took 2.9 s to come
+  // up at 0.3, 12 Nov 211957)
+  public static double VOLLEY_INDEXER_SCALE = 0.3;
+  // Shortest time from a ball seen leaving to the next feed. The wheels' matched band is the main wait
+  public static double VOLLEY_MIN_GAP_S = 0.05;
+  // As AIMED_FEED_PULSE_S and AIMED_FEED_PAUSE_S, for a volley
+  public static double VOLLEY_FEED_PULSE_S = 0.30;
+  public static double VOLLEY_FEED_PAUSE_S = 0.20;
+  // Between balls of a volley the feeder runs backward, as before the first ball, so every ball starts from the
+  // same place as RT's shot and none creeps into the wheels while they recover (was false: stopped)
+  public static boolean VOLLEY_HOLD_BETWEEN_BALLS = true;
+  // Hood within this of its target for balls after the first, without the steady wait (it isn't moving)
+  public static double VOLLEY_HOOD_TOLERANCE_DEG = 1.0;
+  // Recovery after each ball: open loop this far below target, speed control again within the handback. The speed
+  // reading lags ~0.1 s, and full power gains ~5500 RPM/s, so the wheels run on ~500 RPM past the handback point.
+  // At 200/100 that overshot to +600, dipped below 200 again and rang +-500 RPM for ~0.8 s every ball, which was most
+  // of the volley's time, and the swings read as double balls (12 Nov, 211957). Speed control alone recovers a 300-
+  // 430 RPM dip to the band in ~0.25 s (9 Nov TeleOp); only a deeper dip gets full power, handed back 450 short
+  public static boolean VOLLEY_FAST_RECOVERY = true;
+  public static double VOLLEY_OPEN_LOOP_BELOW_RPM = 600;
+  public static double VOLLEY_HANDBACK_RPM = 450;
+  // A ball's dip deeper than this (peak before it to the trough after) is taken as two balls leaving together. A
+  // single ball dropped 300-430 RPM under speed control (5 Nov)
+  public static double VOLLEY_DOUBLE_DIP_RPM = 600;
+
   // ---- Driver ----------------------------------------------------------
+  // Lebot Teleop: the intake only spins while LT is held (13 Nov), so it isn't pushing at 5-6 A all match. B's eject
+  // still runs it backward. The tuning tools keep it running. False: always on, as before
+  public static boolean INTAKE_ONLY_ON_LT = true;
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming
   public static double AIM_START_RPM = 2500; // Held while aiming until the first valid shot. Middle of the table
 }

@@ -53,8 +53,8 @@ public class VisionSubsystem extends SubsystemBase {
   /** Live camera controls for tuning tag contrast, per field. Exposure is in milliseconds. */
   public static int CURTIN_EXPOSURE_MS = 3;
   public static int CURTIN_GAIN = 30;
-  public static int HOME_EXPOSURE_MS = 3; // Placeholder until tuned on the home field
-  public static int HOME_GAIN = 30;
+  public static int HOME_EXPOSURE_MS = 5; // Matches the working home Shot/SOTM camera capture
+  public static int HOME_GAIN = 60;
   /**
    * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
    * names cycling so a PC can pull them and see what the robot sees.

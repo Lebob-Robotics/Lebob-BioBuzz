@@ -2,7 +2,9 @@ package org.firstinspires.ftc.teamcode;
 
 import com.bylazar.panels.Panels;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.FtcLogTuning;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
@@ -58,6 +60,9 @@ public class Main extends PsiKitIterativeOpMode {
 
   private Robot robot;
   private boolean wasBack;
+  private VolleySettings volley; // Null in a variant that sets its own (Volley Tuning)
+  private boolean wasShooting;
+  private int volleySpot = -1;
 
   @Override
   protected int getRlogPort() {
@@ -99,6 +104,29 @@ public class Main extends PsiKitIterativeOpMode {
     }
     robot = new Robot(hardwareMap, telemetry, gamepad1);
     robot.init();
+    // RB is a standing volley, RT the one-at-a-time shoot on the move
+    robot.setVolleyMode(true);
+    if (usesTunedVolley()) {
+      volley = VolleySettings.load(VolleyTuning.CSV_PATH);
+    }
+    configureRobot(robot);
+  }
+
+  /** For a variant of this TeleOp (Volley Tuning): changes the robot once it is made. Nothing here. */
+  protected void configureRobot(Robot robot) {
+  }
+
+  /**
+   * False for a variant that sets the volley's settings itself; true reads Volley Tuning's results. Off while
+   * VOLLEY_USE_TUNING_CSV is, so RB runs the ShootOnTheMoveConstants volley.
+   */
+  protected boolean usesTunedVolley() {
+    return ShootOnTheMoveConstants.VOLLEY_USE_TUNING_CSV;
+  }
+
+  /** The robot, for a variant of this TeleOp; null before INIT or if it threw. */
+  protected Robot robot() {
+    return robot;
   }
 
   @Override
@@ -129,11 +157,38 @@ public class Main extends PsiKitIterativeOpMode {
 
   @Override
   protected void onPsiKitLoop() {
+    robot.addPowerTelemetry(); // First on the Driver Station, for the co-driver
     pollDriverSide();
     if (robot.isDriverOnFarSide()) {
       telemetry.addData("Driving from", "FAR side (Share to change)");
     }
+    if (volley != null) {
+      applyVolleySettings();
+    } else if (usesTunedVolley() || getClass() == Main.class) {
+      telemetry.addData(ShootOnTheMoveConstants.VOLLEY_ON_RT ? "Volley (RB still, RT moving)" : "Volley (RB)",
+          "constants (full feed, matched speed each ball)");
+    }
     robot.periodic();
+    Gamepad g = robot.getDriver();
+    wasShooting = g.right_trigger > Robot.TRIGGER_PRESSED || g.right_bumper;
+  }
+
+  /** Picks the volley's settings for where the robot is, between shots only, so a volley never changes mid-burst. */
+  private void applyVolleySettings() {
+    if (!wasShooting) {
+      boolean placed = robot.isPoseValid() && robot.getLastAim() != null;
+      volleySpot = placed ? volley.spotFor(robot.getPose(), robot.getAimCellX(), robot.getAimCellY()) : -1;
+      VolleySettings.apply(robot, volley.get(volleySpot));
+    }
+    String source;
+    if (volleySpot < 0) {
+      source = "constants (no tuned spot, or pose not placed)";
+    } else {
+      boolean near = volley.isNear(robot.getPose(), robot.getAimCellX(), robot.getAimCellY(), volleySpot);
+      source = (volley.isConfirmed(volleySpot) ? "confirmed" : "best so far") + " at spot " + (volleySpot + 1)
+          + (near ? "" : ", guessed for here");
+    }
+    telemetry.addData("Volley (RB)", source);
   }
 
   @Override
