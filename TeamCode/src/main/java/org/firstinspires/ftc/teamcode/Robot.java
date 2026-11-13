@@ -1669,13 +1669,13 @@ public class Robot {
         : a >= 7 || load >= 0.7 ? "!! HOT - let it rest"
         : a >= 5 || load >= 0.35 ? "! warm"
         : "ok";
-    if (!isTelemetryDetail()) { // One line, the flags only when they need doing something about
+    telemetry.addData("INTAKE", String.format("%.1f A  load %.0f%%  %s", a, 100 * load, intakeFlag));
+    if (!isTelemetryDetail()) { // Battery on one line, its flag only when it needs doing something about
       String batteryFlag = batteryMinVolts < 11.0 ? "  !! LOW - swap" : batteryVolts < 12.0 ? "  ! low" : "";
-      telemetry.addData("Power", String.format("battery %.1f V%s   intake %.1f A %s%s", batteryVolts, batteryFlag,
-          a, intakeFlag, shooter.isStalled() ? "   FLYWHEELS STALLED" : ""));
+      telemetry.addData("Battery", String.format("%.1f V%s%s", batteryVolts, batteryFlag,
+          shooter.isStalled() ? "   FLYWHEELS STALLED" : ""));
       return;
     }
-    telemetry.addData("INTAKE", String.format("%.1f A  load %.0f%%  %s", a, 100 * load, intakeFlag));
     String shooterFlag = shooter.isStalled() ? "STALLED" : "ok";
     telemetry.addData("FLYWHEELS", String.format("L %.1f  R %.1f A  %s",
         shooter.getLeftAmps(), shooter.getRightAmps(), shooterFlag));
