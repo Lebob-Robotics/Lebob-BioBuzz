@@ -495,12 +495,13 @@ public class Robot {
       holdAnchorY += pose.yM - uncorrected.yM;
     }
 
+    double fireTrigger = fireTrigger();
     boolean holdShot = driver.right_bumper && !tuningMode;
-    volleyRequested = volleyRequested(driver.right_bumper || scriptedVolley, driver.right_trigger, forceAim,
+    volleyRequested = volleyRequested(driver.right_bumper || scriptedVolley, fireTrigger, forceAim,
         tuningMode, ShootOnTheMoveConstants.VOLLEY_ON_RT);
-    boolean shootAll = driver.right_trigger > TRIGGER_PRESSED || holdShot || scriptedVolley || autoShoot;
+    boolean shootAll = fireTrigger > TRIGGER_PRESSED || holdShot || scriptedVolley;
     boolean oneBallHeld = driver.right_bumper || scriptedOneBall;
-    boolean oneBall = tuningMode && oneBallHeld && driver.right_trigger <= TRIGGER_PRESSED; // RT wins
+    boolean oneBall = tuningMode && oneBallHeld && fireTrigger <= TRIGGER_PRESSED; // RT wins
     boolean aiming = shootAll || oneBallHeld || forceAim;
     if (!holdShot) {
       holdAnchorX = Double.NaN;
@@ -1184,9 +1185,10 @@ public class Robot {
   }
 
   private boolean shotRequested() {
-    boolean requested = driver.right_trigger > TRIGGER_PRESSED || driver.right_bumper
+    double fireTrigger = fireTrigger();
+    boolean requested = fireTrigger > TRIGGER_PRESSED || driver.right_bumper
         || scriptedOneBall || scriptedVolley || (driver.y && buttonsFree());
-    return requested && !(tuningMode && driver.right_trigger <= TRIGGER_PRESSED
+    return requested && !(tuningMode && fireTrigger <= TRIGGER_PRESSED
         && feedGate != null && feedGate.ballsLeft() > 0);
   }
 
@@ -1775,6 +1777,14 @@ public class Robot {
   /** LT, or held fully down while the autonomous is loading: in auto the driver gamepad is a blank one. */
   static double loadTrigger(double leftTrigger, boolean autoIntake) {
     return autoIntake ? 1.0 : leftTrigger;
+  }
+
+  /**
+   * RT, or held fully down while the autonomous shoots. 13 Nov 224556: with only the aim taking autoShoot, the
+   * indexer never staged or fed (shotRequested read the blank gamepad's RT), and the auto shot nothing in 29 s.
+   */
+  private double fireTrigger() {
+    return loadTrigger(driver.right_trigger, autoShoot);
   }
 
   public interface AutoDriver {
