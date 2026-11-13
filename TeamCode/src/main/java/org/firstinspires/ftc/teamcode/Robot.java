@@ -272,6 +272,12 @@ public class Robot {
   private double[] committedTranslation; // Held while a fed ball is still in the shooter; null otherwise
   private double committedSinceS;
   private double[] lastTranslation = {0.0, 0.0};
+  // Scoring Auto (6 Nov, feature/auto): no gamepad is read (G401); it drives, aims and intakes through these
+  private boolean autonomous = false;
+  private final Gamepad noGamepad = new Gamepad();
+  private boolean autoShoot = false;
+  private boolean autoIntake = false;
+  private AutoDriver autoDriver = null;
   private double[] steadyStick = {0.0, 0.0};
   private double steadyStickSinceS = Double.NEGATIVE_INFINITY;
   private final java.util.ArrayDeque<double[]> velocityHistory = new java.util.ArrayDeque<>(); // {t, x, y}
@@ -313,7 +319,8 @@ public class Robot {
    * combined Gamepad on every call, so this runs once per loop. Off with Main.PANELS_ENABLED.
    */
   private void refreshDriver() {
-    driver = Main.PANELS_ENABLED
+    driver = autonomous ? noGamepad
+        : Main.PANELS_ENABLED
         ? PanelsGamepad.INSTANCE.getFirstManager().asCombinedFTCGamepad(physicalDriver)
         : physicalDriver;
     // What the code acts on, Driver Hub and Panels merged. PsiKit only logs the Driver Hub gamepad, so
@@ -491,7 +498,7 @@ public class Robot {
     boolean holdShot = driver.right_bumper && !tuningMode;
     volleyRequested = volleyRequested(driver.right_bumper || scriptedVolley, driver.right_trigger, forceAim,
         tuningMode, ShootOnTheMoveConstants.VOLLEY_ON_RT);
-    boolean shootAll = driver.right_trigger > TRIGGER_PRESSED || holdShot || scriptedVolley;
+    boolean shootAll = driver.right_trigger > TRIGGER_PRESSED || holdShot || scriptedVolley || autoShoot;
     boolean oneBallHeld = driver.right_bumper || scriptedOneBall;
     boolean oneBall = tuningMode && oneBallHeld && driver.right_trigger <= TRIGGER_PRESSED; // RT wins
     boolean aiming = shootAll || oneBallHeld || forceAim;
@@ -565,13 +572,18 @@ public class Robot {
     updateAimState(aiming, aim, ready);
 
     long tDrive = System.nanoTime();
-    updateDrive(aiming, aim, lockRateRadPerSec, pose, velocity[2]);
+    if (autoDriver != null) {
+      driveAuto(aiming, aim, lockRateRadPerSec, pose, velocity);
+    } else {
+      updateDrive(aiming, aim, lockRateRadPerSec, pose, velocity[2]);
+    }
     long tDriveSet = System.nanoTime();
     // Without the Cell in view there is nothing to aim at, so RT shoots at full flywheel speed and the
     // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
     // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
     // time they dip would pull the next ball back out.
-    boolean manualReady = manualFeedGate.update(shootAll && aim == null && !tuningMode && !shooter.isStalled()
+    // Never in the Scoring Auto: with no Cell there is nothing to aim at, and a blind shot is a wasted ball
+    boolean manualReady = manualFeedGate.update(shootAll && aim == null && !tuningMode && !autonomous && !shooter.isStalled()
         && !holdFire && !loadingShooter.blocksSpin(),
         shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE));
     // One ball also without the Cell in view, at full speed, so a press never empties the robot
@@ -1022,6 +1034,44 @@ public class Robot {
     Logger.recordOutput("Drive/HeadingHold/TargetRad", headingHold.getTargetRad());
   }
 
+  /**
+   * Drives with the Scoring Auto's powers. They are robot-frame (Pedro's), so they go to the field frame and then to
+   * the driver frame the drive takes. While aiming the heading lock does the turning, as it does for the driver.
+   * Straight to the drive: no stick curve, so Pedro's powers are the motors' powers.
+   */
+  private void driveAuto(boolean aiming, Aim aim, double lockRateRadPerSec, Pose pose, double[] velocity) {
+    double[] powers = autoDriver.drive(pose, velocity); // {forward, left, counterclockwise}
+    double f = driverForwardHeadingRad();
+    double[] translation = robotToDriverFrame(powers[0], powers[1], pose.headingRad, f);
+    double magnitude = Math.hypot(translation[0], translation[1]);
+    if (aiming && magnitude > ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER) { // Slower while shooting, as for the driver
+      translation[0] *= ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER / magnitude;
+      translation[1] *= ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER / magnitude;
+    }
+    double forward = translation[0];
+    double right = translation[1];
+    double driverHeadingRad = pose.headingRad - f;
+    if (aiming && aim != null) {
+      drive.driveHeadingLock(forward, right, aim.lockHeadingRad - f, lockRateRadPerSec, driverHeadingRad, velocity[2]);
+    } else {
+      drive.drive(forward, right, -powers[2], true, driverHeadingRad);
+    }
+    headingHold.clear();
+    lastTranslation = new double[] {forward, right};
+    Logger.recordOutput("Auto/DrivePowers", powers);
+  }
+
+  /**
+   * A robot-frame translation {forward, left} as the driver-frame {forward, right} the field-centric drive takes,
+   * for a robot at headingRad and a driver whose forward is driverForwardRad.
+   */
+  static double[] robotToDriverFrame(double forward, double left, double headingRad, double driverForwardRad) {
+    double fieldX = forward * Math.cos(headingRad) - left * Math.sin(headingRad);
+    double fieldY = forward * Math.sin(headingRad) + left * Math.cos(headingRad);
+    return new double[] {fieldX * Math.cos(driverForwardRad) + fieldY * Math.sin(driverForwardRad),
+        fieldX * Math.sin(driverForwardRad) - fieldY * Math.cos(driverForwardRad)};
+  }
+
   private void updateShooterAndHood(boolean aiming, Aim aim) {
     volleyHoodDeg = 0;
     boolean validShot = aim != null && aim.shot.valid;
@@ -1146,7 +1196,7 @@ public class Robot {
     boolean enabledShot = shotAllowed && !loadingShooter.blocksSpin();
     boolean ejecting = driver.b && buttonsFree();
     double feederPower = volleyMode && volleyShot && enabledShot ? volleyFeedPower() : 1.0;
-    boolean ltPressed = driver.left_trigger > TRIGGER_PRESSED;
+    boolean ltPressed = driver.left_trigger > TRIGGER_PRESSED || autoIntake;
     boolean loading = ltPressed && !shotAllowed;
     // Full until a ball leaves, B ejects or LT is pressed again (the way out if a bump looked like a touch)
     if ((ltPressed && !wasLtPressed) || ejecting || feedGate.ballLeft()) {
@@ -1703,6 +1753,45 @@ public class Robot {
 
   /** True on the loop the wheels showed a ball leaving (aimed or volley). */
   public boolean ballLeftThisLoop() { return feedGate.ballLeft(); }
+
+  /** True once a feed pulse and its pause passed with no ball out, until one leaves. */
+  public boolean isFeederEmpty() { return feedGate.feederEmpty(); }
+
+  /** Frames so far whose tags voted for our up Cell as it stands. */
+  public int getUpCellAgreeingFrames() { return visionCorrector.agreeingFrames(alliance); }
+
+  /** Powers for the Scoring Auto's drive, from this loop's pose (vision corrected) and field-frame velocity. */
+  public interface AutoDriver {
+    /** @return robot-frame {forward, left, counterclockwise}, each -1..1 */
+    double[] drive(Pose pose, double[] velocity);
+  }
+
+  /**
+   * Scoring Auto: from now on no gamepad is read (G401), and nothing fires without an aim. Call before INIT's loop,
+   * so the alliance can't be changed from a gamepad either.
+   */
+  public void setAutonomous(boolean on) { autonomous = on; }
+
+  /** Aims and shoots as RT does, while true. */
+  public void setAutoShoot(boolean on) { autoShoot = on; }
+
+  /** Intakes as LT does, while true. Shooting wins. */
+  public void setAutoIntake(boolean on) { autoIntake = on; }
+
+  /** Drives from these powers instead of the sticks; null hands the drive back. */
+  public void setAutoDriver(AutoDriver driver) { autoDriver = driver; }
+
+  /**
+   * As {@link #start}, but from a known pose instead of the placed heading: the Scoring Auto's measured start spot.
+   * The pose counts as placed, so the robot aims before the tags are seen; they then only trim it.
+   */
+  public void startAt(double xM, double yM, double headingRad) {
+    start();
+    odometry.setPose(xM, yM, headingRad);
+    poseValid = true;
+    headingValid = true;
+    lastPose = new Pose(xM, yM, headingRad);
+  }
 
   /** Gamepad 1 merged with the Panels gamepad, as this loop's controls read it. */
   public Gamepad getDriver() { return driver; }

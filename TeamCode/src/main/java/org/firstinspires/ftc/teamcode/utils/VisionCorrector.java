@@ -28,6 +28,7 @@ public final class VisionCorrector {
   private Cell upCellBlue = Cell.SCORING;
   private final int[] flipVotes = new int[2]; // Frames in a row voting against the current up Cell: red, blue
   private final boolean[] upCellConfirmed = new boolean[2]; // Tags have shown which Cell is up: red, blue
+  private final int[] agreeingFrames = new int[2]; // Frames whose votes agreed with the up Cell, ever: red, blue
   private int headingDisagreeFrames = 0; // Frames in a row whose heading fix was too big to trust, and agreed
   private double lastDisagreeRad = 0;
   private int jumpAgreeFrames = 0; // Frames whose position fix was too big to trust, each agreeing with the last
@@ -48,6 +49,11 @@ public final class VisionCorrector {
   /** False until the tags' heights have shown which Cell of the Hive is up, not just the starting guess. */
   public boolean upCellConfirmed(Alliance alliance) {
     return upCellConfirmed[alliance == Alliance.RED ? 0 : 1];
+  }
+
+  /** How many frames have voted for the up Cell as it stands, counting up for the whole OpMode. */
+  public int agreeingFrames(Alliance alliance) {
+    return agreeingFrames[alliance == Alliance.RED ? 0 : 1];
   }
 
   /**
@@ -456,6 +462,7 @@ public final class VisionCorrector {
     if (winner == upCell(alliance)) {
       flipVotes[hive] = 0;
       upCellConfirmed[hive] = true;
+      agreeingFrames[hive]++;
       return false;
     }
     if (++flipVotes[hive] < Math.max(1, TIP_CONFIRM_FRAMES)) {

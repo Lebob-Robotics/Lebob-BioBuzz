@@ -75,7 +75,7 @@ public class Main extends PsiKitIterativeOpMode {
   }
 
   /** Shared with OpModes that run the whole Robot, so their logs replay the same way. */
-  static void configureLogging() {
+  public static void configureLogging() {
     Logger.recordMetadata("Robot", "BioBuzz");
     Logger.recordMetadata("Mark", "3");
     Logger.recordMetadata("LiveLogging", String.valueOf(LIVE_LOGGING));
