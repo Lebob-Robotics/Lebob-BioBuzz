@@ -41,6 +41,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   private final CapturedDrivetrain drivetrain = new CapturedDrivetrain();
   private final ElapsedTime clock = new ElapsedTime();
   private Robot robot;
+  private boolean odometryReady;
   private Follower follower;
   private AutoSequence sequence;
   private TipPredictor tips;
@@ -118,6 +119,15 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
 
   /** Called by the Robot each loop with the corrected pose, before it drives. */
   private double[] pedroPowers(org.firstinspires.ftc.teamcode.utils.Pose pose, double[] velocity) {
+    // Still while the Pinpoint finishes the reset from INIT: 13 Nov it calibrated for 0.2 s after START both runs,
+    // and the IMU calibrates only standing still
+    if (!odometryReady) {
+      odometryReady = robot.isOdometryReady();
+      Logger.recordOutput("Auto/WaitingForOdometry", !odometryReady);
+      if (!odometryReady) {
+        return null; // Robot.driveAuto: still, without the aim's turn
+      }
+    }
     headingNowRad = pose.headingRad;
     localizer.set(pose.xM, pose.yM, pose.headingRad, velocity[0], velocity[1], velocity[2]);
     follower.update();

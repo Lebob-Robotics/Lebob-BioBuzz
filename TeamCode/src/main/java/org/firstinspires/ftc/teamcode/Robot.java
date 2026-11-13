@@ -1041,6 +1041,13 @@ public class Robot {
    */
   private void driveAuto(boolean aiming, Aim aim, double lockRateRadPerSec, Pose pose, double[] velocity) {
     double[] powers = autoDriver.drive(pose, velocity); // {forward, left, counterclockwise}
+    if (powers == null) { // Hold still: no aim turn either
+      drive.drive(0, 0, 0, true, pose.headingRad - driverForwardHeadingRad());
+      headingHold.clear();
+      lastTranslation = new double[] {0, 0};
+      Logger.recordOutput("Auto/DrivePowers", new double[] {0, 0, 0});
+      return;
+    }
     double f = driverForwardHeadingRad();
     double[] translation = robotToDriverFrame(powers[0], powers[1], pose.headingRad, f);
     double magnitude = Math.hypot(translation[0], translation[1]);
@@ -1756,6 +1763,9 @@ public class Robot {
   public boolean ballLeftThisLoop() { return feedGate.ballLeft(); }
 
   /** True once a feed pulse and its pause passed with no ball out, until one leaves. */
+  /** The Pinpoint's last read was good: false while it calibrates after the reset INIT asks for. */
+  public boolean isOdometryReady() { return odometry.isReadGood(); }
+
   public boolean isFeederEmpty() { return feedGate.feederEmpty(); }
 
   /** Frames so far whose tags voted for our up Cell as it stands. */
@@ -1768,7 +1778,7 @@ public class Robot {
   }
 
   public interface AutoDriver {
-    /** @return robot-frame {forward, left, counterclockwise}, each -1..1 */
+    /** @return robot-frame {forward, left, counterclockwise}, each -1..1; null to stand still, not even aiming */
     double[] drive(Pose pose, double[] velocity);
   }
 

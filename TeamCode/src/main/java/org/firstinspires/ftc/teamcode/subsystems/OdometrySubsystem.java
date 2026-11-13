@@ -52,6 +52,17 @@ public class OdometrySubsystem extends SubsystemBase {
   /** While faulted, the configuration and the last good pose are written again this often. */
   private static final double RECONFIGURE_EVERY_S = 1.0;
   private long badSinceNanos = -1;
+  /** A read was bad since the last good one: the Pinpoint may have reset in between. */
+  private boolean sawBadRead;
+  private int resetsCaught;
+  /**
+   * A good read this near zero, after bad reads and a jump from the read before them, is the Pinpoint having reset.
+   * Loose, as the robot may already be moving: 223434's first read after the reset was 3 degrees turned.
+   */
+  static final double RESET_NEAR_ZERO_M = 0.10;
+  static final double RESET_NEAR_ZERO_RAD = Math.toRadians(10);
+  static final double RESET_JUMP_M = 0.15;
+  static final double RESET_JUMP_RAD = Math.toRadians(15);
   private long lastReconfigureNanos;
   private int reconfigures;
 
@@ -117,7 +128,7 @@ public class OdometrySubsystem extends SubsystemBase {
     }
 
     // A FAULT_BAD_READ comes back as garbage for a loop; log the pose the robot uses, not a 0.4 m spike
-    Pose2D pose = toField(isReadGood() ? pinpoint.getPosition() : lastGoodPose);
+    Pose2D pose = getPose();
     double headingRad = pose.getHeading(AngleUnit.RADIANS);
 
     // Meters and radians, as AdvantageScope expects.
@@ -151,6 +162,7 @@ public class OdometrySubsystem extends SubsystemBase {
     }
     Logger.recordOutput("Odometry/Faulted", isFaulted());
     Logger.recordOutput("Odometry/Reconfigures", reconfigures);
+    Logger.recordOutput("Odometry/ResetsCaught", resetsCaught);
   }
 
   /** True once the Pinpoint has read badly for {@link #FAULT_AFTER_S}: its pose is stale, however it looks. */
@@ -167,10 +179,43 @@ public class OdometrySubsystem extends SubsystemBase {
     if (pinpoint == null) {
       return ZERO_POSE;
     }
-    if (isReadGood()) {
-      lastGoodPose = pinpoint.getPosition();
-    }
+    readDevice();
     return toField(lastGoodPose);
+  }
+
+  /**
+   * Takes a good read as the last good pose. If the Pinpoint came back from bad reads at zero, it reset (the
+   * reset init() asks for lands late, or power dipped): the offset is redone so the field pose carries on where it
+   * was. The robot holds still while the Pinpoint calibrates. 13 Nov 223434: the reset from INIT finished 0.17 s
+   * after START, the start pose had been set against the old reading, and the pose jumped 0.45 m and 32 degrees,
+   * so the Scoring Auto drove off the field.
+   */
+  private void readDevice() {
+    if (!isReadGood()) {
+      sawBadRead = true;
+      return;
+    }
+    Pose2D now = pinpoint.getPosition();
+    if (sawBadRead && cameBackReset(raw(lastGoodPose), raw(now))) {
+      Pose2D field = toField(lastGoodPose);
+      lastGoodPose = now;
+      setPose(field.getX(DistanceUnit.METER), field.getY(DistanceUnit.METER), field.getHeading(AngleUnit.RADIANS));
+      resetsCaught++;
+    }
+    sawBadRead = false;
+    lastGoodPose = now;
+  }
+
+  private static double[] raw(Pose2D p) {
+    return new double[] {p.getX(DistanceUnit.METER), p.getY(DistanceUnit.METER), p.getHeading(AngleUnit.RADIANS)};
+  }
+
+  /** {x, y, heading} in the Pinpoint's frame: before the bad reads, and now. */
+  static boolean cameBackReset(double[] before, double[] now) {
+    boolean atZero = Math.hypot(now[0], now[1]) < RESET_NEAR_ZERO_M && Math.abs(normalize(now[2])) < RESET_NEAR_ZERO_RAD;
+    boolean jumped = Math.hypot(now[0] - before[0], now[1] - before[1]) > RESET_JUMP_M
+        || Math.abs(normalize(now[2] - before[2])) > RESET_JUMP_RAD;
+    return atZero && jumped;
   }
 
   private Pose2D toField(Pose2D device) {
