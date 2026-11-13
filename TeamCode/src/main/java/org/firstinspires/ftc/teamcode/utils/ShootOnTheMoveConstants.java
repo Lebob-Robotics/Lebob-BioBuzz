@@ -208,7 +208,9 @@ public final class ShootOnTheMoveConstants {
   public static double FIRE_STEADY_STICK_S = 0.3;
   public static double FIRE_STICK_CHANGE = 0.1;
   public static double MAX_ACCEL_TO_FIRE_MPS2 = 1.0; // Over ACCEL_WINDOW_S; 8% of moving READY time in soak 081210
-  public static double ACCEL_WINDOW_S = 0.1;
+  // Over 0.1 s the Pinpoint's speed noise alone read past 1 m/s^2: driving at 0.6+ m/s on a stick held still 0.6 s,
+  // 12% of loops over it (median 0.54), and the gate held 40-46% of RT time at 0.6-1.2 m/s. Over 0.2 s, 2% (13 Nov)
+  public static double ACCEL_WINDOW_S = 0.2;
   // A feed under way also stops at once, ball out or not, if the hood falls this far off its target (twice the
   // fire check's): the target moves when the robot sets off, and the ball then leaves at the old angle
   public static double FEED_STOP_HOOD_DEG = 2.0;
@@ -230,8 +232,14 @@ public final class ShootOnTheMoveConstants {
   // 0.63 m 3000-3360 at 94.3 (7 of 7 at 3180), 0.73-0.74 m 3200-3340 and 3020-3350 at 95.8-95.9, 0.76 m 3280-3310
   // at 96.5 (the line between 0.73 and 0.81 gives 3300 there), 0.81 m 3350-3420 at 97.0. 0.40 m: 88-94 degrees all
   // scored at 3200 but none often (14 of 52 over the session), so 90 stays
+  // 0.95 m out (13 Nov): the 3 Nov one-ball points went long as volleys in the wedge. Lebot Teleop's 8 far backward
+  // balls (173844-225900, hood 97.6-98.2) left at 3505 rpm from 1.53 m, 3566-3597 from 1.52-1.59, 3628 from 1.85 and
+  // 3782-3812 from 1.94, all long. The drag model fitted to Shot Tuning's 179 marked backward balls (0.4-0.9 m) puts
+  // the opening's half-depth at about 90 rpm out there, so each point sits at least that far under the slowest long
+  // ball near it: 1.53 m 3411 (was 3592), 1.85 m 3494 (3750), 1.94 m 3555 (3836). 2.3 m: no ball, the model's
+  // shape scaled to 1.85 m. Recheck these with Shot Tuning's backward spots before raising SHOT_PICK_BACKWARD_MAX_LIP_M
   public static final double[] BACKWARD_DIST_M = {0.40, 0.63, 0.73, 0.81, 0.95, 1.3, 1.8, 2.3};
-  public static final double[] BACKWARD_RPM = {3200, 3180, 3230, 3390, 3400, 3500, 3700, 4200};
+  public static final double[] BACKWARD_RPM = {3200, 3180, 3230, 3390, 3370, 3370, 3460, 3800};
   public static final double[] BACKWARD_HOOD_DEG = {90, 94.3, 95.9, 97.0, 99, 99, 99, 99};
   // Closer than the table's first point, the first point's shot is used
   public static double BACKWARD_MIN_DIST_M = 0.35;

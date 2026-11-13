@@ -365,10 +365,10 @@ public class ShootOnTheMoveTest {
   // ---- Backward shot ----
 
   @Test public void backwardRpmIsTheCalibratedPointAndStraightBetween() {
-    assertEquals(3400, ShootOnTheMove.calculateBackward(0.95, 0, 0).targetRpm, 1e-6);
-    assertEquals(3700, ShootOnTheMove.calculateBackward(1.8, 0, 0).targetRpm, 1e-6);
-    assertEquals(4200, ShootOnTheMove.calculateBackward(2.3, 0, 0).targetRpm, 1e-6);
-    assertEquals(3950, ShootOnTheMove.calculateBackward(2.05, 0, 0).targetRpm, 1e-6);
+    assertEquals(3370, ShootOnTheMove.calculateBackward(0.95, 0, 0).targetRpm, 1e-6);
+    assertEquals(3460, ShootOnTheMove.calculateBackward(1.8, 0, 0).targetRpm, 1e-6);
+    assertEquals(3800, ShootOnTheMove.calculateBackward(2.3, 0, 0).targetRpm, 1e-6);
+    assertEquals(3630, ShootOnTheMove.calculateBackward(2.05, 0, 0).targetRpm, 1e-6);
     assertEquals(ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
   }
 
@@ -408,7 +408,7 @@ public class ShootOnTheMoveTest {
     assertTrue(aim.backward);
     assertTrue(aim.shot.valid);
     assertEquals(0, aim.targetHeadingRad, 1e-9); // Front toward +x, where the Cell is
-    assertEquals(3700, aim.shot.targetRpm, 1e-6);
+    assertEquals(3460, aim.shot.targetRpm, 1e-6);
   }
 
   @Test public void beyondTheBackwardTableUsesTheHoodedShotOutOfTheBack() {
