@@ -28,4 +28,11 @@ public class RobotAutoDriveFrameTest {
       }
     }
   }
+
+  @Test
+  public void autoIntakeLoadsWithTheBlankGamepad() {
+    // 13 Nov: the auto's blank gamepad left LT at 0, so the intake stayed off and the indexer on STOP
+    assertEquals(1.0, Robot.loadTrigger(0.0, true), 0);
+    assertEquals(0.4, Robot.loadTrigger(0.4, false), 0);
+  }
 }

@@ -1196,7 +1196,8 @@ public class Robot {
     boolean enabledShot = shotAllowed && !loadingShooter.blocksSpin();
     boolean ejecting = driver.b && buttonsFree();
     double feederPower = volleyMode && volleyShot && enabledShot ? volleyFeedPower() : 1.0;
-    boolean ltPressed = driver.left_trigger > TRIGGER_PRESSED || autoIntake;
+    double loadTrigger = loadTrigger(driver.left_trigger, autoIntake);
+    boolean ltPressed = loadTrigger > TRIGGER_PRESSED;
     boolean loading = ltPressed && !shotAllowed;
     // Full until a ball leaves, B ejects or LT is pressed again (the way out if a bump looked like a touch)
     if ((ltPressed && !wasLtPressed) || ejecting || feedGate.ballLeft()) {
@@ -1216,14 +1217,14 @@ public class Robot {
     wasFull = full;
 
     boolean intakeWanted = tuningMode || !ShootOnTheMoveConstants.INTAKE_ONLY_ON_LT
-        || driver.left_trigger > TRIGGER_PRESSED;
+        || loadTrigger > TRIGGER_PRESSED;
     intakeOn = intakeWanted;
     intake.setIntakeState(IntakeSubsystem.automaticState(full, ejecting, intakeWanted));
     boolean feeding = enabledShot && (!aiming || ready);
     // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
     // the stack at full power against its stopped last roller, or the 4th ball took 2.9 s to come up (12 Nov)
     double indexerPower = volleyMode && volleyShot && feeding ? volleyIndexerPower() : 1.0;
-    IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, driver.left_trigger,
+    IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
         holdFire || loadingShooter.blocksSpin(), full);
     if (!ejecting && (loadingShooter.clearing() || (loading && !loadingShooter.canLoad())
         || (spinOnlyOnFire && enabledShot && !feeding && feedGate.feedStarts() == 0))) {
@@ -1761,6 +1762,11 @@ public class Robot {
   public int getUpCellAgreeingFrames() { return visionCorrector.agreeingFrames(alliance); }
 
   /** Powers for the Scoring Auto's drive, from this loop's pose (vision corrected) and field-frame velocity. */
+  /** LT, or held fully down while the autonomous is loading: in auto the driver gamepad is a blank one. */
+  static double loadTrigger(double leftTrigger, boolean autoIntake) {
+    return autoIntake ? 1.0 : leftTrigger;
+  }
+
   public interface AutoDriver {
     /** @return robot-frame {forward, left, counterclockwise}, each -1..1 */
     double[] drive(Pose pose, double[] velocity);
