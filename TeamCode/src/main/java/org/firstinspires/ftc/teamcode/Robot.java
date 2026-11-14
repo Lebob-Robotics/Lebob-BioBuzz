@@ -221,7 +221,7 @@ public class Robot {
   private final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
       ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S, ShootOnTheMoveConstants.VOLLEY_FEED_PULSE_S,
       ShootOnTheMoveConstants.VOLLEY_FEED_PAUSE_S,
-      Math.max(0.20, ShootOnTheMoveConstants.VOLLEY_MIN_GAP_S), true);
+      ShootOnTheMoveConstants.VOLLEY_MIN_GAP_S, true);
   private OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
   private boolean volleyShot = false; // This loop's shot is a volley
   // Volley Tuning's settings in place of the constants; NaN (null) for the constant
@@ -259,6 +259,7 @@ public class Robot {
   private final StackPressure stackPressure = new StackPressure();
   private boolean stackPacked = false; // The intake pushed a packed stack: it eases off and the last roller stops
   private boolean wasLtPressed = false;
+  private double ltReleasedAtS = Double.NEGATIVE_INFINITY;
   private double lastShotKnownS = Double.NEGATIVE_INFINITY;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
   private boolean wasDpadUp = false;
@@ -600,8 +601,12 @@ public class Robot {
         : !tuningMode && shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
     // Held fire counts as released: the gate cycled through its pulses with the feeder held, so the first ball
     // got the last 0.06 s of a pulse and fell short (6 Nov, 081518)
+    volleyFeedGate.setLeadBelowRpm(ShootOnTheMoveConstants.VOLLEY_LEAD_BELOW_RPM);
+    boolean readyButWheels = aim != null && motionSteady && hoodReady && ShootOnTheMove.readyToFire(aim, true,
+        hoodReady, pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed);
     boolean aimedFeed = feedGate.update(clock.seconds(), ((shootAll && aim != null) || oneBall) && !holdFire && !loadingShooter.blocksSpin(),
-        oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall, shotLost);
+        oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall, shotLost,
+        readyButWheels && !shooter.isStalled());
     if (volleyMode) { // The other gate starts afresh when the shot switches between volley and one ball
       (volleyShot ? aimedFeedGate : volleyFeedGate).update(clock.seconds(), false, false, shooter.getRpm(),
           shooter.getTargetRpm());
@@ -1261,10 +1266,15 @@ public class Robot {
     double loadTrigger = loadTrigger(driver.left_trigger, autoIntake);
     boolean ltPressed = loadTrigger > TRIGGER_PRESSED;
     boolean loading = ltPressed && !shotAllowed;
-    // Full until a ball leaves, B ejects or LT is pressed again (the way out if a bump looked like a touch)
-    if ((ltPressed && !wasLtPressed) || ejecting || feedGate.ballLeft()) {
+    // Full until a ball leaves, B ejects or LT is pressed again after a real let-go (the way out if a bump looked
+    // like a touch). A tap doesn't count, or tapping LT pushed the packed stack at full power on every press
+    double nowS = clock.seconds();
+    if (loadingLatchesClear(ltPressed && !wasLtPressed, nowS - ltReleasedAtS, ejecting, feedGate.ballLeft())) {
       wheelContactFull = false;
       stackPacked = false;
+    }
+    if (!ltPressed && wasLtPressed) {
+      ltReleasedAtS = nowS;
     }
     wasLtPressed = ltPressed;
     boolean watchingWheels = loading && !wheelContactFull && !tuningMode
@@ -1290,7 +1300,7 @@ public class Robot {
     boolean intakeWanted = tuningMode || !ShootOnTheMoveConstants.INTAKE_ONLY_ON_LT
         || loadTrigger > TRIGGER_PRESSED;
     intakeOn = intakeWanted;
-    intake.setIntakeState(IntakeSubsystem.automaticState(full, ejecting, intakeWanted));
+    intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted, autoIntake));
     boolean feeding = enabledShot && (!aiming || ready);
     // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
     // the stack at full power against its stopped last roller, or the 4th ball took 2.9 s to come up (12 Nov)
@@ -1334,6 +1344,22 @@ public class Robot {
     }
     if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
     feeder.setFeederState(feederCommand, feederPower);
+  }
+
+  /** "Packed" and "full" clear on a ball leaving, B, or an LT press after LT was let go REARM_RELEASE_S or more. */
+  static boolean loadingLatchesClear(boolean newLtPress, double ltReleasedForS, boolean ejecting, boolean ballLeft) {
+    return (newLtPress && ltReleasedForS >= StackPressure.REARM_RELEASE_S) || ejecting || ballLeft;
+  }
+
+  /**
+   * The intake as LT, B and a full stack ask; in the auto a full stack stops it instead of ejecting, so the Pollen
+   * already taken stays in for the next volley (13 Nov 224556 ejected at the rear Flower for 3.2 s).
+   */
+  static IntakeState intakeCommand(boolean full, boolean ejecting, boolean wanted, boolean auto) {
+    if (auto && full && !ejecting) {
+      return IntakeState.STOP;
+    }
+    return IntakeSubsystem.automaticState(full, ejecting, wanted);
   }
 
   /** A packed stack loads with its last roller stopped, so nothing creeps the first ball into the wheels. */
@@ -1891,6 +1917,9 @@ public class Robot {
   public boolean isOdometryReady() { return odometry.isReadGood(); }
 
   public boolean isFeederEmpty() { return feedGate.feederEmpty(); }
+
+  /** The stack read full this loop (a loading ball touched the wheels): the auto moves on from a Flower. */
+  public boolean isStackFull() { return wasFull; }
 
   /** Frames so far whose tags voted for our up Cell as it stands. */
   public int getUpCellAgreeingFrames() { return visionCorrector.agreeingFrames(alliance); }

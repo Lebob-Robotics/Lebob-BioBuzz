@@ -35,9 +35,11 @@ public final class OneBallFeedGate {
   // reading in the feed. Volley 9 Nov 203128: 153 RPM falls 152-183 under target counted dry pulses as the third and
   // fourth balls, under the old ringing recovery. Under speed control a ball's fall is 216-368 (12 Nov, 213719) and
   // the wheels at rest wander 60 under to 66 over, but 300 missed two of the four balls, which cost a pause and a
-  // retry each and let a second ball follow the first unseen
+  // retry each and let a second ball follow the first unseen. 200 from the peak still missed 52 of 276 balls on
+  // 13 Nov, most of them the last: real balls fell 154-200. The wheels at rest wander 60 under to 66 over, so 170
+  // can't come from wandering
   public static double VOLLEY_DIP_RPM = 150;
-  public static double VOLLEY_PEAK_DROP_RPM = 200;
+  public static double VOLLEY_PEAK_DROP_RPM = 170;
   private double minFeedSpacingS = 0;
   private double lastFeedStartS = Double.NEGATIVE_INFINITY;
   private State state = State.WAITING;
@@ -54,6 +56,7 @@ public final class OneBallFeedGate {
   private int ballsLeft;
   private double peakAtLeaveRpm = Double.NaN; // The wheels' highest reading in the feed of the last ball seen leaving
   private double troughRpm = Double.NaN; // Their lowest since it left
+  private double leadBelowRpm = 0; // 0: after a ball, the next feeds only once the wheels are back in the band
 
   /** Waits {@link #READY_SECONDS}. */
   public OneBallFeedGate() {
@@ -127,6 +130,17 @@ public final class OneBallFeedGate {
    */
   public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm,
       boolean oneBall, boolean shotLost) {
+    return update(nowS, held, atSpeed, rpm, targetRpm, oneBall, shotLost, false);
+  }
+
+  /**
+   * As above.
+   *
+   * @param readyButWheels everything but the wheel speed is ready (aim, hood, heading, steady): with a lead set
+   *                       ({@link #setLeadBelowRpm}), the ball after one that left feeds while the wheels recover
+   */
+  public boolean update(double nowS, boolean held, boolean atSpeed, double rpm, double targetRpm,
+      boolean oneBall, boolean shotLost, boolean readyButWheels) {
     ballLeft = false;
     feedStarted = false;
     if (!atSpeed) {
@@ -155,7 +169,7 @@ public final class OneBallFeedGate {
     switch (state) {
       case WAITING:
       case RECOVERING:
-        if (steady && nowS - ballLeftAtS >= minGapS && nowS - lastFeedStartS >= minFeedSpacingS) {
+        if ((steady || lead(readyButWheels, rpm, targetRpm)) && nowS - ballLeftAtS >= minGapS && nowS - lastFeedStartS >= minFeedSpacingS) {
           state = State.FEEDING;
           feedStarted = true;
           feedStarts++;
@@ -187,6 +201,22 @@ public final class OneBallFeedGate {
         break;
     }
     return state == State.FEEDING;
+  }
+
+  /**
+   * The next ball may start while the wheels recover from the last: they are back within the lead of the target and
+   * rising, so the 0.26 s the ball takes from its held-back spot to the wheels overlaps their last climb. Waiting for
+   * the band first made each later ball of a volley take 0.58 s against 0.39 s before (13 Nov), and the 13 balls fed
+   * early when a dip was missed left at the same speeds as the rest.
+   */
+  private boolean lead(boolean readyButWheels, double rpm, double targetRpm) {
+    return state == State.RECOVERING && leadBelowRpm > 0 && readyButWheels && ballsLeft > 0
+        && Double.isFinite(rpm) && Double.isFinite(targetRpm) && rpm >= targetRpm - leadBelowRpm && rpm > troughRpm;
+  }
+
+  /** How far under target the wheels may still be when the next ball of a burst starts; 0 waits for the band. */
+  public void setLeadBelowRpm(double rpm) {
+    leadBelowRpm = rpm;
   }
 
   private boolean dipped(double rpm, double targetRpm) {

@@ -106,4 +106,21 @@ public class AutoSequenceTest {
     assertEquals(Step.PARKED, seq.step());
     assertTrue(seq.shoot(t));
   }
+
+  @Test
+  public void aFullRobotLeavesTheFlowerAtOnce() {
+    t = 1.0;
+    while (seq.step() != Step.INTAKE_WALL_FLOWER) {
+      t += DT;
+      seq.update(t, true, false, true); // Arrives at once and empty
+    }
+    double flowerStart = t;
+    t += DT;
+    seq.update(t, true, false, false, false);
+    assertEquals(Step.INTAKE_WALL_FLOWER, seq.step());
+    t += DT;
+    seq.update(t, true, false, false, true);
+    assertEquals(Step.DRIVE_TO_REAR_FLOWER, seq.step());
+    assertTrue(t - flowerStart < AutoSequence.FLOWER_INTAKE_S);
+  }
 }

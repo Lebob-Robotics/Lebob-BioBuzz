@@ -52,6 +52,11 @@ public final class AutoSequence {
    * @param feederEmpty the feed gate found no ball on its last pulse
    */
   public void update(double nowS, boolean pathDone, boolean ballLeft, boolean feederEmpty) {
+    update(nowS, pathDone, ballLeft, feederEmpty, false);
+  }
+
+  /** As above. @param stackFull the robot is full: a Flower step ends at once instead of after FLOWER_INTAKE_S */
+  public void update(double nowS, boolean pathDone, boolean ballLeft, boolean feederEmpty, boolean stackFull) {
     if (ballLeft) {
       ballsThisVolley++;
       ballsShot++;
@@ -89,7 +94,7 @@ public final class AutoSequence {
         }
         break;
       case INTAKE_WALL_FLOWER:
-        if (inStepS >= FLOWER_INTAKE_S) {
+        if (stackFull || inStepS >= FLOWER_INTAKE_S) {
           enter(skipSecondFlower ? Step.DRIVE_TO_PARK : Step.DRIVE_TO_REAR_FLOWER, nowS);
         }
         break;
@@ -99,7 +104,7 @@ public final class AutoSequence {
         }
         break;
       case INTAKE_REAR_FLOWER:
-        if (inStepS >= FLOWER_INTAKE_S) {
+        if (stackFull || inStepS >= FLOWER_INTAKE_S) {
           enter(Step.DRIVE_TO_PARK, nowS);
         }
         break;

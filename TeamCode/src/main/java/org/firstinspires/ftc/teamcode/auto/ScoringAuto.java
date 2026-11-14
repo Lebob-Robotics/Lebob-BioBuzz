@@ -153,7 +153,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     if (ballLeft) {
       tips.onBall(t);
     }
-    sequence.update(t, !follower.following(), ballLeft, robot.isFeederEmpty());
+    sequence.update(t, !follower.following(), ballLeft, robot.isFeederEmpty(), robot.isStackFull());
     if (sequence.takeNewStep()) {
       startStep(sequence.step());
     }

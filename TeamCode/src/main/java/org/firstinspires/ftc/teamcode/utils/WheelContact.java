@@ -19,13 +19,28 @@ public class WheelContact {
    * overshoot (191420 at 10.1 s: 3874 on a 3563 target), isn't a touch.
    */
   public static double NEAR_TARGET_RPM = 250;
+  /**
+   * Nor may it be more than this over the target: wheels coming down from above it aren't touched by a ball. The
+   * Scoring Auto's target stepped from 3942 to 3733 while it drove, the wheels fell from 3996 to 3689, and that read
+   * as a full stack, so it ejected at the rear Flower for 3.2 s (13 Nov 224556). At rest they wander up to 66 over
+   */
+  public static double ABOVE_TARGET_RPM = 100;
   /** A target moving more than this within the window isn't held still. */
   public static double TARGET_STEADY_RPM = 100;
+  /** And the target must have held within TARGET_STEADY_RPM this long, window included: the wheels have settled on it. */
+  public static double TARGET_HELD_S = 0.75;
 
   private final ArrayDeque<double[]> window = new ArrayDeque<>(); // {t, rpm, target}
+  private double heldTargetRpm = Double.NaN;
+  private double heldSinceS = Double.NaN;
 
   /** Returns true on the loop a touch is seen. watching is false whenever loading or steady aiming isn't on. */
   public boolean update(double nowS, boolean watching, double rpm, double targetRpm) {
+    if (!Double.isNaN(targetRpm)
+        && (Double.isNaN(heldTargetRpm) || Math.abs(targetRpm - heldTargetRpm) > TARGET_STEADY_RPM)) {
+      heldTargetRpm = targetRpm;
+      heldSinceS = nowS;
+    }
     if (!watching || Double.isNaN(rpm) || Double.isNaN(targetRpm)) {
       window.clear();
       return false;
@@ -40,8 +55,8 @@ public class WheelContact {
       lowTarget = Math.min(lowTarget, s[2]);
       highTarget = Math.max(highTarget, s[2]);
     }
-    boolean touch = highTarget - lowTarget <= TARGET_STEADY_RPM && Math.abs(peak - targetRpm) <= NEAR_TARGET_RPM
-        && peak - rpm >= DIP_RPM;
+    boolean touch = nowS - heldSinceS >= TARGET_HELD_S && highTarget - lowTarget <= TARGET_STEADY_RPM
+        && targetRpm - peak <= NEAR_TARGET_RPM && peak - targetRpm <= ABOVE_TARGET_RPM && peak - rpm >= DIP_RPM;
     if (touch) {
       window.clear();
     }

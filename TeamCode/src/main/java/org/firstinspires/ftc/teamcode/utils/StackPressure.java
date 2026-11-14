@@ -14,6 +14,11 @@ public class StackPressure {
   public static double PACKED_S = 0.4;
   /** Intake power while packed: enough to keep the last ball in, about half the push. */
   public static double PACKED_INTAKE_POWER = 0.5;
+  /**
+   * A new LT press clears "packed" and "full" only after LT was let go this long. Drivers tap LT 25-40 times a minute,
+   * 0.1 s apart (13 Nov), so clearing on every press brought the full push back each tap.
+   */
+  public static double REARM_RELEASE_S = 0.5;
 
   private double highSinceS = Double.NaN;
 

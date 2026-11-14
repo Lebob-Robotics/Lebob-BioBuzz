@@ -289,6 +289,36 @@ public class OneBallFeedGateTest {
     assertTrue(gate.update(.31, true, true, 3350, 3350));
   }
 
+  @Test public void volleyStartsTheNextBallWhileTheWheelsClimbBack() {
+    OneBallFeedGate gate = new OneBallFeedGate(0, .4, .3, .2, .05, true);
+    gate.setLeadBelowRpm(150);
+    assertTrue(gate.update(0, true, true, 3500, 3500, false, false, true));
+    gate.update(.10, true, false, 3300, 3500, false, false, true); // Ball out: 200 from the peak, 200 under target
+    assertTrue(gate.ballLeft());
+    assertFalse("Still falling", gate.update(.16, true, false, 3150, 3500, false, false, true));
+    assertFalse("Rising, but further under than the lead", gate.update(.20, true, false, 3300, 3500, false, false, true));
+    assertTrue("Back within 150 and rising: the next ball starts before the band",
+        gate.update(.24, true, false, 3380, 3500, false, false, true));
+  }
+
+  @Test public void volleyLeadWaitsForTheAimAndNeverLeadsTheFirstBall() {
+    OneBallFeedGate gate = new OneBallFeedGate(0, .4, .3, .2, .05, true);
+    gate.setLeadBelowRpm(150);
+    assertFalse("First ball: the band", gate.update(0, true, false, 3400, 3500, false, false, true));
+    gate.update(.02, true, true, 3500, 3500, false, false, true);
+    gate.update(.10, true, false, 3300, 3500, false, false, true);
+    gate.update(.16, true, false, 3150, 3500, false, false, true);
+    assertFalse("Heading not ready", gate.update(.24, true, false, 3400, 3500, false, false, false));
+    assertTrue(gate.update(.28, true, false, 3420, 3500, false, false, true));
+  }
+
+  @Test public void volleyCountsABallFalling170FromThePeak() {
+    OneBallFeedGate gate = volleyGate();
+    gate.update(0, true, true, 3500, 3500);
+    gate.update(.10, true, false, 3325, 3500); // 175 down: the 13 Nov balls the 200 rule missed
+    assertTrue(gate.ballLeft());
+  }
+
   private OneBallFeedGate volleyGate() {
     return new OneBallFeedGate(0, .4, .3, .2, .2, true);
   }

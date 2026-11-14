@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import static org.junit.Assert.*;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.IntakeState;
 import org.junit.Test;
 
 public class IndexerControlTest {
@@ -64,5 +65,22 @@ public class IndexerControlTest {
     assertEquals(0, Robot.intakeLockRumbleMs(true, 6, 5));
     assertEquals(Robot.INTAKE_LOCK_REMIND_MS, Robot.intakeLockRumbleMs(true, 5 + Robot.INTAKE_LOCK_REMIND_S, 5));
     assertEquals(0, Robot.intakeLockRumbleMs(false, 9, 5)); // LB reset it
+  }
+
+  @Test public void tappingLtKeepsAPackedStackEased() {
+    double rearm = org.firstinspires.ftc.teamcode.utils.StackPressure.REARM_RELEASE_S;
+    assertFalse("A 0.1 s tap", Robot.loadingLatchesClear(true, 0.1, false, false));
+    assertTrue("A real let-go", Robot.loadingLatchesClear(true, rearm, false, false));
+    assertFalse("Still held", Robot.loadingLatchesClear(false, 5, false, false));
+    assertTrue("B", Robot.loadingLatchesClear(false, 0, true, false));
+    assertTrue("A ball out", Robot.loadingLatchesClear(false, 0, false, true));
+  }
+
+  @Test public void theAutoStopsItsIntakeWhenFullInsteadOfEjecting() {
+    IntakeState auto = Robot.intakeCommand(true, false, true, true);
+    assertEquals(IntakeState.STOP, auto);
+    assertEquals(IntakeState.EJECT, Robot.intakeCommand(true, false, true, false));
+    assertEquals(IntakeState.EJECT, Robot.intakeCommand(true, true, true, true));
+    assertEquals(IntakeState.INTAKE, Robot.intakeCommand(false, false, true, true));
   }
 }

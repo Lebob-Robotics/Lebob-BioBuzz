@@ -372,6 +372,10 @@ public final class ShootOnTheMoveConstants {
   public static double VOLLEY_INDEXER_SCALE = 0.3;
   // Shortest time from a ball seen leaving to the next feed. The wheels' matched band is the main wait
   public static double VOLLEY_MIN_GAP_S = 0.05;
+  // The next ball of a volley starts once the wheels are back within this of the target and rising, instead of
+  // inside the band: the ball's 0.26 s to the wheels then overlaps their recovery. Replaying 13 Nov's gaps saved
+  // 0.18 s a ball (0.58 s each); the slowest tenth of balls leave ~70 under target against ~35. 0 waits for the band
+  public static double VOLLEY_LEAD_BELOW_RPM = 150;
   // As AIMED_FEED_PULSE_S and AIMED_FEED_PAUSE_S, for a volley
   public static double VOLLEY_FEED_PULSE_S = 0.30;
   public static double VOLLEY_FEED_PAUSE_S = 0.20;
