@@ -78,6 +78,14 @@ public class IndexerControlTest {
     assertTrue("A ball out", Robot.loadingLatchesClear(false, 0, false, true, true));
   }
 
+  @Test public void theWedgeForcesBackwardOnlyWhereTheBackwardTableWasShot() {
+    assertTrue("230333's 0.90 m volley", Robot.wedgeForcesBackward(true, 0.90));
+    assertTrue(Robot.wedgeForcesBackward(true, 0.41));
+    assertFalse("against the rear wall, 1.05 m: as before", Robot.wedgeForcesBackward(true, 1.05));
+    assertFalse(Robot.wedgeForcesBackward(true, Double.NaN));
+    assertFalse(Robot.wedgeForcesBackward(false, 0.60));
+  }
+
   @Test public void theIntakesEaseEndsOnARealLtPressEvenWithTheWheelsSpinning() {
     double rearm = org.firstinspires.ftc.teamcode.utils.StackPressure.REARM_RELEASE_S;
     assertTrue("A real let-go", Robot.intakeEaseClears(true, rearm, false));

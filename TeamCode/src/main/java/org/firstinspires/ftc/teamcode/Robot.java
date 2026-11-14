@@ -879,8 +879,9 @@ public class Robot {
           Math.toRadians(TUNING_HEADING_TOLERANCE_DEG));
     }
     boolean pickBackward;
-    boolean frontOfCell = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON
-        && ShootOnTheMove.inFrontOfCell(pose, cellX, cellY, ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG);
+    boolean frontOfCell = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON && wedgeForcesBackward(
+        ShootOnTheMove.inFrontOfCell(pose, cellX, cellY, ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG),
+        backward.shot.distanceToLipM);
     if (!ShootOnTheMoveConstants.BACKWARD_SHOTS_ON || backward.shot.reason == Shot.Reason.OUT_OF_RANGE) {
       pickBackward = false;
     } else if (frontOfCell) {
@@ -1488,6 +1489,11 @@ public class Robot {
   static boolean loadingLatchesClear(boolean newLtPress, double ltReleasedForS, boolean ejecting, boolean ballLeft,
       boolean wheelsSpinning) {
     return (newLtPress && ltReleasedForS >= StackPressure.REARM_RELEASE_S && !wheelsSpinning) || ejecting || ballLeft;
+  }
+
+  /** In front of the Cell the backward shot is forced, within the range its table was shot at. */
+  static boolean wedgeForcesBackward(boolean inFrontOfCell, double backwardLipM) {
+    return inFrontOfCell && backwardLipM <= ShootOnTheMoveConstants.BACKWARD_WEDGE_MAX_LIP_M;
   }
 
   /** The intake's ease ends on an LT press after a real let-go, or once it runs free (nothing pushing back). */

@@ -280,10 +280,12 @@ public final class ShootOnTheMoveConstants {
 
   // Straight in front of the Hive (the Cell's axis runs along field x, out from its wall) and this many degrees to
   // either side, only the backward shot is taken (13 Nov): the hooded shot's backspin affected shots from there.
-  // Ignores SHOT_PICK_QUICKEST and the distance cap above (the backward table is calibrated at 0.40-0.81 m only, so
-  // a far shot in the wedge uses its uncalibrated points), and doesn't give way to the hooded shot when blocked.
-  // 0 is off
+  // Ignores SHOT_PICK_QUICKEST and doesn't give way to the hooded shot when blocked. 0 is off
   public static double BACKWARD_ONLY_WEDGE_DEG = 30;
+  // The wedge forces the backward shot only this close (lip). The wedge never held until 14 Nov's fix, and 61 of 427
+  // TeleOp balls (7-14 Nov) left from 0.9-1.1 m in front, against the rear wall: forced backward there they'd use
+  // table points never shot (past 0.95 m). 0.95 takes in 230333's bounced 0.90 m volley. Past it, as before
+  public static double BACKWARD_WEDGE_MAX_LIP_M = 0.95;
 
   // Added to every hooded shot from the table. -75 (6 Nov) made up for the model's ball being too slow; the model
   // refitted to Shot Tuning's 224 hooded balls (7 Nov) fires what they found without it
