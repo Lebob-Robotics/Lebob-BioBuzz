@@ -268,6 +268,15 @@ public class HoodSubsystem extends SubsystemBase {
     }
   }
 
+  /**
+   * The fast loop cuts power and ends its thread when the main loop misses heartbeats for 0.5 s. Nothing
+   * here told it to stop, so the hood went on "driving" a dead loop and never moved again: Volley Tuning
+   * stalled 0.59 s on Circle (15 Nov, 074849), the hood stayed at 56.7 of 74.2 degrees and no ball fed.
+   */
+  static boolean fastLoopStoppedItself(boolean drivingFast, boolean loopActive) {
+    return drivingFast && !loopActive;
+  }
+
   private boolean useFastLoop() {
     return FAST_LOOP && fastLoop != null && !fastLoop.hasFailed();
   }
@@ -541,6 +550,9 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   private void driveFast(int target, int position, boolean atRest) {
+    if (fastLoopStoppedItself(drivingFast, fastLoop.isActive())) {
+      drivingFast = false; // Start it again below; its last reading is stale, so skip the mismatch check
+    }
     // Same encoder, read on two paths: a disagreement at rest means the loop's reading is wrong
     if (drivingFast && atRest && Math.abs(fastLoop.posDeg() - position / TICKS_PER_DEG) > FAST_MISMATCH_DEG) {
       if (++fastMismatchLoops >= 3) {
