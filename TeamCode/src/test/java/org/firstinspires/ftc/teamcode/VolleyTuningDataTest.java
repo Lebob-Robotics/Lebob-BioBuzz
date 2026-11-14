@@ -14,6 +14,13 @@ public class VolleyTuningDataTest {
     assertEquals(0, VolleyTuning.lastSpot(lines.subList(0, 4)));
   }
 
+  @Test public void startsAtTheSetSpotOrResumesTheLastOne() {
+    List<String> lines = Arrays.asList("session,mark,spot", "a,IN,0", "a,LONG,1");
+    assertEquals(4, VolleyTuning.startSpot(4, lines));
+    assertEquals(1, VolleyTuning.startSpot(-1, lines));
+    assertEquals(1, VolleyTuning.startSpot(99, lines)); // Off the grid: resume
+  }
+
   @Test public void resetRowsMatchTheNewSchema() {
     String[] names = VolleyTuning.CSV_HEADER.split(",", -1);
     String[] cells = VolleyTuning.resetCsvRow("new").split(",", -1);

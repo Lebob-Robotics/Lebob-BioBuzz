@@ -43,4 +43,34 @@ public class StackPressureTest {
     }
     assertFalse(new StackPressure().update(0, true, Double.NaN));
   }
+
+  @Test
+  public void theEasedIntakeGoesBackToFullOnceItRunsFree() {
+    // 14 Nov 230333 from 1601.0 s: eased against the ball, then free at half power
+    double[] amps = {5.2, 5.0, 4.7, 4.9, 5.2, 2.2, 2.4, 2.1, 2.0, 1.8, 1.7, 1.5, 1.6};
+    StackPressure p = new StackPressure();
+    double t = 0;
+    double freeAt = Double.NaN;
+    for (double a : amps) {
+      if (p.runningFree(t, true, a) && Double.isNaN(freeAt)) {
+        freeAt = t;
+      }
+      t += DT;
+    }
+    assertTrue("free at " + freeAt, freeAt >= 0.25 + StackPressure.FREE_S - 1e-9 && freeAt < 0.65);
+  }
+
+  @Test
+  public void anEasedIntakeStillPushingStaysEased() {
+    // 230333 from 1578.9 s: eased, held 3.5-3.8 A (pushing a stack that won't move); and stopped reads 0
+    StackPressure p = new StackPressure();
+    double t = 0;
+    for (int i = 0; i < 30; i++, t += DT) {
+      assertFalse(p.runningFree(t, true, 3.5 + (i % 3) * 0.1));
+    }
+    for (int i = 0; i < 30; i++, t += DT) {
+      assertFalse(p.runningFree(t, true, 0.0));
+      assertFalse(p.runningFree(t, false, 1.5));
+    }
+  }
 }

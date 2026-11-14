@@ -57,7 +57,7 @@ public class Main extends PsiKitIterativeOpMode {
    * ShootOnTheMoveConstants, ShooterSubsystem, HoodSubsystem and
    * MecanumDriveSubsystem.
    */
-  public static final boolean PANELS_ENABLED = true;
+  public static final boolean PANELS_ENABLED = false;
 
   private Robot robot;
   private boolean wasBack;
@@ -104,7 +104,7 @@ public class Main extends PsiKitIterativeOpMode {
       Panels.INSTANCE.disable();
     }
     robot = new Robot(hardwareMap, telemetry, gamepad1);
-    robot.init();
+    robot.init(true); // Nothing moves until START, so INIT is allowed between AUTO and TELEOP (G403)
     if (PoseHandoff.alliance() != null) {
       robot.setAlliance(PoseHandoff.alliance()); // The auto's; X and B still change it
     }

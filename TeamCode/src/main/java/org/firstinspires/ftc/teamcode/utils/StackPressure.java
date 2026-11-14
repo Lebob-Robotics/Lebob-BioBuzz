@@ -20,7 +20,33 @@ public class StackPressure {
    */
   public static double REARM_RELEASE_S = 0.5;
 
+  /**
+   * The eased intake goes back to full once its current reads under this for {@link #FREE_S}: nothing is pushing
+   * back, so the stack isn't packed. Eased against a packed stack it holds 3.5-5 A; running free at half power,
+   * 1.4-1.6 A (14 Nov 230333). A ball taken in reads 4.8-6.6 A for 0.4-0.5 s, which trips "packed" as one did, and
+   * eased it then stayed at half power for 13 s, grinding balls in at 4-5 A.
+   */
+  public static double FREE_AMPS = 2.5;
+  public static double FREE_S = 0.3;
+
   private double highSinceS = Double.NaN;
+  private double lowSinceS = Double.NaN;
+
+  /** Returns true once the eased intake has run free FREE_S. running is false whenever it isn't eased and turning. */
+  public boolean runningFree(double nowS, boolean running, double amps) {
+    if (!running || !(amps < FREE_AMPS) || !(amps > 0)) {
+      lowSinceS = Double.NaN;
+      return false;
+    }
+    if (Double.isNaN(lowSinceS)) {
+      lowSinceS = nowS;
+    }
+    if (nowS - lowSinceS >= FREE_S) {
+      lowSinceS = Double.NaN;
+      return true;
+    }
+    return false;
+  }
 
   /** Returns true on the loop the stack is seen packed. watching is false whenever the intake isn't loading. */
   public boolean update(double nowS, boolean watching, double amps) {

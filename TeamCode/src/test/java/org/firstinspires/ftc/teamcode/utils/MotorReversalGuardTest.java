@@ -78,6 +78,41 @@ public class MotorReversalGuardTest {
     assertEquals(0.5, g.update(-1, 2.375, 50), 1e-9);
   }
 
+  @Test public void anIntakeStoppedLongEnoughEjectsAtOnce() {
+    MotorReversalGuard g = new MotorReversalGuard(0.3, 0.2, 0);
+    g.update(1, 0, 0);
+    g.update(0, 1, 0); // LT let go
+    assertEquals(0, g.update(-1, 5, 0), 0); // B: the ramp starts this loop, no coast
+    assertEquals(0.5, g.update(-1, 5.1, 0), 1e-9);
+    assertEquals(1, g.update(-1, 5.2, 0), 0);
+  }
+
+  @Test public void aBriefStopOnlyCountsForTheTimeItWasStopped() {
+    MotorReversalGuard g = new MotorReversalGuard(0.3, 0.2, 0);
+    g.update(1, 0, 0);
+    g.update(0, 1, 0);
+    assertEquals(0, g.update(-1, 1.1, 0), 0); // Stopped 0.1 s of the 0.3
+    assertEquals(0, g.update(-1, 1.29, 0), 0);
+    assertEquals(0, g.update(-1, 1.3, 0), 0); // Coasted 0.3 s from the stop, not from B
+    assertEquals(0.5, g.update(-1, 1.4, 0), 1e-9);
+  }
+
+  @Test public void intakingStraightToEjectIsFullyReversedInHalfASecond() {
+    MotorReversalGuard g = new MotorReversalGuard(0.3, 0.2, 0);
+    g.update(1, 0, 0);
+    assertEquals(0, g.update(-1, 1, 0), 0);
+    assertEquals(0, g.update(-1, 1.29, 0), 0);
+    assertEquals(0, g.update(-1, 1.3, 0), 0);
+    assertEquals(1, g.update(-1, 1.5, 0), 1e-9);
+  }
+
+  @Test public void stoppedTimeStillWaitsForFlywheelsToSlow() {
+    MotorReversalGuard g = new MotorReversalGuard(0.5, 0.75, 100);
+    g.update(1, 0, 0);
+    g.update(0, 1, 3000);
+    assertEquals(0, g.update(-1, 5, 3000), 0);
+  }
+
   @Test public void invalidSpeedCannotPermitAReversal() {
     MotorReversalGuard g = new MotorReversalGuard(0.5, 0.75, 100);
     g.update(1, 0, 0);

@@ -220,13 +220,15 @@ public final class ShootOnTheMove {
 
   /**
    * Whether the robot is straight in front of the Cell, within halfAngleDeg either side of its axis (along field x,
-   * out from the Cell's wall toward the field's middle).
+   * out from the Hive's middle: a Cell at +x opens toward +x). Until 14 Nov it took out as toward the field's
+   * middle, from Cells once thought to be on the walls, so the wedge never held and TeleOp shot hooded from
+   * straight in front (230333: 11.5 degrees off the axis, the balls bounced out).
    */
   public static boolean inFrontOfCell(Pose robot, double cellX, double cellY, double halfAngleDeg) {
     if (!(halfAngleDeg > 0)) {
       return false;
     }
-    double outX = cellX > 0 ? -1 : 1;
+    double outX = cellX > 0 ? 1 : -1;
     double dx = (robot.xM - cellX) * outX;
     double dy = robot.yM - cellY;
     return dx > 0 && Math.abs(Math.toDegrees(Math.atan2(dy, dx))) <= halfAngleDeg;

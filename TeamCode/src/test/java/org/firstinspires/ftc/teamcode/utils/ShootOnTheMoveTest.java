@@ -500,16 +500,19 @@ public class ShootOnTheMoveTest {
   }
 
   @Test
-  public void inFrontOfCellIsAWedgeOutFromTheCellsWall() {
-    // Cell on the +x wall: out from it is -x
-    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0.1, 0), 1.5, 0, 30));
-    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0.25, 0), 1.5, 0, 30)); // 26.6 deg
-    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0.4, 0), 1.5, 0, 30)); // 38.7 deg
-    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(2.0, 0, 0), 1.5, 0, 30)); // Behind the wall
-    // Cell on the -x wall: out from it is +x
-    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.0, -0.1, 0), -1.5, 0, 30));
-    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-2.0, 0, 0), -1.5, 0, 30));
-    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0, 0), 1.5, 0, 0)); // Off
+  public void inFrontOfCellIsAWedgeOutFromTheHive() {
+    // Red's Cell at x -0.44 opens toward -x. 14 Nov 230333 TeleOp shot hooded from (-1.47, -0.53), 11.5 degrees off
+    // its axis, and the balls bounced out: that is in front
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.47, -0.53, 0), -0.44, -0.32, 30));
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.34, -0.27, 0), -0.44, -0.32, 30));
+    // Volley Tuning's spot 4 (8 of 8 hooded) and (-1.29, -1.07), 41 degrees off, are not
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-1.00, -1.05, 0), -0.44, -0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-1.29, -1.07, 0), -0.44, -0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(0.5, -0.32, 0), -0.44, -0.32, 30)); // Across the Hive
+    // The Cell at +0.44 opens toward +x
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(1.40, 0.40, 0), 0.44, 0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-0.5, 0.32, 0), 0.44, 0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.40, 0.32, 0), 0.44, 0.32, 0)); // Off
   }
 
   @Test

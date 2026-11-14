@@ -8,6 +8,7 @@ public final class MotorReversalGuard {
   private int direction;
   private double coastStart = Double.NaN;
   private double rampStart = Double.NaN;
+  private double stoppedSince = Double.NaN; // When it was last asked to stop: time unpowered counts as coasting
 
   public MotorReversalGuard(double coastSeconds, double rampSeconds, double stoppedSpeed) {
     this.coastSeconds = coastSeconds;
@@ -19,8 +20,13 @@ public final class MotorReversalGuard {
   public double update(int requestedDirection, double now, double speed) {
     if (requestedDirection == 0) {
       coastStart = Double.NaN;
+      if (Double.isNaN(stoppedSince)) {
+        stoppedSince = now;
+      }
       return 0;
     }
+    double unpoweredSince = stoppedSince;
+    stoppedSince = Double.NaN;
     // Keep startup direction unknown until measured inertia has cleared, even if requests change.
     if (direction == 0) {
       if (Double.isNaN(coastStart) && Double.isFinite(speed) && speed <= stoppedSpeed) {
@@ -39,7 +45,8 @@ public final class MotorReversalGuard {
     }
     if (direction != 0 && requestedDirection != direction) {
       if (Double.isNaN(coastStart)) {
-        coastStart = now;
+        // Already stopped a while: that was coasting too, so a stopped intake reverses at once (14 Nov)
+        coastStart = Double.isNaN(unpoweredSince) ? now : unpoweredSince;
       }
       if (now - coastStart < coastSeconds || !Double.isFinite(speed) || speed > stoppedSpeed) {
         return 0;

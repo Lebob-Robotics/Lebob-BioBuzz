@@ -368,10 +368,16 @@ public final class ShootOnTheMoveConstants {
   public static double VOLLEY_FEED_POWER = 1.0;
   // Indexer power while a ball feeds, as a share of the feeder's. Between balls the indexer stages the rest of the
   // stack at full power against its stopped last roller, so the next ball is always there (it took 2.9 s to come
-  // up at 0.3, 12 Nov 211957)
-  public static double VOLLEY_INDEXER_SCALE = 0.3;
+  // up at 0.3, 12 Nov 211957). Volley Tuning at 0.74 m (14 Nov 224053): full feeder and indexer 8 of 8 in, every
+  // pulse a ball, the last out 1.2 s after the first feed; indexer at 0.3 (feeder 0.6) 8 of 8 but a pulse in one
+  // volley came up empty and the four took 1.7-2.2 s; at 0.15, 3.3-4.9 s. The auto already runs full
+  public static double VOLLEY_INDEXER_SCALE = 1.0;
   // Shortest time from a ball seen leaving to the next feed. The wheels' matched band is the main wait
   public static double VOLLEY_MIN_GAP_S = 0.05;
+  // Shortest time from one volley feed to the next. Volley Tuning's profile 0 fed 0.30-0.37 s apart and went 8 of 8
+  // (14 Nov 224053); TeleOp's stack, pushed up by loading, fed 0.12 and 0.20 s apart (230333): two balls out
+  // 0.12 s apart, into each other in the Cell
+  public static double VOLLEY_MIN_FEED_SPACING_S = 0.30;
   // The next ball of a volley starts once the wheels are back within this of the target and rising, instead of
   // inside the band: the ball's 0.26 s to the wheels then overlaps their recovery. Replaying 13 Nov's gaps saved
   // 0.18 s a ball (0.58 s each); the slowest tenth of balls leave ~70 under target against ~35. 0 waits for the band

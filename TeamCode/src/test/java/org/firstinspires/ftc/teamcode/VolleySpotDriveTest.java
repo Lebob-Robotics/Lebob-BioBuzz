@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.*;
 import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.auto.AutoField;
+import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.junit.Test;
 
 public class VolleySpotDriveTest {
@@ -48,8 +50,39 @@ public class VolleySpotDriveTest {
     assertNull(d.holdPoint()); assertFalse(d.active());
     assertArrayEquals(new double[]{0, 0}, d.drive(), 0);
   }
+  @Test public void theParkSpotIsTheAutosParkAgainstOurWall() {
+    double[] red = AutoField.parkSpot(Alliance.RED, redCellAtMinusX());
+    assertArrayEquals(new double[] {red[0], red[1]}, VolleySpotDrive.point(VolleySpotDrive.PARK, -.44, -.324), 1e-9);
+    assertArrayEquals(new double[] {-red[0], -red[1]}, VolleySpotDrive.point(VolleySpotDrive.PARK, .44, .324), 1e-9);
+  }
+
+  @Test public void theParkDrivesOffTheWallThenCreepsOnAndHoldsPushed() {
+    VolleySpotDrive d = new VolleySpotDrive();
+    double[] park = VolleySpotDrive.point(VolleySpotDrive.PARK, -.44, -.324);
+    Pose approach = new Pose(park[0], -VolleySpotDrive.PARK_APPROACH_M, 0);
+    assertTrue(d.start(VolleySpotDrive.PARK, -.44, -.324, 0, new Pose(-1.0, -1.0, 0), true, 1));
+    d.update(0.1, approach, new double[3], true, 1); // At the approach point: creeps
+    double[] creep = d.drive();
+    assertEquals(-VolleySpotDrive.PARK_CREEP_STICK, creep[1], 1e-9); // Toward red's wall
+    assertFalse(d.ready());
+    Pose atWall = new Pose(park[0], -1.52, 0);
+    double t = 0.2;
+    for (; t < 1.5 && !d.ready(); t += 0.02) { d.update(t, atWall, new double[] {0, 0, 0}, true, 1); }
+    assertTrue("held once the wall stops it", d.ready());
+    assertEquals(-VolleySpotDrive.PARK_PUSH_STICK, d.drive()[1], 1e-9);
+    d.update(t + 0.02, new Pose(park[0], -1.8, 0), new double[3], true, 1); // A pose past the wall is wrong
+    assertFalse(d.active());
+  }
+
+  private static VisionCorrector.Cell redCellAtMinusX() {
+    for (VisionCorrector.Cell c : VisionCorrector.Cell.values()) {
+      if (VisionCorrector.upCellAimPoint(Alliance.RED, c)[0] < 0) { return c; }
+    }
+    throw new AssertionError();
+  }
+
   @Test public void testSpotsHaveAUsableHoodedTableShot() {
-    for (int i = 0; i < FieldRoute.GRID.length; i++) {
+    for (int i = 0; i < VolleySpotDrive.SPOTS; i++) {
       double[] p = VolleySpotDrive.point(i, -.44, -.324);
       org.firstinspires.ftc.teamcode.utils.Aim aim = org.firstinspires.ftc.teamcode.utils.ShootOnTheMove.aimHooded(
           new Pose(p[0], p[1], 0), 0, 0, -.44, -.324);

@@ -54,6 +54,12 @@ public class VolleyTuning extends Main {
   private VolleyCalibration cal;
   private int selectedSpot;
   private boolean carryOn = true;
+  /**
+   * The spot it starts at: a FieldRoute.GRID index (shown one higher on the Driver Station), VolleySpotDrive.PARK
+   * for the Scoring Auto's park against our wall, or -1 to resume the CSV's last spot. Spot 4, where the auto now
+   * shoots, went 46 of 52 in (14 Nov 224053); the park is the auto's other shot.
+   */
+  public static int START_SPOT = VolleySpotDrive.PARK;
   private boolean wasInitY, wasCircle, wasY;
   private boolean collisionMark;
   private VolleyAutoTuner auto;
@@ -78,7 +84,7 @@ public class VolleyTuning extends Main {
     robot.setHoldFire(true);
     robot.setSpinOnlyOnFire(true);
     history = readCsv();
-    selectedSpot = lastSpot(history);
+    selectedSpot = startSpot(START_SPOT, history);
     auto = tuner(selectedSpot); cal = auto.calibration();
   }
 
@@ -96,7 +102,7 @@ public class VolleyTuning extends Main {
 
   @Override protected void onPsiKitStart() {
     if (!carryOn) {
-      history.clear(); spots.clear(); selectedSpot = 0;
+      history.clear(); spots.clear(); selectedSpot = startSpot(START_SPOT, history);
       auto = tuner(selectedSpot); cal = auto.calibration();
       append(resetCsvRow(session));
     }
@@ -157,7 +163,7 @@ public class VolleyTuning extends Main {
     if (cal.marksPending()) { lastMarkText = "Mark all FOUR balls before moving"; return; }
     int next = selectedSpot;
     if (position.ready()) {
-      boolean[] done = new boolean[FieldRoute.GRID.length];
+      boolean[] done = new boolean[VolleySpotDrive.SPOTS];
       for (int i = 0; i < done.length; i++) {
         done[i] = tuner(i).done();
       }
@@ -181,8 +187,8 @@ public class VolleyTuning extends Main {
     if (!g.x) { collisionMark = false; }
     if (trial.active() || !cal.marksPending() || text == null) { return; }
     Ball ball = cal.mark(text);
-    lastMarkText = String.format(Locale.US, "spot %d volley %d ball %d/4: %s",
-        selectedSpot + 1, ball.volley, ball.index + 1, text);
+    lastMarkText = String.format(Locale.US, "spot %s volley %d ball %d/4: %s",
+        VolleySpotDrive.name(selectedSpot), ball.volley, ball.index + 1, text);
     write(ball);
     if (!cal.marksPending()) {
       auto.completed(cal.balls(), trialSeconds, trialReason);
@@ -283,6 +289,10 @@ public class VolleyTuning extends Main {
     return out;
   }
 
+  static int startSpot(int configured, List<String> lines) {
+    return configured >= 0 && configured < VolleySpotDrive.SPOTS ? configured : lastSpot(lines);
+  }
+
   static int lastSpot(List<String> lines) {
     if (lines.isEmpty()) { return 0; }
     int col = column(lines.get(0), "spot");
@@ -292,7 +302,7 @@ public class VolleyTuning extends Main {
         try {
           int spot = Integer.parseInt(c[col]);
           if (spot == -1) { return 0; }
-          if (spot >= 0 && spot < FieldRoute.GRID.length) { return spot; }
+          if (spot >= 0 && spot < VolleySpotDrive.SPOTS) { return spot; }
         } catch (NumberFormatException ignored) { }
       }
     }
@@ -307,7 +317,7 @@ public class VolleyTuning extends Main {
 
   private void addTelemetry() {
     telemetry.addData("POSITION", position.status());
-    telemetry.addData("Spot", "%d/%d; intake %s; full %s", selectedSpot + 1, FieldRoute.GRID.length,
+    telemetry.addData("Spot", "%s of %d; intake %s; full %s", VolleySpotDrive.name(selectedSpot), VolleySpotDrive.SPOTS,
         robot().getDriver().left_trigger > Robot.TRIGGER_PRESSED ? "loading (LT)" : "automatic", robot().intake.isFull());
     if (trial.active()) {
       telemetry.addData("VOLLEY", "Hold RB: %d/4 detected; release or Circle cancels", trial.balls());

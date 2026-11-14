@@ -69,11 +69,21 @@ public class IndexerControlTest {
 
   @Test public void tappingLtKeepsAPackedStackEased() {
     double rearm = org.firstinspires.ftc.teamcode.utils.StackPressure.REARM_RELEASE_S;
-    assertFalse("A 0.1 s tap", Robot.loadingLatchesClear(true, 0.1, false, false));
-    assertTrue("A real let-go", Robot.loadingLatchesClear(true, rearm, false, false));
-    assertFalse("Still held", Robot.loadingLatchesClear(false, 5, false, false));
-    assertTrue("B", Robot.loadingLatchesClear(false, 0, true, false));
-    assertTrue("A ball out", Robot.loadingLatchesClear(false, 0, false, true));
+    assertFalse("A 0.1 s tap", Robot.loadingLatchesClear(true, 0.1, false, false, false));
+    assertTrue("A real let-go", Robot.loadingLatchesClear(true, rearm, false, false, false));
+    assertFalse("Not with the wheels spinning: the stack would be pushed into them",
+        Robot.loadingLatchesClear(true, rearm + 5, false, false, true));
+    assertFalse("Still held", Robot.loadingLatchesClear(false, 5, false, false, false));
+    assertTrue("B", Robot.loadingLatchesClear(false, 0, true, false, true));
+    assertTrue("A ball out", Robot.loadingLatchesClear(false, 0, false, true, true));
+  }
+
+  @Test public void theIntakesEaseEndsOnARealLtPressEvenWithTheWheelsSpinning() {
+    double rearm = org.firstinspires.ftc.teamcode.utils.StackPressure.REARM_RELEASE_S;
+    assertTrue("A real let-go", Robot.intakeEaseClears(true, rearm, false));
+    assertFalse("A 0.1 s tap", Robot.intakeEaseClears(true, 0.1, false));
+    assertFalse("Still held, pushing", Robot.intakeEaseClears(false, 5, false));
+    assertTrue("Running free", Robot.intakeEaseClears(false, 0, true));
   }
 
   @Test public void theAutoStopsItsIntakeWhenFullInsteadOfEjecting() {
@@ -82,5 +92,13 @@ public class IndexerControlTest {
     assertEquals(IntakeState.EJECT, Robot.intakeCommand(true, false, true, false));
     assertEquals(IntakeState.EJECT, Robot.intakeCommand(true, true, true, true));
     assertEquals(IntakeState.INTAKE, Robot.intakeCommand(false, false, true, true));
+  }
+
+  @Test
+  public void theAutoKeepsBringingBallsToTheFeederBetweenShots() {
+    assertEquals(IndexerState.LOAD, Robot.autoStage(IndexerState.STAGE, true));
+    assertEquals(IndexerState.FEED, Robot.autoStage(IndexerState.FEED, true));
+    assertEquals(IndexerState.STOP, Robot.autoStage(IndexerState.STOP, true));
+    assertEquals("TeleOp stages as before", IndexerState.STAGE, Robot.autoStage(IndexerState.STAGE, false));
   }
 }
