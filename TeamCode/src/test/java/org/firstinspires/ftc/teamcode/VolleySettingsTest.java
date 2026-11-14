@@ -44,7 +44,8 @@ public class VolleySettingsTest {
     assertEquals(0, v.spotFor(new Pose(1.2, 1.2, 0), 1.5, 1.5));
     assertFalse(v.isNear(new Pose(1.2, 1.2, 0), 1.5, 1.5, 0));
     assertNotNull(v.get(0));
-    assertFalse(v.isConfirmed(0));
+    assertTrue(v.isConfirmed(0)); // Good twice in a row confirms it
+    assertFalse(VolleySettings.fromLines(spotZero(1, "IN")).isConfirmed(0));
   }
 
   @Test public void unscoredSpotGivesNoSettings() {

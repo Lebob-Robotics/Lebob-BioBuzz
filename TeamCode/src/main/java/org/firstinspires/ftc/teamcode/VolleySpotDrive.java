@@ -64,6 +64,24 @@ final class VolleySpotDrive {
   private boolean creeping;
   private double creepSince, stoppedSince;
 
+  /**
+   * The spots Volley Tuning visits, in order: the auto's two shots (the park, spot 4), then the side spots TeleOp
+   * volleys from. Not spots 0-3: they are within BACKWARD_ONLY_WEDGE_DEG of straight out from the Cell, where TeleOp
+   * now shoots backward, and hooded volleys there bounced (spot 0: 86 of 260 IN, 14 Nov).
+   */
+  static final int[] VOLLEY_ORDER = {PARK, 4, 5, 6, 7, 8, 9};
+
+  /** The next unconfirmed spot in {@link #VOLLEY_ORDER} after {@code current}, wrapping; -1 when all are done. */
+  static int nextVolleySpot(int current, boolean[] done) {
+    int at = -1;
+    for (int i = 0; i < VOLLEY_ORDER.length; i++) { if (VOLLEY_ORDER[i] == current) { at = i; } }
+    for (int n = 1; n <= VOLLEY_ORDER.length; n++) {
+      int spot = VOLLEY_ORDER[(at + n) % VOLLEY_ORDER.length];
+      if (spot < done.length && !done[spot]) { return spot; }
+    }
+    return -1;
+  }
+
   static int nextSpot(int current, boolean[] done) {
     for (int n = 1; n <= done.length; n++) {
       int i = (current + n) % done.length;

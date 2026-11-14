@@ -55,19 +55,38 @@ public class VolleyAutoTunerTest {
     assertTrue(t.current().laterTrim < 0);
   }
 
-  @Test public void bestSettingNeedsTwoGoodVolleysOutOfThreeToConfirm() {
+  @Test public void twoGoodVolleysInARowConfirmTheSetting() {
+    // Volley Tuning took 20+ volleys a spot searching every setting; two good in a row now ends it
     VolleyAutoTuner t = new VolleyAutoTuner();
-    // Fixed bounded alternatives are all explored; an IN alone never means calibrated.
-    for (int p = 0; p < VolleyAutoTuner.profileCount(); p++) {
-      assertEquals(p, t.current().profile);
-      trial(t, "IN", 2 + p); trial(t, "IN", 2 + p);
-    }
-    assertFalse(t.done());
-    trial(t, "IN", 2); assertFalse(t.done());
-    trial(t, 2, "IN", "BOUNCE", "SHORT", "IN"); assertFalse(t.done()); // One miss is allowed
+    trial(t, 2, "IN", "IN", "BOUNCE", "IN");
+    assertFalse("one good volley isn't enough", t.done());
+    assertEquals(0, t.current().profile);
     trial(t, 2, "IN", "IN", "LONG", "IN");
     assertTrue(t.done());
     assertEquals(0, t.current().profile);
+  }
+
+  @Test public void aConfirmedSettingShootsAtTheMiddleOfTheTrimsThatScored() {
+    VolleyAutoTuner t = new VolleyAutoTuner();
+    trial(t, "SHORT", 2); // Moves the trims off 0 so the two good volleys fire at different ones
+    double firstGood = t.current().firstTrim;
+    trial(t, "IN", 2);
+    double secondGood = t.current().firstTrim;
+    trial(t, "IN", 2);
+    assertTrue(t.done());
+    double lo = Math.min(firstGood, secondGood), hi = Math.max(firstGood, secondGood);
+    assertTrue(t.best().firstTrim >= lo - 1e-9 && t.best().firstTrim <= hi + 1e-9);
+    assertEquals(t.calibration().firstSearch().centre(), t.best().firstTrim, 1e-9);
+  }
+
+  @Test public void aMissBetweenGoodVolleysStartsTheCountOver() {
+    VolleyAutoTuner t = new VolleyAutoTuner();
+    trial(t, "IN", 2);
+    trial(t, 2, "IN", "BOUNCE", "SHORT", "BOUNCE");
+    trial(t, "IN", 2);
+    assertFalse(t.done());
+    trial(t, "IN", 2);
+    assertTrue(t.done());
   }
 
   @Test public void threeOfFourInCountsAsAGoodVolley() {
@@ -166,10 +185,14 @@ public class VolleyAutoTunerTest {
     trial(t, 2, "BOUNCE", "BOUNCE", "BOUNCE", "BOUNCE");
     assertEquals(1, t.current().profile);
     // Setting 2: slower, but 3 of 4 each time (two good in a row then end it)
-    for (int i = 0; i < 2; i++) { trial(t, 5, "IN", "IN", "BOUNCE", "IN"); }
+    trial(t, 5, "IN", "IN", "BOUNCE", "IN");
     assertEquals(0, t.best().profile); // The search's best is still the fastest four-IN volley
     assertEquals(1, t.estimate().profile); // The estimate goes on the IN rate
-    assertEquals((6 + 1.0) / (8 + 2.0), t.estimateRate(), 1e-9);
+    assertEquals((3 + 1.0) / (4 + 2.0), t.estimateRate(), 1e-9);
+    trial(t, 5, "IN", "IN", "BOUNCE", "IN"); // Good twice in a row: confirmed
+    assertTrue(t.done());
+    assertEquals(1, t.best().profile);
+    assertEquals(1, t.estimate().profile);
   }
 
   @Test public void seededProgressReplaysIdentically() {

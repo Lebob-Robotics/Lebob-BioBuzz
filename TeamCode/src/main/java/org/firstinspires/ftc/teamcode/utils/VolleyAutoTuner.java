@@ -148,11 +148,22 @@ public final class VolleyAutoTuner {
     trialsHere++;
     goodHere = good ? goodHere + 1 : 0;
     if (ins <= POOR_INS && bounces >= POOR_BOUNCES) { poorHere++; }
-    VolleyCalibration c = models[profile];
-    boolean ranged = c.firstSearch().hasRange() && c.laterSearch().hasRange();
+    if (goodHere >= CONFIRM_GOOD) {
+      // Good twice in a row at one setting confirms it. Searching on through all ten settings for a faster one
+      // took 20+ volleys a spot; setting 1 (full feeder and indexer) went 8 of 8 and is what TeleOp runs
+      // At the middle of the trims that scored, as estimate(): 14 Nov spot 4 went 4 of 4 at 0 and at -1
+      VolleyCalibration c = models[firedProfile];
+      best = new Settings(firedProfile, centreOr(c.firstSearch(), fired.firstTrim),
+          centreOr(c.laterSearch(), fired.laterTrim), fired.headingTrim);
+      bestIns = ins; bestSeconds = seconds;
+      done = true;
+      status = "CONFIRMED: " + CONFIRM_GOOD + " good volleys in a row";
+      return;
+    }
     boolean poor = trialsHere >= POOR_TRIALS && poorHere == trialsHere;
-    status = poor ? "Setting scored poorly: moving on" : "Automatically searching the next trial";
-    if (trialsHere >= MAX_TRIALS_PER_PROFILE || goodHere >= 2 || (good && ranged) || poor) { advance(); }
+    status = poor ? "Setting scored poorly: moving on" : good ? "Good: one more confirms it"
+        : "Automatically searching the next trial";
+    if (trialsHere >= MAX_TRIALS_PER_PROFILE || poor) { advance(); }
   }
 
   private void advance() {
@@ -226,6 +237,11 @@ public final class VolleyAutoTuner {
     Settings e = estimate();
     if (e == null) { return Double.NaN; }
     return (scoredIns[e.profile] + 1.0) / (scoredBalls[e.profile] + 2.0);
+  }
+
+  private static double centreOr(ShotSearch search, double fallback) {
+    double centre = search.centre();
+    return Double.isFinite(centre) ? centre : fallback;
   }
 
   private static double centreOrNext(ShotSearch search) {

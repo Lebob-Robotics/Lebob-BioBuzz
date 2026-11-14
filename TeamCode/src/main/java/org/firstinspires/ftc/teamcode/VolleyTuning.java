@@ -33,7 +33,8 @@ import java.util.Map;
  * then holds it while loading with LT. Hold RB to aim and fire up to four balls; release to abort.
  * The volley ends at four detected balls or a timeout, and all four physical balls must be marked.
  *
- * <p>Marks match Shot Tuning: X tap IN; X+D-pad miss; A BOUNCE; Y unseen/not fired.
+ * <p>Marks match Shot Tuning: X tap IN; X+D-pad miss; A BOUNCE; Y unseen/not fired. LB marks every ball
+ * still unmarked IN at once.
  * Hold X+Circle and release X for a collision with another ball (Circle alone always moves/cancels).
  * All numerical settings are searched automatically; the D-pad only marks miss direction.
  * INIT Y chooses carry-on/new searches; X/B select alliance. Sticks do not drive the robot.
@@ -60,7 +61,7 @@ public class VolleyTuning extends Main {
    * shoots, went 46 of 52 in (14 Nov 224053); the park is the auto's other shot.
    */
   public static int START_SPOT = VolleySpotDrive.PARK;
-  private boolean wasInitY, wasCircle, wasY;
+  private boolean wasInitY, wasCircle, wasY, wasAllIn;
   private boolean collisionMark;
   private VolleyAutoTuner auto;
   private VolleyAutoTuner.Settings settings;
@@ -167,7 +168,7 @@ public class VolleyTuning extends Main {
       for (int i = 0; i < done.length; i++) {
         done[i] = tuner(i).done();
       }
-      next = VolleySpotDrive.nextSpot(selectedSpot, done);
+      next = VolleySpotDrive.nextVolleySpot(selectedSpot, done);
       if (next < 0) { lastMarkText = "All spots confirmed"; return; }
     }
     Robot robot = robot();
@@ -182,10 +183,20 @@ public class VolleyTuning extends Main {
     BallMark mark = keys.update(g.x, g.a, g.dpad_up, g.dpad_down, g.dpad_left, g.dpad_right);
     boolean unseen = g.y && !wasY && !g.x;
     wasY = g.y;
+    boolean allIn = g.left_bumper && !wasAllIn && !g.x;
+    wasAllIn = g.left_bumper;
+    if (allIn && !trial.active() && cal.marksPending()) { // LB: every ball still unmarked went IN, in one press
+      while (cal.marksPending()) { markBall("IN"); }
+      return;
+    }
     String text = mark != null ? collisionMark ? VolleyCalibration.HIT : mark.toString()
         : unseen ? VolleyCalibration.UNSEEN : null;
     if (!g.x) { collisionMark = false; }
     if (trial.active() || !cal.marksPending() || text == null) { return; }
+    markBall(text);
+  }
+
+  private void markBall(String text) {
     Ball ball = cal.mark(text);
     lastMarkText = String.format(Locale.US, "spot %s volley %d ball %d/4: %s",
         VolleySpotDrive.name(selectedSpot), ball.volley, ball.index + 1, text);
@@ -322,7 +333,7 @@ public class VolleyTuning extends Main {
     if (trial.active()) {
       telemetry.addData("VOLLEY", "Hold RB: %d/4 detected; release or Circle cancels", trial.balls());
     } else if (cal.marksPending()) {
-      telemetry.addData("MARK", "Ball %d/4: X in; X+D-pad miss; A bounce; X+Circle collision; Y unseen/not fired",
+      telemetry.addData("MARK", "Ball %d/4: LB ALL IN; X in; X+D-pad miss; A bounce; X+Circle collision; Y unseen",
           cal.marked() + 1);
     } else {
       telemetry.addData("READY", "Load FOUR with LT. Hold RB fires at the held spot. Circle moves to next spot.");

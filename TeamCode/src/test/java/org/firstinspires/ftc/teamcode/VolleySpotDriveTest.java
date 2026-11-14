@@ -15,6 +15,30 @@ public class VolleySpotDriveTest {
     assertEquals(-1, VolleySpotDrive.nextSpot(0, new boolean[]{true, true}));
   }
 
+  @Test public void volleyTuningVisitsTheAutosSpotsFirstAndSkipsTheFrontOnes() {
+    boolean[] done = new boolean[VolleySpotDrive.SPOTS];
+    assertEquals(4, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK, done));
+    assertEquals(5, VolleySpotDrive.nextVolleySpot(4, done));
+    assertEquals(VolleySpotDrive.PARK, VolleySpotDrive.nextVolleySpot(9, done));
+    assertEquals(VolleySpotDrive.PARK, VolleySpotDrive.nextVolleySpot(0, done)); // From a front spot: the start
+    done[VolleySpotDrive.PARK] = done[4] = done[5] = true;
+    assertEquals(6, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK, done));
+    for (int s : VolleySpotDrive.VOLLEY_ORDER) { done[s] = true; }
+    assertEquals(-1, VolleySpotDrive.nextVolleySpot(4, done));
+    for (int s = 0; s < 4; s++) { // Spots 0-3 are in the backward-only wedge
+      double[] p = VolleySpotDrive.point(s, -0.44, -0.32);
+      assertTrue(org.firstinspires.ftc.teamcode.utils.ShootOnTheMove.inFrontOfCell(
+          new org.firstinspires.ftc.teamcode.utils.Pose(p[0], p[1], 0), -0.44, -0.32,
+          org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
+    }
+    for (int s : VolleySpotDrive.VOLLEY_ORDER) {
+      double[] p = VolleySpotDrive.point(s, -0.44, -0.32);
+      assertFalse("spot " + s, org.firstinspires.ftc.teamcode.utils.ShootOnTheMove.inFrontOfCell(
+          new org.firstinspires.ftc.teamcode.utils.Pose(p[0], p[1], 0), -0.44, -0.32,
+          org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
+    }
+  }
+
   @Test public void arrivalSettlesThenPersistentHoldReturnsAfterNudging() {
     VolleySpotDrive d = new VolleySpotDrive();
     Pose p = new Pose(-1, -0.32, 0);
