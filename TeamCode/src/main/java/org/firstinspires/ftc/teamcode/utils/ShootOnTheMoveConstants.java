@@ -397,6 +397,8 @@ public final class ShootOnTheMoveConstants {
   public static double VOLLEY_DOUBLE_DIP_RPM = 600;
 
   // ---- Driver ----------------------------------------------------------
+  // INIT tells the driver to swap a battery under this at rest (it rumbles once)
+  public static double SWAP_BATTERY_V = 12.3;
   // Lebot Teleop: the intake only spins while LT is held (13 Nov), so it isn't pushing at 5-6 A all match. B's eject
   // still runs it backward. The tuning tools keep it running. False: always on, as before
   public static boolean INTAKE_ONLY_ON_LT = true;

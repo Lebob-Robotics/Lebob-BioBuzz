@@ -28,6 +28,7 @@ import com.bylazar.field.PanelsField;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.ManualFeedGate;
+import org.firstinspires.ftc.teamcode.utils.PoseHandoff;
 import org.firstinspires.ftc.teamcode.utils.StackPressure;
 import org.firstinspires.ftc.teamcode.utils.WheelContact;
 import org.firstinspires.ftc.teamcode.utils.LoadingShooterInterlock;
@@ -260,6 +261,15 @@ public class Robot {
   private boolean stackPacked = false; // The intake pushed a packed stack: it eases off and the last roller stops
   private boolean wasLtPressed = false;
   private double ltReleasedAtS = Double.NEGATIVE_INFINITY;
+  private boolean handsOffPose = false;
+  private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
+  private boolean swapBatteryRumbled = false;
+  private String stopHint; // What the driver must change for the shot to fire; null when it's not how they drive
+  private double stopHintSinceS = Double.NaN;
+  private boolean stopHintRumbled = false;
+  private static final double STOP_HINT_RUMBLE_AFTER_S = 0.4;
+  private static final int STOP_HINT_RUMBLE_MS = 400;
+  private boolean startedFromAuto = false;
   private double lastShotKnownS = Double.NEGATIVE_INFINITY;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
   private boolean wasDpadUp = false;
@@ -355,6 +365,17 @@ public class Robot {
     hood.periodic(); // Drives the hood down onto its stop and zeroes it there; nothing else moves
     vision.periodic(); // Read and log tags in INIT without running any mechanism commands.
     updateBattery(true);
+    if (!Double.isNaN(batteryVolts)) {
+      initMaxVolts = Double.isNaN(initMaxVolts) ? batteryVolts : Math.max(initMaxVolts, batteryVolts);
+    }
+    if (swapBattery(initMaxVolts)) {
+      telemetry.addLine(String.format("!! SWAP BATTERY: %.1f V at rest, want %.1f or more",
+          initMaxVolts, ShootOnTheMoveConstants.SWAP_BATTERY_V));
+      if (!swapBatteryRumbled) {
+        physicalDriver.rumble(600);
+        swapBatteryRumbled = true;
+      }
+    }
     noteHiveTags(vision.takeNewTagObservations());
     String allianceWarning = allianceWarning();
     if (allianceWarning != null) {
@@ -675,6 +696,7 @@ public class Robot {
   private Pose correctPoseFromVision(Pose pose, double[] velocity, long nowNanos) {
     List<TagObservation> observations = vision.takeNewTagObservations();
     noteHiveTags(observations);
+    visionCorrector.setHeadingSeeded(poseSeeded);
     VisionResult result = visionCorrector.process(observations, poseHistory, pose,
         velocity[0], velocity[1], velocity[2], poseValid, headingValid, nowNanos);
     if (result.accepted) {
@@ -882,6 +904,28 @@ public class Robot {
       physicalDriver.rumble(150);
     }
     aimState = newState;
+    stopHint = aiming ? stopHint(aim, newState, closeMovingGateBypassed) : null;
+    double nowS = clock.seconds();
+    if (stopHint == null) {
+      stopHintSinceS = Double.NaN;
+    } else if (Double.isNaN(stopHintSinceS)) {
+      stopHintSinceS = nowS;
+    }
+    if (!aiming) {
+      stopHintRumbled = false;
+    } else if (!stopHintRumbled && !Double.isNaN(stopHintSinceS) && nowS - stopHintSinceS >= STOP_HINT_RUMBLE_AFTER_S) {
+      physicalDriver.rumble(STOP_HINT_RUMBLE_MS); // Once a press: the driver is moving in a way that can't shoot
+      stopHintRumbled = true;
+    }
+    Logger.recordOutput("SOTM/StopHint", stopHint == null ? "" : stopHint);
+  }
+
+  /** What the driver must change for the shot to fire ({@link ShootOnTheMove#stopHint}), else null. */
+  static String stopHint(Aim aim, AimState state, boolean closeMovingBypassed) {
+    if (aim == null || (state != AimState.LINING_UP && state != AimState.NO_SAFE_SHOT)) {
+      return null;
+    }
+    return ShootOnTheMove.stopHint(aim.shot, closeMovingBypassed);
   }
 
   /** While aiming, D-pad up and down nudge the RPM, for when the table is a little off on the day. */
@@ -1608,7 +1652,9 @@ public class Robot {
       telemetry.addData("Shot", String.format("%s  %.2f m  %s", aimingAtFieldCell ? alliance + " " + aimCell()
           : "camera's Cell", aim.shot.distanceToLipM, aim.backward ? "BACKWARD" : "HOODED"));
       String state;
-      if (aimState == AimState.LINING_UP) {
+      if (stopHint != null) {
+        state = stopHint;
+      } else if (aimState == AimState.LINING_UP) {
         state = String.format("lining up  wheels %.0f/%.0f  hood %.1f/%.1f  turn %.0f deg", shooter.getRpm(),
             shooter.getTargetRpm(), HoodSubsystem.ticksToAngle(hood.getPosition()),
             HoodSubsystem.ticksToAngle(hood.getTarget()), Math.toDegrees(aim.headingErrorRad(pose.headingRad)));
@@ -1630,6 +1676,10 @@ public class Robot {
     }
     if (hood.hasEncoderFault()) {
       telemetry.addLine("! Hood " + hood.getEncoderFaultText());
+    }
+    String deadCameras = vision.deadCameras();
+    if (deadCameras != null) {
+      telemetry.addLine("! CAM " + deadCameras + " DEAD: fewer tag fixes");
     }
   }
 
@@ -1714,6 +1764,14 @@ public class Robot {
    * Samples the battery voltage, keeping the lowest seen this run (it sags when the shooter spins up),
    * then logs it and adds it to telemetry.
    */
+  /**
+   * A battery this low at rest sags toward brownout in a match: two 9 Nov runs that started at 11.1-11.9 V fell to
+   * 6.8-6.9 V, and every auto sags to 9.6 V at spin-up even from 12.6 V.
+   */
+  static boolean swapBattery(double restingVolts) {
+    return restingVolts < ShootOnTheMoveConstants.SWAP_BATTERY_V;
+  }
+
   private void updateBattery(boolean telemetryDue) {
     double now = clock.seconds();
     if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
@@ -1952,6 +2010,26 @@ public class Robot {
   /** Aims and shoots as RT does, while true. */
   public void setAutoShoot(boolean on) { autoShoot = on; }
 
+  /** An autonomous: on stop, its pose and alliance are left for the TeleOp after it ({@link PoseHandoff}). */
+  public void setHandsOffPose(boolean on) { handsOffPose = on; }
+
+  /**
+   * TeleOp: starts from the auto's pose if it just stopped, else as {@link #start}. Returns whether it did.
+   * The pose counts as placed, so field-centric driving and the aim are right from the first loop.
+   */
+  public boolean startFromAuto() {
+    Pose handoff = PoseHandoff.take(System.nanoTime());
+    if (handoff == null) {
+      start();
+      startedFromAuto = false;
+    } else {
+      startAt(handoff.xM, handoff.yM, handoff.headingRad);
+      startedFromAuto = true;
+    }
+    Logger.recordOutput("Start/FromAuto", startedFromAuto);
+    return startedFromAuto;
+  }
+
   /** Intakes as LT does, while true. Shooting wins. */
   public void setAutoIntake(boolean on) { autoIntake = on; }
 
@@ -2129,6 +2207,9 @@ public class Robot {
 
   public void stop() {
     watchdog.feed(); // A stop that hangs (closing a camera) is reported too
+    if (handsOffPose) {
+      PoseHandoff.save(isPoseKnown() && !odometry.isFaulted() ? lastPose : null, alliance, System.nanoTime());
+    }
     fieldSender.shutdownNow();
     hood.disable(); // Its loop thread would otherwise hold the hood until it misses the heartbeat
     vision.close();

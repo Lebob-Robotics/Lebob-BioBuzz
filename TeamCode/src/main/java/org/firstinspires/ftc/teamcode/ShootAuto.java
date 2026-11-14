@@ -37,7 +37,11 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   // Drives no longer than this: 0.6 m takes under a second. With the odometry faulted (FAULT_BAD_READ,
   // 13 Nov 191050 and 191103) the pose never moved, and the old 3 s let it drive blind
   public static double DRIVE_TIMEOUT_S = 1.5;
-  public static double DRIVE_MAX_STEP_M = 0.12; // A bigger pose step in one loop is vision placing the robot, not driving
+  // A bigger pose step in one loop is vision placing the robot, not driving. 0.12 also dropped real steps: loops take
+  // 0.10-0.21 s while driving at ~1.3 m/s, so it drove 0.86-1.48 m for 0.6 (13 Nov). The one real jump was 2.0 m
+  public static double DRIVE_MAX_STEP_M = 0.4;
+  // Power off this far early at the speed it is going, v^2 / (2 * this): it coasted ~0.25 m after the cut
+  public static double DRIVE_BRAKE_MPS2 = 2.0;
   public static double SETTLE_S = 0.3; // Stopped this long before aiming, so the pose and the steady gate settle
   public static double SEARCH_TURN = 0.25; // Turn power while looking for the Hive
   // Turns in steps, still in between: turning on at 0.25 reached 1 rad/s, past the 0.6 rad/s the cameras are used
@@ -81,6 +85,9 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   private double lastX;
   private double lastY;
   private double drivenM;
+  private double[] plannedStop; // Where the drive should end, {x, y}; null when it timed out
+  private double startX;
+  private double startY;
   private int ballsOut;
   private double[][] parkRoute;
   private int parkLeg;
@@ -106,6 +113,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
     robot = new Robot(hardwareMap, telemetry, gamepad1);
     robot.init();
     robot.setVolleyMode(true);
+    robot.setHandsOffPose(true);
     follower = new Follower(localizer, drivetrain, Constants.algorithm());
   }
 
@@ -123,6 +131,9 @@ public class ShootAuto extends PsiKitIterativeOpMode {
     double f = robot.driverForwardHeadingRad();
     double[] start = cornerPoint(f, START_OFF_WALL_M, START_OFF_SIDE_M);
     robot.seedPose(start[0], start[1], f + Math.PI);
+    startX = start[0];
+    startY = start[1];
+    plannedStop = null;
     robot.setSticksLocked(true);
     robot.setDriveBrake(true);
     phase = DRIVE_M > 0 ? Phase.DRIVE : Phase.SETTLE;
@@ -147,8 +158,13 @@ public class ShootAuto extends PsiKitIterativeOpMode {
           lastY = pose.yM;
         }
         Logger.recordOutput("Auto/DrivenM", drivenM);
-        if (drivenM >= DRIVE_M || inPhaseS >= DRIVE_TIMEOUT_S) {
+        double[] v = robot.getVelocity();
+        boolean far = drivenM + brakeDistanceM(Math.hypot(v[0], v[1])) >= DRIVE_M;
+        if (far || inPhaseS >= DRIVE_TIMEOUT_S) {
           robot.setDriveOverride(null);
+          // Holds the planned spot, not wherever it coasted to; a timeout (odometry stuck) holds where it is
+          double f = robot.driverForwardHeadingRad();
+          plannedStop = far ? new double[] {startX + DRIVE_M * Math.cos(f), startY + DRIVE_M * Math.sin(f)} : null;
           next(Phase.SETTLE, nowS);
         } else {
           double f = robot.driverForwardHeadingRad();
@@ -159,7 +175,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
       case SETTLE:
         robot.setDriveOverride(null);
         if (pose != null && inPhaseS < 0.05) {
-          robot.setHoldPoint(new double[] {pose.xM, pose.yM});
+          robot.setHoldPoint(plannedStop != null ? plannedStop : new double[] {pose.xM, pose.yM});
         }
         if (inPhaseS >= SETTLE_S) {
           next(Phase.SHOOT, nowS);
@@ -167,8 +183,10 @@ public class ShootAuto extends PsiKitIterativeOpMode {
         break;
       case SHOOT: {
         boolean hiveKnown = robot.getLastAim() != null;
-        // Turns to the Hive straight away from the start pose; fires once the tags have placed it, or after a wait
-        robot.setScriptedVolley(hiveKnown && (robot.isPoseValid() || inPhaseS >= VISION_WAIT_S));
+        // Turns to the Hive straight away from the start pose; fires once the tags have placed it, or after a wait.
+        // The wait held the turn too, so every volley started a second late (13 Nov, 5 red runs)
+        robot.setScriptedVolley(hiveKnown);
+        robot.setHoldFire(!robot.isPoseValid() && inPhaseS < VISION_WAIT_S);
         boolean searchTurning = inPhaseS % (SEARCH_PAUSE_S + SEARCH_TURN_S) >= SEARCH_PAUSE_S;
         robot.setTurnOverride(hiveKnown || !searchTurning ? 0 : SEARCH_TURN);
         if (robot.ballLeftThisLoop()) {
@@ -176,6 +194,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
         }
         if (ballsOut >= BALLS || nowS - autoStartS >= PARK_BY_S) {
           robot.setScriptedVolley(false);
+          robot.setHoldFire(false);
           robot.setTurnOverride(0);
           robot.setHoldPoint(null);
           parkRoute = pose == null ? null : parkRoute(robot.driverForwardHeadingRad(), pose.xM, pose.yM);
@@ -317,6 +336,11 @@ public class ShootAuto extends PsiKitIterativeOpMode {
     }
     double scale = MecanumDriveSubsystem.stickForPower(Math.min(1.0, m)) / m;
     return new double[] {power[0] * scale, power[1] * scale};
+  }
+
+  /** How far the robot goes after the power is cut at this speed. */
+  static double brakeDistanceM(double speedMps) {
+    return speedMps * speedMps / (2 * DRIVE_BRAKE_MPS2);
   }
 
   /** One loop's pose step, or 0 for the first pose or a jump bigger than DRIVE_MAX_STEP_M. */

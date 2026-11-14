@@ -517,6 +517,21 @@ public class VisionCorrectorTest {
   }
 
   @Test
+  public void oneTagPlacesTheRobotWhenItsHeadingWasSeededByPlacement() {
+    // Shoot Auto, 13 Nov: one tag in view from its start spot, and the seeded pose 0.26 m off
+    Pose odometry = new Pose(TRUE_POSE.xM - 0.26, TRUE_POSE.yM, TRUE_POSE.headingRad);
+    corrector.setHeadingSeeded(true);
+    VisionResult one = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
+        odometry, 0, 0, 0, false, false, T0 + 100 * MS);
+    assertTrue(one.reason.toString(), one.accepted);
+    assertEquals(TRUE_POSE.xM, one.newPose.xM, MM_TOLERANCE);
+    corrector.reset();
+    VisionResult unseeded = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
+        odometry, 0, 0, 0, false, false, T0 + 200 * MS);
+    assertEquals(Reason.NO_HEADING, unseeded.reason);
+  }
+
+  @Test
   public void aBigJumpThatKeepsRepeatingReplacesATrustedPosition() {
     Pose odometry = offsetBy(TRUE_POSE, 1.8, 0.8);
     for (int frame = 1; frame < ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {

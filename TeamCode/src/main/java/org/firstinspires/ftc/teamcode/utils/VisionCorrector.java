@@ -75,7 +75,20 @@ public final class VisionCorrector {
   }
 
   /** Clears partial tip votes. */
+  /**
+   * The heading came from a known placement (Shoot Auto's start): one tag may place the robot using it, instead of
+   * waiting for a pair. From its start spot the Shoot Auto saw one tag, and got no fix in 30 s on 5 runs (13 Nov),
+   * firing 24-28 balls on the placement alone. Placed square is within 1-2 degrees, ~7 cm at 2 m. Heading fixes still
+   * come from pairs as before.
+   */
+  private boolean headingSeeded = false;
+
+  public void setHeadingSeeded(boolean seeded) {
+    headingSeeded = seeded;
+  }
+
   public void reset() {
+    headingSeeded = false;
     flipVotes[0] = 0;
     flipVotes[1] = 0;
     firstPairFrames = 0;
@@ -354,7 +367,7 @@ public final class VisionCorrector {
       reason = Reason.SPREAD;
     } else if (Math.abs(now.xM + medianDx) > limitM || Math.abs(now.yM + medianDy) > limitM) {
       reason = Reason.OUT_OF_FIELD;
-    } else if (!poseValid && !headingValid && headingGain == 0) {
+    } else if (!poseValid && !headingValid && !headingSeeded && headingGain == 0) {
       // Offsets turned by an untrusted heading put the robot anywhere. Once accepted, the pose is trusted and
       // the true fix is refused as a jump: one tag with the start heading 154 degrees out put the robot 2 m
       // away, on the far side of the Cell, for the whole run (5 Nov, 082826)

@@ -128,14 +128,38 @@ public class VisionSubsystem extends SubsystemBase {
    * Restarts and camera controls run here, never on the robot loop: when the camera dropped off USB six times
    * in 3 s, stopStreaming() never returned and the loop froze with the flywheel on for 4 minutes (5 Nov, 080143).
    */
-  private final ExecutorService cameraWorker = Executors.newSingleThreadExecutor(r -> {
-    Thread t = new Thread(r, "BioBuzzCameraWorker");
-    t.setDaemon(true);
-    return t;
-  });
+  // One per camera, so a call that never returns on one camera doesn't hold up the other's
+  private final ExecutorService[] cameraWorkers = {newWorker(0), newWorker(1)};
+  private final long[] workerSinceNanos = new long[2]; // When the running job was handed to the worker
+  private final int[] workerGeneration = new int[2]; // Bumped on a rebuild, so the old worker's job can't clear workerBusy
+  /**
+   * A camera call running longer than this has hung: the camera is closed and opened again from scratch. 13 Nov
+   * 165003: camera R's restart never returned, so its worker stayed busy, nothing about it was checked again and it
+   * gave no frames for the whole 109 s. A restart waits at most 3 s for the camera.
+   */
+  public static double WORKER_STUCK_S = 5.0;
+  /** At most this many rebuilds per camera per OpMode, 5 s, 10 s, then 20 s apart: each leaks ~36 MB of detector. */
+  public static int MAX_REBUILDS = 3;
+  private final boolean[] dead = new boolean[2]; // Guarded by this
+  private final boolean[] rebuilding = new boolean[2]; // Guarded by this
+  private final int[] rebuilds = new int[2];
+  private final long[] nextRebuildNanos = new long[2];
+  private volatile boolean closed = false;
+  // What setUpCamera was given, to open a camera again
+  private HardwareMap hardwareMap;
+  private AprilTagLibrary library;
+  private AprilTagLibrary extraLibrary;
+
+  private static ExecutorService newWorker(int i) {
+    return Executors.newSingleThreadExecutor(r -> {
+      Thread t = new Thread(r, "BioBuzzCameraWorker" + i);
+      t.setDaemon(true);
+      return t;
+    });
+  }
   private final long[] streamingSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
   private final boolean[] workerBusy = new boolean[2]; // Set by the loop, cleared by the worker; guarded by this
-  private final FrameClock[] frameClocks = {new FrameClock(), new FrameClock()};
+  private final FrameClock[] frameClocks = {new FrameClock(), new FrameClock()}; // Replaced on a rebuild
   private final ThreadNice[] threadNices = {new ThreadNice(), new ThreadNice()};
   private final FrameRecorder[] recorders = new FrameRecorder[2]; // Null when the camera didn't open
 
@@ -216,6 +240,9 @@ public class VisionSubsystem extends SubsystemBase {
     AprilTagLibrary library = individualTags || clustersFromTags ? singleLibrary : clusterLibrary;
     AprilTagLibrary extraLibrary = !individualTags && !clustersFromTags && SINGLE_TAGS_FOR_POSE
         ? singleLibrary : null;
+    this.hardwareMap = hardwareMap;
+    this.library = library;
+    this.extraLibrary = extraLibrary;
     setUpCamera(hardwareMap, Side.LEFT, "CameraL", LENS_LEFT, viewIds == null ? -1 : viewIds[0], library, extraLibrary);
     setUpCamera(hardwareMap, Side.RIGHT, "CameraR", LENS_RIGHT, viewIds == null ? -1 : viewIds[1], library, extraLibrary);
   }
@@ -284,7 +311,15 @@ public class VisionSubsystem extends SubsystemBase {
       VisionInputs in = inputs[side.ordinal()];
       if (!Logger.isReplay()) {
         applyCameraControls(side);
-        in.capture(processors[side.ordinal()], singleTagProcessors[side.ordinal()], portals[side.ordinal()]);
+        boolean swapping;
+        synchronized (this) {
+          swapping = rebuilding[side.ordinal()];
+        }
+        if (swapping) { // The rebuild's thread is replacing the portal and processors
+          in.capture(null, null, null);
+        } else {
+          in.capture(processors[side.ordinal()], singleTagProcessors[side.ordinal()], portals[side.ordinal()]);
+        }
         if (clustersFromTags) {
           in.addClusters(ClusterFromTags.build(in.tagIds, in.x, in.y, in.z, mountOf(side)));
         }
@@ -293,6 +328,10 @@ public class VisionSubsystem extends SubsystemBase {
       Logger.processInputs(prefix, in);
       Logger.recordOutput(prefix + "/Status", cameraStatus[side.ordinal()]);
       Logger.recordOutput(prefix + "/Restarts", restarts[side.ordinal()]);
+      Logger.recordOutput(prefix + "/Rebuilds", rebuilds[side.ordinal()]);
+      synchronized (this) {
+        Logger.recordOutput(prefix + "/Dead", dead[side.ordinal()]);
+      }
       Logger.recordOutput(prefix + "/LastFrameAgeS", (System.nanoTime() - frameClocks[side.ordinal()].lastFrameNanos) * 1e-9);
       FrameRecorder recorder = recorders[side.ordinal()];
       if (recorder != null) {
@@ -317,6 +356,22 @@ public class VisionSubsystem extends SubsystemBase {
   /** Apply settings only after streaming starts; never block the robot loop waiting for a camera. */
   private void applyCameraControls(Side side) {
     int i = side.ordinal();
+    long nowNanos = System.nanoTime();
+    synchronized (this) {
+      if (rebuilding[i] || closed) {
+        return;
+      }
+      boolean hung = workerBusy[i] && (nowNanos - workerSinceNanos[i]) * 1e-9 >= WORKER_STUCK_S;
+      boolean retry = dead[i] && portals[i] == null && nowNanos >= nextRebuildNanos[i];
+      if ((hung || retry) && rebuilds[i] < MAX_REBUILDS) {
+        startRebuild(side, hung ? "a camera call hung" : "opening again");
+        return;
+      }
+      if (hung && !dead[i]) {
+        dead[i] = true;
+        cameraStatus[i] = "DEAD: a camera call hung, rebuilds used up";
+      }
+    }
     VisionPortal portal = portals[i];
     if (portal == null) {
       return;
@@ -397,18 +452,106 @@ public class VisionSubsystem extends SubsystemBase {
         return;
       }
       workerBusy[i] = true;
+      workerSinceNanos[i] = System.nanoTime();
     }
-    cameraWorker.execute(() -> {
+    final int generation = workerGeneration[i];
+    cameraWorkers[i].execute(() -> {
       try {
         job.run();
       } catch (RuntimeException e) {
         RobotLog.ee("BioBuzzVision", e, "Camera %d call failed", i);
       } finally {
         synchronized (VisionSubsystem.this) {
-          workerBusy[i] = false;
+          if (workerGeneration[i] == generation) {
+            workerBusy[i] = false;
+          }
         }
       }
     });
+  }
+
+  /**
+   * Closes a hung camera and opens it again from scratch, off the robot loop: the old portal's close may hang too,
+   * so it gets its own thread and at most 2 s. Called holding this. A camera that won't open is tried again after
+   * 5 s, 10 s, 20 s, up to MAX_REBUILDS.
+   */
+  private void startRebuild(Side side, String why) {
+    int i = side.ordinal();
+    rebuilding[i] = true;
+    dead[i] = true;
+    rebuilds[i]++;
+    cameraStatus[i] = "DEAD (" + why + "), rebuilding " + rebuilds[i] + "/" + MAX_REBUILDS;
+    RobotLog.ww("BioBuzzVision", "Camera %d: %s; rebuilding (%d)", i, why, rebuilds[i]);
+    VisionPortal oldPortal = portals[i];
+    AprilTagProcessor oldProcessor = processors[i];
+    AprilTagProcessor oldSingle = singleTagProcessors[i];
+    FrameRecorder oldRecorder = recorders[i];
+    FrameClock oldClock = frameClocks[i];
+    ThreadNice oldNice = threadNices[i];
+    portals[i] = null;
+    processors[i] = null;
+    singleTagProcessors[i] = null;
+    recorders[i] = null;
+    cameraWorkers[i].shutdownNow(); // Its thread may never come back; a fresh one takes this camera's next calls
+    cameraWorkers[i] = newWorker(i);
+    workerGeneration[i]++;
+    workerBusy[i] = false;
+    Thread closer = daemon("BioBuzzCameraClose" + i, () -> {
+      try {
+        if (oldRecorder != null) {
+          oldRecorder.close();
+        }
+        if (oldPortal != null) {
+          oldPortal.close();
+        }
+      } catch (RuntimeException e) {
+        RobotLog.ee("BioBuzzVision", e, "Closing hung camera %d failed", i);
+      }
+      detach(oldProcessor, oldSingle, oldClock, oldNice, oldRecorder);
+    });
+    closer.start();
+    long backoffNanos = (long) (5e9 * (1L << Math.min(2, rebuilds[i] - 1)));
+    daemon("BioBuzzCameraOpen" + i, () -> {
+      try {
+        closer.join(2000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      if (!closed) {
+        frameClocks[i] = new FrameClock();
+        threadNices[i] = new ThreadNice();
+        // No live view: it is off in matches, and the shared view's container belongs to the first portals
+        setUpCamera(hardwareMap, side, side == Side.LEFT ? "CameraL" : "CameraR",
+            side == Side.LEFT ? LENS_LEFT : LENS_RIGHT, -1, library, extraLibrary);
+      }
+      synchronized (VisionSubsystem.this) {
+        appliedExposure[i] = -1;
+        appliedGain[i] = -1;
+        appliedDecimation[i] = Float.NaN;
+        appliedLiveView[i] = -1;
+        streamingSinceNanos[i] = Long.MIN_VALUE;
+        noFramesSinceNanos[i] = Long.MIN_VALUE;
+        nextRebuildNanos[i] = System.nanoTime() + backoffNanos;
+        dead[i] = portals[i] == null;
+        rebuilding[i] = false;
+        if (closed && portals[i] != null) { // The OpMode stopped while it opened
+          portals[i].close();
+          portals[i] = null;
+        }
+      }
+    }).start();
+  }
+
+  private static Thread daemon(String name, Runnable job) {
+    Thread t = new Thread(job, name);
+    t.setDaemon(true);
+    return t;
+  }
+
+  /** "L", "R" or "L R" for cameras found dead (hung or won't open), or null if both are fine. */
+  public synchronized String deadCameras() {
+    String out = (dead[0] ? "L " : "") + (dead[1] ? "R" : "");
+    return out.isEmpty() ? null : out.trim();
   }
 
   /** Stop, wait for the device, start again. On the worker. */
@@ -578,7 +721,10 @@ public class VisionSubsystem extends SubsystemBase {
 
   /** Closes both portals. Call from the OpMode's stop(). */
   public void close() {
-    cameraWorker.shutdownNow();
+    closed = true;
+    for (ExecutorService worker : cameraWorkers) {
+      worker.shutdownNow();
+    }
     for (int i = 0; i < portals.length; i++) {
       FrameRecorder recorder = recorders[i];
       if (recorder != null) {

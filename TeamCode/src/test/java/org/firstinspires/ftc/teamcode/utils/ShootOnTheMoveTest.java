@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -509,5 +510,18 @@ public class ShootOnTheMoveTest {
     assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.0, -0.1, 0), -1.5, 0, 30));
     assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-2.0, 0, 0), -1.5, 0, 30));
     assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.0, 0, 0), 1.5, 0, 0)); // Off
+  }
+
+  @Test
+  public void tellsTheDriverWhyAMovingShotWontFire() {
+    // 13 Nov 225336: 0.34-0.67 m from the lip, strafing at 0.7-1.1 m/s
+    Shot close = new Shot(Shot.Reason.OK, 3400, 60, 0.4, 0, 0.5, 0, 0.9);
+    assertEquals("STOP: too close to shoot moving", ShootOnTheMove.stopHint(close, false));
+    assertNull(ShootOnTheMove.stopHint(close, true));
+    Shot still = new Shot(Shot.Reason.OK, 3400, 60, 0.4, 0, 0.5, 0, 0);
+    assertNull(ShootOnTheMove.stopHint(still, false));
+    assertEquals("slow down sideways",
+        ShootOnTheMove.stopHint(Shot.impossible(Shot.Reason.SIDEWAYS_TOO_FAST, 1.5, 0, 1.5), false));
+    assertNull(ShootOnTheMove.stopHint(Shot.impossible(Shot.Reason.OUT_OF_RANGE, 4, 0, 0), false));
   }
 }

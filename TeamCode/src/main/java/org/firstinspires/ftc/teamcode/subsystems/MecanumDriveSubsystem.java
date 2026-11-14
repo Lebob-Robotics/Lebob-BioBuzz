@@ -41,7 +41,9 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   // 0.16 and 12.2 V, where 0.15 had turned it the run before (5 Nov, 083302). At 0.2/s the last 8.6 degrees
   // still took 1 s standing (5 Nov, 084933)
   public static double HEADING_KS_BOOST_PER_S = 0.8;
-  public static double HEADING_KS_BOOST_MAX = 0.15;
+  // 0.15 (0.31 in all) sat 5.2 degrees off a 4 degree tolerance for over 2 s, wheels pushing, robot still, no shot
+  // (13 Nov 185305; 6.5 s that day, 7.9 s on 8 Nov). The boost drops back to 0 as soon as the robot turns
+  public static double HEADING_KS_BOOST_MAX = 0.25;
   // Turning slower than this counts as stuck. At 5 the robot crept the last 15 degrees at 10-15 deg/s on 0.16-0.23
   // power, never counted as stuck, and took 2.1 s to line up standing (5 Nov, 083228)
   public static double HEADING_STUCK_RATE_RAD_S = Math.toRadians(15);

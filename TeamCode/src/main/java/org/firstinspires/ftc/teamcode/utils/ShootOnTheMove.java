@@ -358,6 +358,22 @@ public final class ShootOnTheMove {
   }
 
   /**
+   * What the driver must change for this shot to fire, when it is how they drive, else null. On 13 Nov 8 presses
+   * (17 s) never fired, strafing at 0.5-1 m/s 0.35-0.7 m from the lip, with only "lining up" on the screen.
+   */
+  public static String stopHint(Shot shot, boolean closeMovingAllowed) {
+    if (shot.valid) {
+      return !closeMovingAllowed && tooCloseToShootMoving(shot) ? "STOP: too close to shoot moving" : null;
+    }
+    switch (shot.reason) {
+      case SIDEWAYS_TOO_FAST: return "slow down sideways";
+      case CLOSING_TOO_FAST: return "slow down: driving at the Cell too fast";
+      case BACKING_TOO_FAST: return "slow down: backing away too fast";
+      default: return null;
+    }
+  }
+
+  /**
    * True when the robot moves too fast this close to the lip to fire (MIN_MOVING_SHOT_LIP_M): such shots missed
    * on 5 Nov, with the heading error growing during the feed. The match's fire gate refuses them.
    */

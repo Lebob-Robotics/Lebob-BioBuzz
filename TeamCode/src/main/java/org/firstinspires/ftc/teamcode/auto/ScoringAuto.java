@@ -74,6 +74,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     robot = new Robot(hardwareMap, telemetry, gamepad1);
     robot.setAutonomous(true);
     robot.setAlliance(alliance);
+    robot.setHandsOffPose(true);
     robot.init();
     follower = new Follower(localizer, drivetrain, Constants.algorithm());
   }

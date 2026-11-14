@@ -4,6 +4,7 @@ import com.bylazar.panels.Panels;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.utils.PoseHandoff;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.FtcLogTuning;
@@ -104,6 +105,9 @@ public class Main extends PsiKitIterativeOpMode {
     }
     robot = new Robot(hardwareMap, telemetry, gamepad1);
     robot.init();
+    if (PoseHandoff.alliance() != null) {
+      robot.setAlliance(PoseHandoff.alliance()); // The auto's; X and B still change it
+    }
     // RB is a standing volley, RT the one-at-a-time shoot on the move
     robot.setVolleyMode(true);
     if (usesTunedVolley()) {
@@ -135,6 +139,9 @@ public class Main extends PsiKitIterativeOpMode {
       pollDriverSide();
       telemetry.addData("Driving from", robot.isDriverOnFarSide() ? "FAR side of the field (Share to change)"
           : "alliance wall (Share to change)");
+      if (usesAutoPose() && PoseHandoff.peek(System.nanoTime()) != null) {
+        telemetry.addLine("Starts where the auto ended. Robot moved since? Press A after START");
+      }
       robot.initLoop();
     }
   }
@@ -151,8 +158,17 @@ public class Main extends PsiKitIterativeOpMode {
   @Override
   protected void onPsiKitStart() {
     if (robot != null) {
-      robot.start();
+      if (usesAutoPose()) {
+        robot.startFromAuto();
+      } else {
+        robot.start();
+      }
     }
+  }
+
+  /** Lebot Teleop itself starts from the auto's end pose; a tuning variant starts as placed. */
+  protected boolean usesAutoPose() {
+    return getClass() == Main.class;
   }
 
   @Override

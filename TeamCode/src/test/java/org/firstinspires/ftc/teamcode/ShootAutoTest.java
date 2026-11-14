@@ -114,4 +114,17 @@ public class ShootAutoTest {
     d += ShootAuto.drivenStep(-1.46, 1.33, -1.46, 1.28);
     assertEquals(0.10, d, 1e-9);
   }
+
+  @Test
+  public void aFastLoopsRealStepStillCounts() {
+    // 13 Nov 220137: 0.13-0.22 m steps at 1.3 m/s were dropped, and it drove 1.48 m for 0.6
+    assertEquals(0.2, ShootAuto.drivenStep(0, 0, 0, 0.2), 1e-9);
+    assertEquals(0, ShootAuto.drivenStep(0, 0, -1.46, 1.38), 1e-9);
+  }
+
+  @Test
+  public void cutsThePowerEarlyEnoughToCoastToTheSpot() {
+    assertEquals(0.4225, ShootAuto.brakeDistanceM(1.3), 1e-9);
+    assertEquals(0, ShootAuto.brakeDistanceM(0), 1e-9);
+  }
 }
