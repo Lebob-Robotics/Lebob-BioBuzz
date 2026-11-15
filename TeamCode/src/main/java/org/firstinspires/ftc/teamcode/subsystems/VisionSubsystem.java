@@ -59,9 +59,11 @@ public class VisionSubsystem extends SubsystemBase {
    * The 15 Nov competition venue. At the home 5 ms / gain 60, camera R's frames there averaged 181 of 255 with 22%
    * clipped white and tag blacks lifted to ~90, and tag decision margins fell to about half of home (R 77, L 41 at
    * 1-1.5 m, against ~140 at home). 3 ms / gain 30 lets in about a third of the light.
+   * At 3 ms / gain 30 the 10:05-10:11 runs were still washed out: camera L frames averaged 241-250 with 84-93%
+   * clipped and its near margins fell to 62, camera R 206-244 with 27-67% clipped. 2 ms / gain 15.
    */
-  public static int COMP_EXPOSURE_MS = 3;
-  public static int COMP_GAIN = 30;
+  public static int COMP_EXPOSURE_MS = 2;
+  public static int COMP_GAIN = 15;
   /**
    * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
    * names cycling so a PC can pull them and see what the robot sees.
@@ -122,6 +124,9 @@ public class VisionSubsystem extends SubsystemBase {
   private final String[] cameraStatus = {"not opened", "not opened"}; // Written by the camera worker too
   private volatile int[] appliedExposure = {-1, -1};
   private volatile int[] appliedGain = {-1, -1};
+  // What the camera reported back after the last set, for the log; -1 not yet read
+  private volatile long[] readExposureMs = {-1, -1};
+  private volatile int[] readGain = {-1, -1};
   private final float[] appliedDecimation = {Float.NaN, Float.NaN};
   private final int[] appliedLiveView = {-1, -1}; // -1 not yet set, else 0 off or 1 on
   /**
@@ -169,6 +174,7 @@ public class VisionSubsystem extends SubsystemBase {
   private final FrameClock[] frameClocks = {new FrameClock(), new FrameClock()}; // Replaced on a rebuild
   private final ThreadNice[] threadNices = {new ThreadNice(), new ThreadNice()};
   private final FrameRecorder[] recorders = new FrameRecorder[2]; // Null when the camera didn't open
+  private final FrameBrightness[] brightness = new FrameBrightness[2]; // Null when the camera didn't open
 
   /**
    * Notes when each frame arrives. A frozen stream kept reporting its last FPS (9.2), so the no-frames restart
@@ -267,6 +273,7 @@ public class VisionSubsystem extends SubsystemBase {
     AprilTagProcessor processor = null;
     AprilTagProcessor singleTagProcessor = null;
     FrameRecorder recorder = null;
+    FrameBrightness frameBrightness = null;
     try {
       processor = buildProcessor(library, lens);
       singleTagProcessor = extraLibrary == null ? null : buildProcessor(extraLibrary, lens);
@@ -279,6 +286,8 @@ public class VisionSubsystem extends SubsystemBase {
           .addProcessor(threadNices[side.ordinal()])
           .addProcessor(processor)
           .addProcessor(frameClocks[side.ordinal()]);
+      frameBrightness = new FrameBrightness();
+      builder.addProcessor(frameBrightness);
       if (RECORD_FRAMES) {
         recorder = new FrameRecorder(side == Side.LEFT ? "camL" : "camR");
         builder.addProcessor(recorder);
@@ -292,6 +301,7 @@ public class VisionSubsystem extends SubsystemBase {
 
       portals[side.ordinal()] = builder.build();
       recorders[side.ordinal()] = recorder;
+      brightness[side.ordinal()] = frameBrightness;
       processors[side.ordinal()] = processor;
       singleTagProcessors[side.ordinal()] = singleTagProcessor;
       cameraStatus[side.ordinal()] = "opening";
@@ -301,8 +311,10 @@ public class VisionSubsystem extends SubsystemBase {
       if (recorder != null) {
         recorder.close();
       }
-      detach(processor, singleTagProcessor, frameClocks[side.ordinal()], threadNices[side.ordinal()], recorder);
+      detach(processor, singleTagProcessor, frameClocks[side.ordinal()], threadNices[side.ordinal()], recorder,
+          frameBrightness);
       portals[side.ordinal()] = null;
+      brightness[side.ordinal()] = null;
       processors[side.ordinal()] = null;
       singleTagProcessors[side.ordinal()] = null;
     }
@@ -340,6 +352,17 @@ public class VisionSubsystem extends SubsystemBase {
         Logger.recordOutput(prefix + "/Dead", dead[side.ordinal()]);
       }
       Logger.recordOutput(prefix + "/LastFrameAgeS", (System.nanoTime() - frameClocks[side.ordinal()].lastFrameNanos) * 1e-9);
+      // Exposure, gain and brightness as numbers, so a match log can be used to set the exposure
+      Logger.recordOutput(prefix + "/Lighting", FIELD_LIGHTING.name());
+      Logger.recordOutput(prefix + "/ExposureMs", readExposureMs[side.ordinal()]);
+      Logger.recordOutput(prefix + "/Gain", readGain[side.ordinal()]);
+      FrameBrightness frameBrightness = brightness[side.ordinal()];
+      if (frameBrightness != null) {
+        Logger.recordOutput(prefix + "/FramesTotal", frameBrightness.frames());
+        Logger.recordOutput(prefix + "/Brightness/Mean", frameBrightness.mean());
+        Logger.recordOutput(prefix + "/Brightness/ClippedPct", frameBrightness.clippedPct());
+        Logger.recordOutput(prefix + "/Brightness/DarkPct", frameBrightness.darkPct());
+      }
       FrameRecorder recorder = recorders[side.ordinal()];
       if (recorder != null) {
         Logger.recordOutput(prefix + "/FramesSaved", recorder.saved());
@@ -444,8 +467,10 @@ public class VisionSubsystem extends SubsystemBase {
       ok = ok && exposure.setExposure(exposureMs, TimeUnit.MILLISECONDS);
       int gainValue = Math.max(gain.getMinGain(), Math.min(gain.getMaxGain(), gainWanted));
       ok = gain.setGain(gainValue) && ok;
+      readExposureMs[i] = exposure.getExposure(TimeUnit.MILLISECONDS);
+      readGain[i] = gain.getGain();
       cameraStatus[i] = (ok ? "streaming" : "controls partly unsupported")
-          + ": exposure " + exposure.getExposure(TimeUnit.MILLISECONDS) + " ms, gain " + gain.getGain();
+          + ": exposure " + readExposureMs[i] + " ms, gain " + readGain[i];
     } catch (RuntimeException e) {
       cameraStatus[i] = "streaming; controls: " + e.toString();
       RobotLog.ee("BioBuzzVision", e, "Camera controls failed for %s", side);
@@ -495,12 +520,14 @@ public class VisionSubsystem extends SubsystemBase {
     AprilTagProcessor oldProcessor = processors[i];
     AprilTagProcessor oldSingle = singleTagProcessors[i];
     FrameRecorder oldRecorder = recorders[i];
+    FrameBrightness oldBrightness = brightness[i];
     FrameClock oldClock = frameClocks[i];
     ThreadNice oldNice = threadNices[i];
     portals[i] = null;
     processors[i] = null;
     singleTagProcessors[i] = null;
     recorders[i] = null;
+    brightness[i] = null;
     cameraWorkers[i].shutdownNow(); // Its thread may never come back; a fresh one takes this camera's next calls
     cameraWorkers[i] = newWorker(i);
     workerGeneration[i]++;
@@ -516,7 +543,7 @@ public class VisionSubsystem extends SubsystemBase {
       } catch (RuntimeException e) {
         RobotLog.ee("BioBuzzVision", e, "Closing hung camera %d failed", i);
       }
-      detach(oldProcessor, oldSingle, oldClock, oldNice, oldRecorder);
+      detach(oldProcessor, oldSingle, oldClock, oldNice, oldRecorder, oldBrightness);
     });
     closer.start();
     long backoffNanos = (long) (5e9 * (1L << Math.min(2, rebuilds[i] - 1)));
@@ -754,8 +781,9 @@ public class VisionSubsystem extends SubsystemBase {
       }
       if (portals[i] != null) {
         portals[i].close();
-        detach(processors[i], singleTagProcessors[i], frameClocks[i], threadNices[i], recorder);
+        detach(processors[i], singleTagProcessors[i], frameClocks[i], threadNices[i], recorder, brightness[i]);
         portals[i] = null;
+        brightness[i] = null;
         processors[i] = null;
         singleTagProcessors[i] = null;
       }
