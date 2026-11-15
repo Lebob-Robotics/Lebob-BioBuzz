@@ -61,9 +61,15 @@ public class VisionSubsystem extends SubsystemBase {
    * 1-1.5 m, against ~140 at home). 3 ms / gain 30 lets in about a third of the light.
    * At 3 ms / gain 30 the 10:05-10:11 runs were still washed out: camera L frames averaged 241-250 with 84-93%
    * clipped and its near margins fell to 62, camera R 206-244 with 27-67% clipped. 2 ms / gain 15.
+   * At 2 ms / gain 15 (10:14-10:27) the clipping was background: tags under 2 m read better in the brighter frames
+   * (L margins 101-104 at 15-45% clipped, 119-129 at 45-75%; R 88-91 under 30%, 115-123 over 45%). Gain 20 moves
+   * toward that, still well short of 3 ms / gain 30.
    */
   public static int COMP_EXPOSURE_MS = 2;
-  public static int COMP_GAIN = 15;
+  public static int COMP_GAIN = 20;
+  /** Set by Vision Calibration's exposure sweep; -1 uses the field preset. Cleared whenever a VisionSubsystem is made. */
+  public static int overrideExposureMs = -1;
+  public static int overrideGain = -1;
   /**
    * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
    * names cycling so a PC can pull them and see what the robot sees.
@@ -226,6 +232,8 @@ public class VisionSubsystem extends SubsystemBase {
 
   /** Individual-tag mode is for the vision-only calibration OpMode; normal shooting uses clusters. */
   public VisionSubsystem(HardwareMap hardwareMap, boolean individualTags) {
+    overrideExposureMs = -1;
+    overrideGain = -1;
     // Replay has no cameras: the detections come from the log instead.
     if (Logger.isReplay()) {
       return;
@@ -446,9 +454,11 @@ public class VisionSubsystem extends SubsystemBase {
       });
       return;
     }
-    final int exposureWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_EXPOSURE_MS
+    final int exposureWanted = overrideExposureMs >= 0 ? overrideExposureMs
+        : FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_EXPOSURE_MS
         : FIELD_LIGHTING == FieldLighting.COMP ? COMP_EXPOSURE_MS : HOME_EXPOSURE_MS;
-    final int gainWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_GAIN
+    final int gainWanted = overrideGain >= 0 ? overrideGain
+        : FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_GAIN
         : FIELD_LIGHTING == FieldLighting.COMP ? COMP_GAIN : HOME_GAIN;
     if (appliedExposure[i] == exposureWanted && appliedGain[i] == gainWanted) {
       return;

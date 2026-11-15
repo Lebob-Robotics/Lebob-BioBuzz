@@ -15,6 +15,11 @@ public final class VolleyAutoTuner {
   public static final int CONFIRM_GOOD = 2;
   public static final int CONFIRM_ATTEMPTS = 3;
   /**
+   * A confirmed setting is solid after this many good volleys in a row: two-volley confirmations were inconsistent
+   * in matches (15 Nov). Volley Tuning revisits confirmed forward spots until solid; TeleOp uses them once confirmed.
+   */
+  public static final int SOLID_GOOD = 4;
+  /**
    * A setting is dropped early when its first POOR_TRIALS scored volleys all had at most POOR_INS IN and at least
    * POOR_BOUNCES bounce-outs. Short/long misses don't count: those say the trim is off, which the search fixes.
    */
@@ -53,6 +58,7 @@ public final class VolleyAutoTuner {
   private int timeoutsHere;
   private int confirmed;
   private int confirmTries;
+  private int streak; // Good scored volleys in a row at the setting being fired
   private int rounds = 1;
   private boolean confirming;
   private boolean done;
@@ -113,7 +119,7 @@ public final class VolleyAutoTuner {
     scoredBalls[scoredProfile] += balls.size();
     scoredIns[scoredProfile] += ins;
     if (done) {
-      if (good) { return; }
+      if (good) { streak++; status = "Recheck: " + streak + "/" + SOLID_GOOD + " good in a row"; return; }
       // A miss after confirming starts a fresh confirmation; this volley is its first attempt.
       done = false; confirming = true; confirmed = confirmTries = 0;
     }
@@ -125,6 +131,7 @@ public final class VolleyAutoTuner {
         headings[firedProfile].record(BallMark.parse(b.mark), b.headingTrimDeg);
       }
     }
+    streak = good ? streak + 1 : 0;
     if (confirming) {
       confirmTries++;
       if (good) { confirmed++; }
@@ -133,7 +140,7 @@ public final class VolleyAutoTuner {
         status = "CONFIRMED: " + CONFIRM_GOOD + " of " + confirmTries + " volleys had " + GOOD_INS + "+ IN";
       } else if (confirmTries - confirmed > CONFIRM_ATTEMPTS - CONFIRM_GOOD) {
         // Reopen the search instead of calling an unreliable configuration calibrated.
-        confirming = false; confirmed = confirmTries = 0; profile = best.profile;
+        confirming = false; confirmed = confirmTries = streak = 0; profile = best.profile;
         trialsHere = goodHere = poorHere = timeoutsHere = 0;
         best = null; bestIns = 0; bestSeconds = Double.POSITIVE_INFINITY;
         status = "Confirmation missed: automatically reopening search";
@@ -167,7 +174,7 @@ public final class VolleyAutoTuner {
   }
 
   private void advance() {
-    profile++; trialsHere = goodHere = poorHere = timeoutsHere = 0;
+    profile++; trialsHere = goodHere = poorHere = timeoutsHere = streak = 0;
     if (profile >= PROFILES.length) {
       if (best != null) { confirming = true; confirmed = confirmTries = 0; }
       else { profile = 0; rounds++; }
@@ -249,10 +256,13 @@ public final class VolleyAutoTuner {
     return Double.isFinite(centre) ? centre : search.next();
   }
   public boolean done() { return done; }
+  /** Confirmed and then good {@link #SOLID_GOOD} volleys in a row. */
+  public boolean solid() { return done && streak >= SOLID_GOOD; }
+  public int streak() { return streak; }
   public int confirmed() { return confirmed; }
   public String status() {
     if (done || confirming) {
-      return (done ? "DONE" : "CONFIRM " + confirmed + "/" + CONFIRM_GOOD + " good, try "
+      return (solid() ? "SOLID" : done ? "RECHECK " + streak + "/" + SOLID_GOOD + " good in a row" : "CONFIRM " + confirmed + "/" + CONFIRM_GOOD + " good, try "
           + Math.min(confirmTries + 1, CONFIRM_ATTEMPTS) + "/" + CONFIRM_ATTEMPTS) + ": " + status;
     }
     return "AUTO round " + rounds + ", setting " + (profile + 1) + "/" + PROFILES.length
@@ -307,7 +317,7 @@ public final class VolleyAutoTuner {
   private void reset() {
     for (int i = 0; i < models.length; i++) { models[i] = new VolleyCalibration(PROFILES[i][0], false);
       headings[i] = new AimTrimSearch(1, 0.25); }
-    profile = trialsHere = goodHere = poorHere = timeoutsHere = confirmed = confirmTries = 0; rounds = 1;
+    profile = trialsHere = goodHere = poorHere = timeoutsHere = confirmed = confirmTries = streak = 0; rounds = 1;
     confirming = done = false;
     best = null; bestIns = 0; bestSeconds = Double.POSITIVE_INFINITY;
     Arrays.fill(scoredBalls, 0); Arrays.fill(scoredIns, 0);

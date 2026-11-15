@@ -353,10 +353,20 @@ public final class ShootOnTheMoveConstants {
   // rest). No boost and no hood trims: the backward hood follows its own table
   public static boolean VOLLEY_BACKWARD_ON = true;
   public static double VOLLEY_BACKWARD_READY_ABOVE_RPM = 25;
+  // Volley Tuning's backward spots search the same trim as the hooded ones, but a backward ball's range is set by the
+  // RPM (Shot Tuning searches it in 100 RPM steps to 25). Each degree of trim is this many RPM, less RPM for more
+  // trim as a steeper hooded ball goes shorter: the search's 1 deg step is 50 RPM, its 0.5 resolution 25, its
+  // +-4 deg limit +-200
+  public static double VOLLEY_BACKWARD_RPM_PER_TRIM_DEG = 50;
+  // A backward volley's trims without a confirmed backward spot, from Volley Tuning's B3 (15 Nov, 30 volleys): first
+  // balls at -3.5..-4.0 went in 7 of 9 against 2 of 6 at -2.7..-3.0 (mostly short); later balls 4 of 4 at -1.5 but
+  // 20 of 34 at -0.2..-0.4 with 11 short, so between those
+  public static double VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG = -3.7;
+  public static double VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG = -1.0;
   // Launch angle added for the first ball and for balls 2-4, used only without Volley Tuning's CSV. The medians of
-  // the seven spots confirmed on 14-15 Nov at full feed (first -1..+0.9, later -1..-0.5)
-  public static double VOLLEY_FIRST_BALL_TRIM_DEG = -0.5;
-  public static double VOLLEY_LATER_BALL_TRIM_DEG = -1.0;
+  // the eight forward spots confirmed by 15 Nov 1140 (first -2.4..+0.9, later -1..0)
+  public static double VOLLEY_FIRST_BALL_TRIM_DEG = -0.75;
+  public static double VOLLEY_LATER_BALL_TRIM_DEG = -0.75;
   // Lebot Teleop and the scoring auto read Volley Tuning's CSV for their volley settings (VolleySettings), from its
   // confirmed spots only. Back on 15 Nov: spots 4-10 are confirmed at today's full feed, 80-90% in; it was off from
   // 12 Nov while the CSV held only the old ringing recovery and slow feed, whose spot 0 is still unconfirmed

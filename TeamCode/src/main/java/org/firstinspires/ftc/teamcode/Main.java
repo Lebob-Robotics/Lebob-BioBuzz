@@ -193,15 +193,21 @@ public class Main extends PsiKitIterativeOpMode {
   private void applyVolleySettings() {
     if (!wasShooting) {
       boolean placed = robot.isPoseValid() && robot.getLastAim() != null;
-      volleySpot = placed ? volley.spotFor(robot.getPose(), robot.getAimCellX(), robot.getAimCellY()) : -1;
-      VolleySettings.apply(robot, volley.get(volleySpot));
+      // A backward volley takes a tuned backward spot's settings; with none, the hooded spot's as before (its trims
+      // don't apply to the backward shot)
+      boolean backward = placed && robot.getLastAim().backward;
+      volleySpot = backward ? volley.spotFor(robot.getPose(), robot.getAimCellX(), robot.getAimCellY(), true) : -1;
+      if (volleySpot < 0) {
+        volleySpot = placed ? volley.spotFor(robot.getPose(), robot.getAimCellX(), robot.getAimCellY()) : -1;
+      }
+      VolleySettings.apply(robot, volley.get(volleySpot), VolleySpotDrive.isBackward(volleySpot));
     }
     String source;
     if (volleySpot < 0) {
       source = "constants (no tuned spot, or pose not placed)";
     } else {
       boolean near = volley.isNear(robot.getPose(), robot.getAimCellX(), robot.getAimCellY(), volleySpot);
-      source = "tuned spot " + (volleySpot + 1) + (near ? "" : ", the nearest tuned one");
+      source = "tuned spot " + VolleySpotDrive.name(volleySpot) + (near ? "" : ", the nearest tuned one");
     }
     if (robot.isTelemetryDetail()) {
       telemetry.addData("Volley (RB)", source);

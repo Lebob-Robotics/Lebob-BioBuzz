@@ -200,6 +200,8 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     shotLastLoop = sequence.shoot(t);
     robot.setAutoShoot(shotLastLoop);
     robot.setAutoIntake(sequence.intake());
+    robot.setAutoIndexerPaused(sequence.indexerPaused(t));
+    Logger.recordOutput("Auto/IndexerPaused", sequence.indexerPaused(t));
     robot.ramp.setDeployed(sequence.armDown());
     AutoSequence.Step step = sequence.step();
     double inFlowerS = sequence.arrivedForS(t);
@@ -403,6 +405,8 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     telemetry.addData("Auto", String.format(java.util.Locale.US, "%s  %.1f s  %d shot  aim %s%s",
         sequence.step(), t, sequence.ballsShot(), aimCell(),
         sequence.isSkippingSecondFlower() ? "  (skipping 2nd Flower)" : ""));
+    // The Driver Station loads the preselected TeleOp only when the auto ends itself or its timer does
+    telemetry.addData("STOP", "pressed early? Select Lebot Teleop by hand");
     if (!Constants.TUNED) {
       telemetry.addData("WARNING", "Pedro not tuned");
     }
@@ -413,6 +417,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     stopped = true;
     robot.setAutoShoot(false);
     robot.setAutoIntake(false);
+    robot.setAutoIndexerPaused(false);
     robot.ramp.setDeployed(false);
     robot.setAutoHeading(Double.NaN);
     drivetrain.setStrafeBias(0.0);

@@ -67,8 +67,15 @@ public final class VolleySettings {
    * the Cell is nearest the robot's. -1 for the constants.
    */
   public int spotFor(Pose pose, double cellX, double cellY) {
+    return spotFor(pose, cellX, cellY, false);
+  }
+
+  /** As above, among the backward spots for a backward volley and the hooded ones otherwise. */
+  public int spotFor(Pose pose, double cellX, double cellY, boolean backward) {
     boolean[] known = new boolean[spots.length];
-    for (int i = 0; i < spots.length; i++) { known[i] = spots[i] != null; }
+    for (int i = 0; i < spots.length; i++) {
+      known[i] = spots[i] != null && VolleySpotDrive.isBackward(i) == backward;
+    }
     if (pose == null) { return -1; }
     int near = nearestSpot(pose, cellX, cellY, known);
     return near >= 0 ? near : nearestRange(pose, cellX, cellY, known);
@@ -112,7 +119,12 @@ public final class VolleySettings {
 
   /** Puts these settings (null: the constants) on the robot's volley. */
   public static void apply(Robot robot, Settings s) {
-    robot.setVolleyTrimsDeg(s == null ? Double.NaN : s.firstTrim, s == null ? Double.NaN : s.laterTrim);
+    apply(robot, s, false);
+  }
+
+  /** As above; {@code backward} for a backward spot's settings, whose trims are wheel speed. */
+  public static void apply(Robot robot, Settings s, boolean backward) {
+    robot.setVolleyTrimsDeg(s == null ? Double.NaN : s.firstTrim, s == null ? Double.NaN : s.laterTrim, backward);
     robot.setVolleyHeadingTrimDeg(s == null ? Double.NaN : s.headingTrim);
     robot.setVolleyFeedPower(s == null ? Double.NaN : s.feeder);
     robot.setVolleyIndexerPower(s == null ? Double.NaN : s.feeder * s.indexerScale);

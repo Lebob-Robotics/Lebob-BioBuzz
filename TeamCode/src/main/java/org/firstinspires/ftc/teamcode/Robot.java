@@ -220,6 +220,7 @@ public class Robot {
   private boolean volleyMode = false;
   private boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
   private boolean hoodedOnly = false;
+  private boolean backwardOnly = false;
   private double volleyHeadingTrimDeg = Double.NaN;
   private final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
       ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S, ShootOnTheMoveConstants.VOLLEY_FEED_PULSE_S,
@@ -230,6 +231,7 @@ public class Robot {
   // Volley Tuning's settings in place of the constants; NaN (null) for the constant
   private double volleyFirstTrimDeg = Double.NaN;
   private double volleyLaterTrimDeg = Double.NaN;
+  private boolean volleyTrimsBackward = false; // The trims were tuned on backward volleys, not hooded ones
   private double volleyIndexerPower = Double.NaN;
   private double volleyFeedPower = Double.NaN;
   private double volleyBoostRpm = Double.NaN;
@@ -297,6 +299,8 @@ public class Robot {
   private double[] lastTranslation = {0.0, 0.0};
   // Scoring Auto (6 Nov, feature/auto): no gamepad is read (G401); it drives, aims and intakes through these
   private boolean autonomous = false;
+  private boolean autoIndexerPaused = false; // The auto's agitation: a loading indexer stops while true
+  private boolean autoIndexerReverse = false; // ...or runs backward, a jiggle like the volley's retry pulse
   private final Gamepad noGamepad = new Gamepad();
   private boolean autoShoot = false;
   private boolean autoIntake = false;
@@ -884,7 +888,7 @@ public class Robot {
         backward.shot.distanceToLipM);
     if (!ShootOnTheMoveConstants.BACKWARD_SHOTS_ON || backward.shot.reason == Shot.Reason.OUT_OF_RANGE) {
       pickBackward = false;
-    } else if (frontOfCell) {
+    } else if (frontOfCell || backwardOnly) {
       pickBackward = true;
     } else if (ShootOnTheMoveConstants.SHOT_PICK_QUICKEST) {
       // Whichever is ready soonest from the heading, hood and wheels now (8 Nov): no backward arc
@@ -1300,7 +1304,7 @@ public class Robot {
       // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
       shooter.setShooterState(ShooterState.AIM);
       shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE
-          : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim),
+          : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim) + volleyBackwardRpm(aim),
           ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
     } else if (shotJustLost && ShootOnTheMoveConstants.PRESPIN_ON
         && shooter.getShooterState() == ShooterState.AIM) {
@@ -1399,7 +1403,7 @@ public class Robot {
     Logger.recordOutput("Intake/WheelContactFull", wheelContactFull);
     // Not in the auto, whose intake pushes into the Flower's balls the whole time and has no LT to start over.
     // Still packed (last roller stopped), a full intake pushing hard again eases again
-    boolean watchingIntake = loading && !intakeEased && !autoIntake && !tuningMode
+    boolean watchingIntake = StackPressure.ON && loading && !intakeEased && !autoIntake && !tuningMode
         && (indexer.getIndexerState() == IndexerState.LOAD || stackPacked)
         && intake.getIntakeState() == IntakeState.INTAKE;
     if (stackPressure.update(clock.seconds(), watchingIntake, intake.getAmps())) {
@@ -1428,6 +1432,7 @@ public class Robot {
         holdFire || loadingShooter.blocksSpin(), full);
     indexerCommand = packedLoad(indexerCommand, stackPacked);
     indexerCommand = autoStage(indexerCommand, autonomous);
+    indexerCommand = agitated(indexerCommand, autonomous && autoIndexerPaused, autoIndexerReverse);
     if (!ejecting && (loadingShooter.clearing() || (loading && !loadingShooter.canLoad())
         || (spinOnlyOnFire && enabledShot && !feeding && feedGate.feedStarts() == 0))) {
       indexerCommand = IndexerState.STOP;
@@ -1519,6 +1524,19 @@ public class Robot {
    */
   static IndexerState autoStage(IndexerState command, boolean autonomous) {
     return autonomous && command == IndexerState.STAGE ? IndexerState.LOAD : command;
+  }
+
+  /** The auto's agitation pauses only loading: a feed, an eject or a stop goes on as commanded. */
+  static IndexerState agitated(IndexerState command, boolean paused) {
+    return agitated(command, paused, false);
+  }
+
+  /** As above; with reverse the paused part runs the indexer backward, jiggling the stack, instead of stopping it. */
+  static IndexerState agitated(IndexerState command, boolean paused, boolean reverse) {
+    if (!paused || command != IndexerState.LOAD) {
+      return command;
+    }
+    return reverse ? IndexerState.EJECT : IndexerState.STOP;
   }
 
   /** A packed stack loads with its last roller stopped, so nothing creeps the first ball into the wheels. */
@@ -2150,6 +2168,12 @@ public class Robot {
   /** Intakes as LT does, while true. Shooting wins. */
   public void setAutoIntake(boolean on) { autoIntake = on; }
 
+  /** In the auto only: a loading indexer stops while true (the auto's agitation). */
+  public void setAutoIndexerPaused(boolean paused) { autoIndexerPaused = paused; }
+
+  /** In the auto only: the agitation's pause runs the indexer backward instead of stopping it. */
+  public void setAutoIndexerReverse(boolean reverse) { autoIndexerReverse = reverse; }
+
   /** Drives from these powers instead of the sticks; null hands the drive back. */
   public void setAutoDriver(AutoDriver driver) { autoDriver = driver; }
 
@@ -2211,13 +2235,22 @@ public class Robot {
   /** Volley calibration measures the hooded shot at every test spot. */
   public void setHoodedOnly(boolean on) { hoodedOnly = on; }
 
+  /** Volley Tuning's backward spots: the backward shot whenever the table has one. */
+  public void setBackwardOnly(boolean on) { backwardOnly = on; }
+
   /** A, B, X, Y and the D-pad do nothing in the robot, so an OpMode can use them (Volley Tuning's marks). */
   public void setButtonsReserved(boolean on) { buttonsReserved = on; }
 
   /** Launch angle added to a volley's first ball and to balls 2-4; NaN for the constants'. */
   public void setVolleyTrimsDeg(double firstDeg, double laterDeg) {
+    setVolleyTrimsDeg(firstDeg, laterDeg, false);
+  }
+
+  /** As above; {@code backward} when they were tuned on backward volleys, which use them as RPM. */
+  public void setVolleyTrimsDeg(double firstDeg, double laterDeg, boolean backward) {
     volleyFirstTrimDeg = firstDeg;
     volleyLaterTrimDeg = laterDeg;
+    volleyTrimsBackward = backward;
   }
 
   /** Feeder and indexer power during a volley; NaN for VOLLEY_FEED_POWER. */
@@ -2309,11 +2342,35 @@ public class Robot {
           Math.min(boost + ShootOnTheMoveConstants.VOLLEY_READY_ABOVE_RPM, above));
       followDeg = gain * (ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, above) - boostDeg);
     }
+    return finiteOr0(boostDeg + followDeg) + volleyTrimDeg(false);
+  }
+
+  /**
+   * The trim for the ball about to go. A backward volley uses only trims tuned on backward volleys, else the backward
+   * constants; a hooded one only hooded trims, else the hooded constants.
+   */
+  private double volleyTrimDeg(boolean backward) {
     boolean first = volleyFeedGate.ballsLeft() == 0;
-    double trim = first
-        ? (Double.isNaN(volleyFirstTrimDeg) ? ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG : volleyFirstTrimDeg)
-        : (Double.isNaN(volleyLaterTrimDeg) ? ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG : volleyLaterTrimDeg);
-    return finiteOr0(boostDeg + followDeg) + trim;
+    return volleyTrimDeg(first ? volleyFirstTrimDeg : volleyLaterTrimDeg, volleyTrimsBackward, backward, first);
+  }
+
+  static double volleyTrimDeg(double trim, boolean volleyTrimsBackward, boolean backward, boolean first) {
+    if (backward) {
+      if (volleyTrimsBackward && !Double.isNaN(trim)) { return trim; }
+      return first ? ShootOnTheMoveConstants.VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG
+          : ShootOnTheMoveConstants.VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG;
+    }
+    if (volleyTrimsBackward || Double.isNaN(trim)) {
+      return first ? ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG
+          : ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG;
+    }
+    return trim;
+  }
+
+  /** A backward volley's trim, as wheel speed: its hood follows the table, and its range comes from the RPM. */
+  private double volleyBackwardRpm(Aim aim) {
+    return volleyAim(aim) && aim.backward
+        ? -ShootOnTheMoveConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * volleyTrimDeg(true) : 0;
   }
 
   private void logVolley() {

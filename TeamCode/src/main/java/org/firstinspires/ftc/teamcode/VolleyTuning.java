@@ -37,7 +37,8 @@ import java.util.Map;
  * still unmarked IN at once.
  * Hold X+Circle and release X for a collision with another ball (Circle alone always moves/cancels).
  * All numerical settings are searched automatically; the D-pad only marks miss direction.
- * INIT Y chooses carry-on/new searches; X/B select alliance. Sticks do not drive the robot.
+ * INIT Y chooses carry-on/new searches; X/B select alliance. Sticks do not drive the robot. Pressing the left
+ * stick (L3) switches between the hooded spots and the backward ones (B1-B4), between volleys.
  * Searches and feed power are saved separately for every spot in a new CSV; old data is untouched.
  */
 @TeleOp(name = "Volley Tuning", group = "Tuning")
@@ -56,12 +57,15 @@ public class VolleyTuning extends Main {
   private int selectedSpot;
   private boolean carryOn = true;
   /**
-   * The spot it starts at: a FieldRoute.GRID index (shown one higher on the Driver Station), VolleySpotDrive.PARK
-   * for the Scoring Auto's park against our wall, or -1 to resume the CSV's last spot. Spot 4, where the auto now
-   * shoots, went 46 of 52 in (14 Nov 224053); the park is the auto's other shot.
+   * The spot it starts at: a VolleySpotDrive index (grid spots shown one higher on the Driver Station),
+   * {@link #FIRST_UNTUNED} for the first unconfirmed spot in Circle's order, or -1 to resume the CSV's last spot.
    */
-  public static int START_SPOT = VolleySpotDrive.PARK;
-  private boolean wasInitY, wasCircle, wasY, wasAllIn;
+  public static int START_SPOT = -2;
+  static final int FIRST_UNTUNED = -2;
+  private boolean backwardMode;
+  static final double SKIP_MARKS_S = 2.0;
+  private double blockedCircleS = Double.NEGATIVE_INFINITY;
+  private boolean wasInitY, wasCircle, wasY, wasAllIn, wasL3;
   private boolean collisionMark;
   private VolleyAutoTuner auto;
   private VolleyAutoTuner.Settings settings;
@@ -85,8 +89,40 @@ public class VolleyTuning extends Main {
     robot.setHoldFire(true);
     robot.setSpinOnlyOnFire(true);
     history = readCsv();
-    selectedSpot = startSpot(START_SPOT, history);
+    pickStartSpot();
+  }
+
+  private void pickStartSpot() {
+    if (START_SPOT == FIRST_UNTUNED) {
+      selectedSpot = firstUntunedSpot();
+    } else {
+      selectedSpot = startSpot(START_SPOT, history);
+      backwardMode = VolleySpotDrive.isBackward(selectedSpot);
+    }
     auto = tuner(selectedSpot); cal = auto.calibration();
+  }
+
+  private int firstUntunedSpot() {
+    return VolleySpotDrive.firstUntuned(doneSpots(), VolleySpotDrive.order(backwardMode));
+  }
+
+  private boolean[] doneSpots() {
+    boolean[] done = new boolean[VolleySpotDrive.SPOTS];
+    for (int i = 0; i < done.length; i++) {
+      // Forward spots are revisited after confirming until solid; backward ones aren't tuned that far yet
+      done[i] = VolleySpotDrive.isBackward(i) ? tuner(i).done() : tuner(i).solid();
+    }
+    return done;
+  }
+
+  /** L3: the other set of spots, at its first unconfirmed one. Only between volleys, with every ball marked. */
+  private void switchSpots() {
+    if (trial.active() || cal.marksPending()) { lastMarkText = "Finish and mark the volley before switching"; return; }
+    backwardMode = !backwardMode;
+    selectedSpot = firstUntunedSpot();
+    auto = tuner(selectedSpot); cal = auto.calibration();
+    position.stop((backwardMode ? "BACKWARD" : "HOODED") + " spots; Circle drives to spot "
+        + VolleySpotDrive.name(selectedSpot));
   }
 
   @Override protected boolean usesTunedVolley() { return false; } // It sets each trial's settings itself
@@ -97,18 +133,18 @@ public class VolleyTuning extends Main {
     wasInitY = y;
     telemetry.addData("Volley Tuning", carryOn ? "CARRY ON saved spots (Y: new searches)"
         : "NEW searches (Y: carry on)");
-    telemetry.addData("Controls", "Circle moves/holds; LT loads FOUR; hold RB fires; X/D-pad/A mark");
+    telemetry.addData("Controls", "Circle moves/holds; LT loads FOUR; hold RB fires; X/D-pad/A mark; L3 backward");
     super.onPsiKitInitLoop();
   }
 
   @Override protected void onPsiKitStart() {
     if (!carryOn) {
-      history.clear(); spots.clear(); selectedSpot = startSpot(START_SPOT, history);
-      auto = tuner(selectedSpot); cal = auto.calibration();
+      history.clear(); spots.clear(); pickStartSpot();
       append(resetCsvRow(session));
     }
     wasCircle = robot().getDriver().b;
     wasY = robot().getDriver().y;
+    wasL3 = robot().getDriver().left_stick_button;
     clock.reset();
     super.onPsiKitStart();
   }
@@ -120,13 +156,17 @@ public class VolleyTuning extends Main {
     readMarks(g);
     if (g.b && !wasCircle && !g.x && !keys.isMarking()) { circle(now); }
     wasCircle = g.b;
+    if (g.left_stick_button && !wasL3) { switchSpots(); }
+    wasL3 = g.left_stick_button;
+    robot.setHoodedOnly(!backwardMode);
+    robot.setBackwardOnly(backwardMode);
     Pose pose = robot.getPose();
     position.acquire(now, pose, robot.isPoseValid() && robot.getLastAim() != null,
         robot.getPositionFixes(), robot.getAimCellX(), robot.getAimCellY(), robot.getTagsSeenAgoS());
     position.update(now, pose, robot.getVelocity(), robot.isPoseValid(), robot.getPositionFixes());
     if (!trial.active()) {
       settings = auto.current();
-      robot.setVolleyTrimsDeg(settings.firstTrim, settings.laterTrim);
+      robot.setVolleyTrimsDeg(settings.firstTrim, settings.laterTrim, backwardMode);
       robot.setVolleyHeadingTrimDeg(settings.headingTrim);
       robot.setVolleyFeedPower(settings.feeder);
       robot.setVolleyIndexerPower(settings.feeder * settings.indexerScale);
@@ -144,6 +184,7 @@ public class VolleyTuning extends Main {
     super.onPsiKitLoop();
     track(now);
     Logger.recordOutput("VolleyTuning/Spot", selectedSpot);
+    Logger.recordOutput("VolleyTuning/Backward", backwardMode);
     Logger.recordOutput("VolleyTuning/PositionStage", position.stage().name());
     Logger.recordOutput("VolleyTuning/PositionStatus", position.status());
     Logger.recordOutput("VolleyTuning/SearchTurn", position.turn());
@@ -161,14 +202,19 @@ public class VolleyTuning extends Main {
         || position.stage() == VolleySpotDrive.Stage.SETTLING) {
       position.stop("Move cancelled; Circle retries"); return;
     }
-    if (cal.marksPending()) { lastMarkText = "Mark all FOUR balls before moving"; return; }
+    if (cal.marksPending()) {
+      // A second Circle skips the marking: what's left is saved unseen, so that volley doesn't count
+      if (now - blockedCircleS > SKIP_MARKS_S) {
+        blockedCircleS = now;
+        lastMarkText = "Mark all FOUR balls before moving (Circle again: skip them as unseen)";
+        return;
+      }
+      while (cal.marksPending()) { markBall(VolleyCalibration.UNSEEN); }
+    }
+    blockedCircleS = Double.NEGATIVE_INFINITY;
     int next = selectedSpot;
     if (position.ready()) {
-      boolean[] done = new boolean[VolleySpotDrive.SPOTS];
-      for (int i = 0; i < done.length; i++) {
-        done[i] = tuner(i).done();
-      }
-      next = VolleySpotDrive.nextVolleySpot(selectedSpot, done);
+      next = VolleySpotDrive.nextVolleySpot(selectedSpot, doneSpots(), VolleySpotDrive.order(backwardMode));
       if (next < 0) { lastMarkText = "All spots confirmed"; return; }
     }
     Robot robot = robot();
@@ -258,6 +304,7 @@ public class VolleyTuning extends Main {
     if (robot != null) {
       robot.setHoldFire(true); robot.setForceAim(false); robot.setHoldPoint(null);
       robot.setTurnOverride(0); robot.setDriveOverride(null); robot.setSticksLocked(false); robot.setHoodedOnly(false);
+      robot.setBackwardOnly(false); robot.setVolleyTrimsDeg(Double.NaN, Double.NaN);
     }
     super.onPsiKitStop();
   }
@@ -327,13 +374,16 @@ public class VolleyTuning extends Main {
   }
 
   private void addTelemetry() {
+    telemetry.addData("SPOTS", backwardMode ? "BACKWARD B1-B4 (each trim deg is -50 RPM; L3: hooded)"
+        : "HOODED (L3: backward B1-B4)");
     telemetry.addData("POSITION", position.status());
     telemetry.addData("Spot", "%s of %d; intake %s; full %s", VolleySpotDrive.name(selectedSpot), VolleySpotDrive.SPOTS,
         robot().getDriver().left_trigger > Robot.TRIGGER_PRESSED ? "loading (LT)" : "automatic", robot().intake.isFull());
     if (trial.active()) {
       telemetry.addData("VOLLEY", "Hold RB: %d/4 detected; release or Circle cancels", trial.balls());
     } else if (cal.marksPending()) {
-      telemetry.addData("MARK", "Ball %d/4: LB ALL IN; X in; X+D-pad miss; A bounce; X+Circle collision; Y unseen",
+      telemetry.addData("MARK", "Ball %d/4: LB ALL IN; X in; X+D-pad miss; A bounce; X+Circle collision; Y unseen; "
+          + "Circle twice skips",
           cal.marked() + 1);
     } else {
       telemetry.addData("READY", "Load FOUR with LT. Hold RB fires at the held spot. Circle moves to next spot.");

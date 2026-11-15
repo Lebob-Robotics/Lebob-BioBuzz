@@ -66,6 +66,30 @@ public class VolleyAutoTunerTest {
     assertEquals(0, t.current().profile);
   }
 
+  @Test public void aConfirmedSettingIsSolidOnlyAfterFourGoodInARow() {
+    VolleyAutoTuner t = new VolleyAutoTuner();
+    trial(t, 2, "IN", "IN", "BOUNCE", "IN");
+    trial(t, 2, "IN", "IN", "IN", "IN");
+    assertTrue(t.done());
+    assertFalse("two good volleys confirm, not solid", t.solid());
+    trial(t, "IN", 2);
+    assertFalse(t.solid());
+    trial(t, 2, "IN", "IN", "SHORT", "IN");
+    assertTrue(t.solid());
+    trial(t, 2, "IN", "BOUNCE", "BOUNCE", "IN"); // A miss reopens it
+    assertFalse(t.done());
+    assertFalse(t.solid());
+  }
+
+  @Test public void unseenVolleysDontBreakOrExtendTheStreak() {
+    VolleyAutoTuner t = new VolleyAutoTuner();
+    for (int i = 0; i < 3; i++) { trial(t, "IN", 2); }
+    trial(t, 2, "IN", "IN", "IN", VolleyCalibration.UNSEEN);
+    assertEquals(3, t.streak());
+    trial(t, "IN", 2);
+    assertTrue(t.solid());
+  }
+
   @Test public void aConfirmedSettingShootsAtTheMiddleOfTheTrimsThatScored() {
     VolleyAutoTuner t = new VolleyAutoTuner();
     trial(t, "SHORT", 2); // Moves the trims off 0 so the two good volleys fire at different ones

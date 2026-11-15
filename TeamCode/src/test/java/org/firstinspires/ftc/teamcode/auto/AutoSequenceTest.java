@@ -53,6 +53,24 @@ public class AutoSequenceTest {
   }
 
   @Test
+  public void theIndexerAgitatesOnlyTakingTheGardenAndFlowers() {
+    seq.takeNewStep();
+    assertFalse("not at the Hive", seq.indexerPaused(0.5));
+    quickTo(Step.DRIVE_TO_GARDEN);
+    assertFalse("not on the drive", seq.indexerPaused(t + 0.5));
+    quickTo(Step.FACE_GARDEN);
+    double start = t; // The step began this loop
+    double run = AutoSequence.AGITATE_RUN_S, stop = AutoSequence.AGITATE_STOP_S;
+    assertFalse("runs first", seq.indexerPaused(start + run / 2));
+    assertTrue("then stops", seq.indexerPaused(start + run + stop / 2));
+    assertFalse("and runs again", seq.indexerPaused(start + run + stop + run / 2));
+    quickTo(Step.INTAKE_WALL_FLOWER);
+    assertTrue("in the Flower too", seq.indexerPaused(t + run + stop / 2));
+    quickTo(Step.SHOOT_WALL_FLOWER);
+    assertFalse("never while shooting", seq.indexerPaused(t + run + stop / 2));
+  }
+
+  @Test
   public void followsThePlan() {
     assertTrue(seq.takeNewStep());
     assertEquals(Step.SHOOT_PRELOAD, seq.step());

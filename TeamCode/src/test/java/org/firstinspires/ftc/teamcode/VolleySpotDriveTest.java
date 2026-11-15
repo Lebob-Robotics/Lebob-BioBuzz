@@ -18,10 +18,12 @@ public class VolleySpotDriveTest {
   @Test public void volleyTuningVisitsTheAutosSpotsFirstAndSkipsTheFrontOnes() {
     boolean[] done = new boolean[VolleySpotDrive.SPOTS];
     assertEquals(4, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK, done));
-    assertEquals(5, VolleySpotDrive.nextVolleySpot(4, done));
+    assertEquals(VolleySpotDrive.PARK + 1, VolleySpotDrive.nextVolleySpot(4, done));
+    assertEquals(5, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK + 2, done));
     assertEquals(VolleySpotDrive.PARK, VolleySpotDrive.nextVolleySpot(9, done));
     assertEquals(VolleySpotDrive.PARK, VolleySpotDrive.nextVolleySpot(0, done)); // From a front spot: the start
-    done[VolleySpotDrive.PARK] = done[4] = done[5] = true;
+    done[VolleySpotDrive.PARK] = done[4] = done[VolleySpotDrive.PARK + 1] = done[VolleySpotDrive.PARK + 2] = true;
+    done[5] = true;
     assertEquals(6, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK, done));
     for (int s : VolleySpotDrive.VOLLEY_ORDER) { done[s] = true; }
     assertEquals(-1, VolleySpotDrive.nextVolleySpot(4, done));
@@ -103,6 +105,20 @@ public class VolleySpotDriveTest {
       if (VisionCorrector.upCellAimPoint(Alliance.RED, c)[0] < 0) { return c; }
     }
     throw new AssertionError();
+  }
+
+  @Test public void extraSpotsComeAfterTheParkAndAreReachable() {
+    assertEquals(VolleySpotDrive.PARK + 3, VolleySpotDrive.BACKWARD_FIRST);
+    assertEquals("11", VolleySpotDrive.name(VolleySpotDrive.PARK + 1));
+    assertEquals("12", VolleySpotDrive.name(VolleySpotDrive.PARK + 2));
+    assertEquals("10", VolleySpotDrive.name(9));
+    assertArrayEquals(new double[] {-1.30, -0.95}, VolleySpotDrive.point(VolleySpotDrive.PARK + 1, -.44, -.324), 1e-9);
+    assertArrayEquals(new double[] {1.22, -0.20}, VolleySpotDrive.point(VolleySpotDrive.PARK + 2, .44, .324), 1e-9);
+    for (int s = VolleySpotDrive.PARK + 1; s < VolleySpotDrive.SPOTS; s++) {
+      VolleySpotDrive d = new VolleySpotDrive();
+      assertTrue("spot " + s, d.start(s, -.44, -.324, 0, new Pose(-1.0, -1.0, 0), true, 1));
+      assertEquals(VolleySpotDrive.Stage.MOVING, d.stage());
+    }
   }
 
   @Test public void testSpotsHaveAUsableHoodedTableShot() {

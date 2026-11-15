@@ -12,6 +12,10 @@ import org.junit.Test;
 public class VolleySettingsTest {
   /** CSV lines for {@code volleys} four-ball volleys at spot 0, every ball marked {@code mark}. */
   private static List<String> spotZero(int volleys, String mark) {
+    return spotRows(0, volleys, mark);
+  }
+
+  private static List<String> spotRows(int spot, int volleys, String mark) {
     VolleyAutoTuner t = new VolleyAutoTuner();
     List<String> lines = new ArrayList<>();
     lines.add(VolleyTuning.CSV_HEADER);
@@ -21,7 +25,7 @@ public class VolleySettingsTest {
       c.startVolley(s.firstTrim, s.laterTrim);
       for (int i = 0; i < 4; i++) {
         c.fed();
-        lines.add(VolleyTuning.resultRow("s", c, c.mark(mark), s, 0, new double[] {-1, -.32}, 2,
+        lines.add(VolleyTuning.resultRow("s", c, c.mark(mark), s, spot, new double[] {-1, -.32}, 2,
             "four detected balls"));
       }
       t.completed(c.balls(), 2, "four detected balls");
@@ -78,6 +82,18 @@ public class VolleySettingsTest {
     // 1.8 m from the Cell on the far side of it: spot 9's distance, though nowhere near spot 9
     assertEquals(9, VolleySettings.nearestRange(new Pose(1.2, 0.5, 0), cell[0], cell[1], known));
     assertEquals(4, VolleySettings.nearestRange(new Pose(0.5, -0.32, 0), cell[0], cell[1], known));
+  }
+
+  @Test public void backwardSpotsOnlyServeBackwardVolleys() {
+    int b3 = VolleySpotDrive.BACKWARD_FIRST + 2;
+    VolleySettings v = VolleySettings.fromLines(spotRows(b3, 3, "IN"));
+    assertTrue(v.isConfirmed(b3));
+    double[] p = VolleySpotDrive.point(b3, -1.5, -1.5);
+    Pose there = new Pose(p[0], p[1], 0);
+    assertEquals(b3, v.spotFor(there, -1.5, -1.5, true));
+    assertEquals(-1, v.spotFor(there, -1.5, -1.5)); // A hooded volley never takes a backward spot's settings
+    VolleySettings hooded = VolleySettings.fromLines(spotZero(3, "IN"));
+    assertEquals(-1, hooded.spotFor(there, -1.5, -1.5, true));
   }
 
   @Test public void unscoredSpotGivesNoSettings() {

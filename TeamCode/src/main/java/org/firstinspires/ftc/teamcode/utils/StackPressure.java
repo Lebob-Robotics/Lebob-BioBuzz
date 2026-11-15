@@ -10,6 +10,11 @@ import com.bylazar.configurables.annotations.Configurable;
  */
 @Configurable
 public class StackPressure {
+  /**
+   * Off (15 Nov 134217): balls coming in read 4.2-5.1 A too, so it tripped 1.1 s into loading and the intake spent
+   * 46% of its on-time at half power with the last roller stopped. True brings back easing and the roller stop.
+   */
+  public static boolean ON = false;
   public static double PACKED_AMPS = 4.2;
   public static double PACKED_S = 0.4;
   /** Intake power while packed: enough to keep the last ball in, about half the push. */

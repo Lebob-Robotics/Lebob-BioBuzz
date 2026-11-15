@@ -84,6 +84,12 @@ public final class AutoSequence {
   public static double WIGGLE_RAD = Math.toRadians(7);
   /** One wiggle, left and right and back: two in the dwell. */
   public static double WIGGLE_PERIOD_S = 0.5;
+  /**
+   * Taking the Garden and the Flowers, the indexer agitates: it loads AGITATE_RUN_S, stops AGITATE_STOP_S, and over,
+   * so balls jammed in the intake's mouth settle in (15 Nov). Guesses: tune on the field. 0 stop is off.
+   */
+  public static double AGITATE_RUN_S = 0.4;
+  public static double AGITATE_STOP_S = 0.2;
   /** The arm's move between stowed and deployed: about 130 degrees on the REV servo. */
   public static double ARM_MOVE_S = 0.4;
   /** Longest to face a Flower from the stop short of it; then the arm is lowered anyway as the robot drives in. */
@@ -317,6 +323,28 @@ public final class AutoSequence {
       default:
         return false;
     }
+  }
+
+  /** True while the indexer stops in its agitation: taking the Garden or a Flower, in each cycle's stop part. */
+  public boolean indexerPaused(double nowS) {
+    switch (step) {
+      case FACE_GARDEN:
+      case ONTO_GARDEN_WALL:
+      case SWEEP_GARDEN:
+      case LOWER_ARM_WALL:
+      case INTAKE_WALL_FLOWER:
+      case LOWER_ARM_REAR:
+      case INTAKE_REAR_FLOWER:
+        return agitationPaused(nowS - stepStartS, AGITATE_RUN_S, AGITATE_STOP_S);
+      default:
+        return false;
+    }
+  }
+
+  /** Running for runS from the step's start, then stopped for stopS, and over. */
+  static boolean agitationPaused(double inStepS, double runS, double stopS) {
+    if (!(stopS > 0) || !(runS > 0) || inStepS < 0) { return false; }
+    return inStepS % (runS + stopS) >= runS;
   }
 
   /**

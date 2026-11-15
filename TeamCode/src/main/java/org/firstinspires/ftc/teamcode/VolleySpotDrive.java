@@ -29,7 +29,24 @@ final class VolleySpotDrive {
    * toward the wall until the wall stops it, and holds there pushed against it as the auto does.
    */
   static final int PARK = FieldRoute.GRID.length;
-  static final int SPOTS = PARK + 1;
+  /**
+   * Volley-only spots after the park, numbered on from it so saved spot numbers keep their meaning. Where TeleOp's
+   * hooded volleys left from 0.3-0.6 m off every tuned spot (15 Nov matches): along the side wall 30-39 degrees off
+   * the Cell (6 balls, on spot 5's settings), and level with the Cell just outside the backward wedge (2 balls).
+   */
+  static final double[][] EXTRA = {
+      {-1.30, -0.95}, // 11: 1.11 m from the aim point, 34 degrees off
+      {-1.22, 0.20},  // 12: 0.94 m, 34 the other way
+  };
+  /**
+   * Backward volley spots, after the extra ones: grid spots 1-4, straight out from the Cell, where TeleOp shoots
+   * backward (BACKWARD_ONLY_WEDGE_DEG). Shown as B1-B4.
+   */
+  static final int BACKWARD_FIRST = PARK + 1 + EXTRA.length;
+  static final int BACKWARD_SPOTS = 4;
+  static final int SPOTS = BACKWARD_FIRST + BACKWARD_SPOTS;
+
+  static boolean isBackward(int index) { return index >= BACKWARD_FIRST; }
   static final double PARK_APPROACH_M = 1.30;
   static final double PARK_CREEP_STICK = 0.25;
   static final double PARK_PUSH_STICK = 0.15;
@@ -42,7 +59,8 @@ final class VolleySpotDrive {
   static final double PARK_POSE_SLACK_M = 0.10;
 
   static double[] point(int index, double cellX, double cellY) {
-    double[] p = index == PARK ? parkPoint() : FieldRoute.GRID[index];
+    double[] p = index == PARK ? parkPoint() : isBackward(index) ? FieldRoute.GRID[index - BACKWARD_FIRST]
+        : index > PARK ? EXTRA[index - PARK - 1] : FieldRoute.GRID[index];
     return new double[] {p[0] * (cellX < 0 ? 1 : -1), p[1] * (cellY < 0 ? 1 : -1)};
   }
 
@@ -58,7 +76,8 @@ final class VolleySpotDrive {
   }
 
   static String name(int index) {
-    return index == PARK ? "PARK" : Integer.toString(index + 1);
+    return index == PARK ? "PARK" : isBackward(index) ? "B" + (index - BACKWARD_FIRST + 1)
+        : Integer.toString(index > PARK ? index : index + 1);
   }
 
   private boolean creeping;
@@ -66,20 +85,39 @@ final class VolleySpotDrive {
 
   /**
    * The spots Volley Tuning visits, in order: the auto's two shots (the park, spot 4), then the side spots TeleOp
-   * volleys from. Not spots 0-3: they are within BACKWARD_ONLY_WEDGE_DEG of straight out from the Cell, where TeleOp
-   * now shoots backward, and hooded volleys there bounced (spot 0: 86 of 260 IN, 14 Nov).
+   * volleys from, with the extra spots beside their neighbours. Not spots 0-3: they are within BACKWARD_ONLY_WEDGE_DEG
+   * of straight out from the Cell, where TeleOp now shoots backward, and hooded volleys there bounced (spot 0: 86 of
+   * 260 IN, 14 Nov).
    */
-  static final int[] VOLLEY_ORDER = {PARK, 4, 5, 6, 7, 8, 9};
+  static final int[] VOLLEY_ORDER = {PARK, 4, PARK + 1, PARK + 2, 5, 6, 7, 8, 9};
+  /**
+   * The backward spots, most used first: TeleOp's backward volleys left from the side wall near B3 and B4, 29 and 28
+   * degrees off (15 Nov matches); B1 is 0.40 m out.
+   */
+  static final int[] BACKWARD_ORDER = {BACKWARD_FIRST + 2, BACKWARD_FIRST + 3, BACKWARD_FIRST + 1, BACKWARD_FIRST};
+
+  static int[] order(boolean backward) { return backward ? BACKWARD_ORDER : VOLLEY_ORDER; }
 
   /** The next unconfirmed spot in {@link #VOLLEY_ORDER} after {@code current}, wrapping; -1 when all are done. */
   static int nextVolleySpot(int current, boolean[] done) {
+    return nextVolleySpot(current, done, VOLLEY_ORDER);
+  }
+
+  /** The next unconfirmed spot in {@code order} after {@code current}, wrapping; -1 when all are done. */
+  static int nextVolleySpot(int current, boolean[] done, int[] order) {
     int at = -1;
-    for (int i = 0; i < VOLLEY_ORDER.length; i++) { if (VOLLEY_ORDER[i] == current) { at = i; } }
-    for (int n = 1; n <= VOLLEY_ORDER.length; n++) {
-      int spot = VOLLEY_ORDER[(at + n) % VOLLEY_ORDER.length];
+    for (int i = 0; i < order.length; i++) { if (order[i] == current) { at = i; } }
+    for (int n = 1; n <= order.length; n++) {
+      int spot = order[(at + n) % order.length];
       if (spot < done.length && !done[spot]) { return spot; }
     }
     return -1;
+  }
+
+  /** The first unconfirmed spot in {@code order}; its first spot when all are done. */
+  static int firstUntuned(boolean[] done, int[] order) {
+    for (int spot : order) { if (spot < done.length && !done[spot]) { return spot; } }
+    return order[0];
   }
 
   static int nextSpot(int current, boolean[] done) {

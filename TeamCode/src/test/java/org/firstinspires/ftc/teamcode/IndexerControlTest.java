@@ -109,4 +109,16 @@ public class IndexerControlTest {
     assertEquals(IndexerState.STOP, Robot.autoStage(IndexerState.STOP, true));
     assertEquals("TeleOp stages as before", IndexerState.STAGE, Robot.autoStage(IndexerState.STAGE, false));
   }
+
+  @Test
+  public void agitationPausesOnlyLoading() {
+    assertEquals(IndexerState.STOP, Robot.agitated(IndexerState.LOAD, true));
+    assertEquals(IndexerState.LOAD, Robot.agitated(IndexerState.LOAD, false));
+    assertEquals(IndexerState.FEED, Robot.agitated(IndexerState.FEED, true));
+    assertEquals(IndexerState.EJECT, Robot.agitated(IndexerState.EJECT, true));
+    assertEquals("the jiggle backs the stack off", IndexerState.EJECT, Robot.agitated(IndexerState.LOAD, true, true));
+    assertEquals(IndexerState.LOAD, Robot.agitated(IndexerState.LOAD, false, true));
+    assertEquals(IndexerState.FEED, Robot.agitated(IndexerState.FEED, true, true));
+    assertEquals(IndexerState.STOP, Robot.agitated(IndexerState.STOP, true, true));
+  }
 }
