@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 import org.junit.Test;
 
 public class AutoFieldTest {
@@ -184,7 +184,7 @@ public class AutoFieldTest {
   @Test
   public void theAutoAimsALittleTowardTheMiddleAtEitherCell() {
     for (Alliance alliance : Alliance.values()) {
-      for (VisionCorrector.Cell cell : VisionCorrector.Cell.values()) {
+      for (Cell cell : Cell.values()) {
         double[] cellAim = VisionCorrector.upCellAimPoint(alliance, cell);
         double[] aim = AutoField.autoAimPoint(alliance, cell);
         assertEquals(Math.abs(cellAim[0]) - AutoField.AIM_INWARD_M, Math.abs(aim[0]), 1e-9);

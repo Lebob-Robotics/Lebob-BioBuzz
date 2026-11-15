@@ -19,9 +19,9 @@ import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * The corner autonomous ({@link CornerSequence}), for one alliance: preloads from the rear corner, a wait there, then
@@ -196,7 +196,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
         && Math.abs(Angles.normalize(pose.headingRad - wallHeading())) <= ScoringAuto.FACE_FLOWER_RAD;
   }
 
-  private VisionCorrector.Cell aimCell() {
+  private Cell aimCell() {
     if (sequence == null) {
       return CornerSequence.nearCell(alliance);
     }

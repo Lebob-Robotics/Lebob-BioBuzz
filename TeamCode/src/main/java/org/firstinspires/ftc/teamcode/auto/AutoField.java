@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * Where the autonomous goes, as {x, y, heading} for the robot's centre: metres and radians, red alliance. Blue is

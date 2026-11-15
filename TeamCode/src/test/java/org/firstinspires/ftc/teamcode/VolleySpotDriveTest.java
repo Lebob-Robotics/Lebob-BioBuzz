@@ -5,6 +5,7 @@ import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.auto.AutoField;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.junit.Test;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 public class VolleySpotDriveTest {
   @Test public void pointsMirrorLikeShotTuning() {
@@ -100,8 +101,8 @@ public class VolleySpotDriveTest {
     assertFalse(d.active());
   }
 
-  private static VisionCorrector.Cell redCellAtMinusX() {
-    for (VisionCorrector.Cell c : VisionCorrector.Cell.values()) {
+  private static Cell redCellAtMinusX() {
+    for (Cell c : Cell.values()) {
       if (VisionCorrector.upCellAimPoint(Alliance.RED, c)[0] < 0) { return c; }
     }
     throw new AssertionError();

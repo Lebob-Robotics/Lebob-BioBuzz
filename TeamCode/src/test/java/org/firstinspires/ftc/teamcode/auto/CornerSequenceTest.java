@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.auto.CornerSequence.Step;
 import org.firstinspires.ftc.teamcode.field.Angles;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 import org.junit.Test;
 
 public class CornerSequenceTest {

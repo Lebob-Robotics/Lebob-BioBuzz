@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.auto;
 
 import static org.junit.Assert.assertEquals;
 
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 import org.junit.Test;
 
 public class TipPredictorTest {

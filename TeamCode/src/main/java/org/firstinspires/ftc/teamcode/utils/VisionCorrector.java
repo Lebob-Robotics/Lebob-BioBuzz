@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.utils.VisionResult.TagReject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * Keeps the odometry pose honest from the Hive's AprilTags, and tracks which Cell of each Hive is up.
@@ -23,9 +24,6 @@ import java.util.List;
  * z up. Keep one corrector for the OpMode, since it holds the tip votes.
  */
 public final class VisionCorrector {
-  /** One end of a Hive. Exactly one of the two Cells is up at a time. */
-  public enum Cell { AUDIENCE, SCORING }
-
   private Cell upCellRed = Cell.AUDIENCE; // Starts red AUDIENCE, blue SCORING. Vision flips them
   private Cell upCellBlue = Cell.SCORING;
   private final int[] flipVotes = new int[2]; // Frames in a row voting against the current up Cell: red, blue
@@ -127,10 +125,6 @@ public final class VisionCorrector {
     return null;
   }
 
-  public static Cell otherCell(Cell cell) {
-    return cell == Cell.AUDIENCE ? Cell.SCORING : Cell.AUDIENCE;
-  }
-
   /**
    * The field position of a tag centre.
    *
@@ -216,7 +210,7 @@ public final class VisionCorrector {
         if (Math.abs(heightM - CLUSTER_UP_Z_M) < Z_TOL_M) {
           measuredUp = cell;
         } else if (Math.abs(heightM - CLUSTER_DOWN_Z_M) < Z_TOL_M) {
-          measuredUp = otherCell(cell);
+          measuredUp = cell.other();
         } else {
           reject = TagReject.BAD_Z;
         }

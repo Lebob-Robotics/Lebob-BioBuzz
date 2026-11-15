@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.VolleySettings;
 import org.firstinspires.ftc.teamcode.VolleySettingsAccess;
 import org.firstinspires.ftc.teamcode.utils.Pose;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.utils.VolleyAutoTuner.Settings;
 import org.junit.Test;
 

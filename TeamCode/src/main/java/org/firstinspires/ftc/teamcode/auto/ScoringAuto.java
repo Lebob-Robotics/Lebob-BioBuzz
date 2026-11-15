@@ -19,9 +19,9 @@ import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * The shooting autonomous ({@link AutoSequence}), for one alliance. Pedro follows the paths from the Robot's own
@@ -72,9 +72,9 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   private double speedMps;
   private double stepStartS;
   /** The Cell the current shooting spot is in front of, picked as its drive started. */
-  private VisionCorrector.Cell shotSpotCell;
+  private Cell shotSpotCell;
   /** The Cell up at the start, the first volley's: the plan's later volleys alternate from it. */
-  private VisionCorrector.Cell firstCell;
+  private Cell firstCell;
 
   protected ScoringAuto(Alliance alliance) {
     this.alliance = alliance;
@@ -256,7 +256,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   }
 
   /** The Cell to aim at: the plan's for the last shooting step started, the start's up Cell before the first. */
-  private VisionCorrector.Cell aimCell() {
+  private Cell aimCell() {
     return shotSpotCell != null ? shotSpotCell : firstCell;
   }
 

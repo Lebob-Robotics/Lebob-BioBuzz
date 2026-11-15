@@ -5,6 +5,7 @@ import org.firstinspires.ftc.teamcode.auto.AutoField;
 import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.utils.ShotTuningSettings;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /** Volley Tuning uses Shot Tuning's spots, safe routes and persistent field-point hold. */
 final class VolleySpotDrive {
@@ -66,7 +67,7 @@ final class VolleySpotDrive {
 
   /** The park for the Cell at -x, -y, as the grid's spots are: red's, back to its -x Cell. */
   static double[] parkPoint() {
-    for (VisionCorrector.Cell c : VisionCorrector.Cell.values()) {
+    for (Cell c : Cell.values()) {
       if (VisionCorrector.upCellAimPoint(Alliance.RED, c)[0] < 0) {
         double[] p = AutoField.parkSpot(Alliance.RED, c);
         return new double[] {p[0], p[1]};

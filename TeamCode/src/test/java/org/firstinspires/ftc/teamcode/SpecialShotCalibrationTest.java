@@ -5,11 +5,12 @@ import static org.junit.Assert.assertEquals;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.junit.Test;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 public class SpecialShotCalibrationTest {
   @Test public void spotIsOnTheHiveLineHalfAMetreOutFromTheNearLip() {
     for (Alliance alliance : Alliance.values()) {
-      for (VisionCorrector.Cell far : VisionCorrector.Cell.values()) {
+      for (Cell far : Cell.values()) {
         double[] target = VisionCorrector.upCellAimPoint(alliance, far);
         double[] spot = SpecialShotCalibration.spotFor(alliance, far);
         // The near Cell mirrors the far one; the robot stands past its lip, on the far Cell's side of zero opposite

@@ -20,6 +20,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * Lob over our Hive into its far Cell: the robot stands {@link #LIP_GAP_M} out from the near Cell's lip, on the
@@ -89,7 +90,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   private double rpm = START_RPM_FAR_UP;
   private double launchDeg = START_LAUNCH_DEG_FAR_UP;
   private double trimDeg = 0;
-  private VisionCorrector.Cell farCell = null; // Fixed by B; until then the end away from the robot
+  private Cell farCell = null; // Fixed by B; until then the end away from the robot
   private int shots = 0;
   private int scored = 0;
   private int rattled = 0;
@@ -181,7 +182,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
     double nowS = clock.seconds();
     Gamepad pad = robot.getDriver();
     Pose pose = robot.getPose();
-    VisionCorrector.Cell far = farCell != null ? farCell : farEndFrom(pose);
+    Cell far = farCell != null ? farCell : farEndFrom(pose);
     if (justPressed(pad.back, wasBack)) {
       robot.setDriverOnFarSide(!robot.isDriverOnFarSide());
     }
@@ -268,24 +269,24 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   }
 
   /** The end of our Hive away from the robot: SCORING is at -x, AUDIENCE at +x. */
-  private static VisionCorrector.Cell farEndFrom(Pose pose) {
-    return pose != null && pose.xM < 0 ? VisionCorrector.Cell.AUDIENCE : VisionCorrector.Cell.SCORING;
+  private static Cell farEndFrom(Pose pose) {
+    return pose != null && pose.xM < 0 ? Cell.AUDIENCE : Cell.SCORING;
   }
 
   /** {x, y} where the robot centre stands for the far Cell: on the Hive's line, LIP_GAP_M out from the near lip. */
-  static double[] spotFor(Alliance alliance, VisionCorrector.Cell far) {
+  static double[] spotFor(Alliance alliance, Cell far) {
     double[] farPoint = VisionCorrector.upCellAimPoint(alliance, far);
     double outM = Math.abs(farPoint[0]) + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M + LIP_GAP_M;
     return new double[] {farPoint[0] > 0 ? -outM : outM, farPoint[1]};
   }
 
-  private void pushShot(VisionCorrector.Cell far) {
+  private void pushShot(Cell far) {
     robot.setTuningShot(false, rpm, launchDeg);
     robot.setHeadingTrimDeg(trimDeg);
     robot.setAimPointOverride(far == null ? null : VisionCorrector.upCellAimPoint(robot.getAlliance(), far));
   }
 
-  private void addTelemetry(VisionCorrector.Cell far) {
+  private void addTelemetry(Cell far) {
     boolean up = robot.getUpCell() == far;
     line("SPECIAL", String.format("%.0f rpm  launch %.1f deg  aim %s", rpm, launchDeg,
         trimDeg == 0 ? "straight" : String.format("%.0f deg %s", Math.abs(trimDeg), trimDeg > 0 ? "left" : "right")));
@@ -418,7 +419,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
 
   // ---- The CSV
 
-  private void startPending(double nowS, VisionCorrector.Cell far) {
+  private void startPending(double nowS, Cell far) {
     Aim aim = robot.getLastAim();
     if (aim == null) {
       return;

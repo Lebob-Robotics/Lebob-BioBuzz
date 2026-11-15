@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * Turns gamepad input into subsystem states each loop, and runs shoot on the move.
@@ -150,7 +151,7 @@ public class Robot {
   private boolean poseValid = false; // True once a tag fix has placed the robot on the field
   // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
   private boolean headingValid = false;
-  private VisionCorrector.Cell frontCell = null; // Our Cell on the robot's side of the Hive
+  private Cell frontCell = null; // Our Cell on the robot's side of the Hive
   private boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
   private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
   private long lastVisionNanos = 0;
@@ -772,22 +773,22 @@ public class Robot {
   }
 
   /** The Cell on the robot's side of the Hive, changing only once the robot is FRONT_CELL_SWITCH_M past the middle. */
-  static VisionCorrector.Cell frontCell(VisionCorrector.Cell current, double xM) {
+  static Cell frontCell(Cell current, double xM) {
     double margin = ShootOnTheMoveConstants.FRONT_CELL_SWITCH_M;
     if (current == null) {
-      return xM >= 0 ? VisionCorrector.Cell.AUDIENCE : VisionCorrector.Cell.SCORING;
+      return xM >= 0 ? Cell.AUDIENCE : Cell.SCORING;
     }
-    if (current == VisionCorrector.Cell.AUDIENCE && xM < -margin) {
-      return VisionCorrector.Cell.SCORING;
+    if (current == Cell.AUDIENCE && xM < -margin) {
+      return Cell.SCORING;
     }
-    if (current == VisionCorrector.Cell.SCORING && xM > margin) {
-      return VisionCorrector.Cell.AUDIENCE;
+    if (current == Cell.SCORING && xM > margin) {
+      return Cell.AUDIENCE;
     }
     return current;
   }
 
   /** The Cell aimed at: the one in front ({@link #frontCell}), or the tags' up Cell with AIM_AT_FRONT_CELL off. */
-  private VisionCorrector.Cell aimCell() {
+  private Cell aimCell() {
     return ShootOnTheMoveConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
   }
 
@@ -2068,7 +2069,7 @@ public class Robot {
   public void setAimPointOverride(double[] point) { aimPointOverride = point == null ? null : point.clone(); }
 
   /** Which end of our alliance's Hive is up, as the tags last showed it (the starting guess until they have). */
-  public VisionCorrector.Cell getUpCell() { return visionCorrector.upCell(alliance); }
+  public Cell getUpCell() { return visionCorrector.upCell(alliance); }
 
   public boolean isUpCellConfirmed() { return visionCorrector.upCellConfirmed(alliance); }
 

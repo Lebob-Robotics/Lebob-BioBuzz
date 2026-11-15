@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.auto;
 
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * Which Cell of our Hive to aim at, a step ahead of the tags. The Hive tips once the up Cell holds enough balls,
@@ -64,7 +64,7 @@ public final class TipPredictor {
   public void onBall(double nowS) {
     balls++;
     if (tips < TIP_AFTER_BALLS.length && balls >= TIP_AFTER_BALLS[tips]) {
-      predicted = predicted == Cell.AUDIENCE ? Cell.SCORING : Cell.AUDIENCE;
+      predicted = predicted.other();
       tips++;
       balls = 0;
       predictedAtS = nowS;

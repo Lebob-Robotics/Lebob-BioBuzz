@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.auto;
 
 import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * The corner autonomous's steps and when each ends, without hardware, and where it goes (red field coordinates,

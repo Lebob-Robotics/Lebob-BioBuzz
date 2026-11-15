@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.auto;
 
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * The autonomous's steps and when each ends, without hardware. The plan (14 Nov):
@@ -388,11 +388,7 @@ public final class AutoSequence {
    * then every later volley at the other one. Not from balls counted.
    */
   public static Cell plannedCell(Cell first, Step shootingStep) {
-    return shootingStep == Step.SHOOT_PRELOAD ? first : opposite(first);
-  }
-
-  public static Cell opposite(Cell cell) {
-    return cell == Cell.AUDIENCE ? Cell.SCORING : Cell.AUDIENCE;
+    return shootingStep == Step.SHOOT_PRELOAD ? first : first.other();
   }
 
   /** Seconds since this step's drive was done, or NaN while it is still driving. */

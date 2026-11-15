@@ -5,7 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.auto.AutoSequence.Step;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 import org.junit.After;
 import org.junit.Test;
 
@@ -138,7 +138,7 @@ public class AutoSequenceTest {
   @Test
   public void afterThePreloadsEveryVolleyShootsTheOtherCell() {
     for (Cell first : Cell.values()) {
-      Cell other = AutoSequence.opposite(first);
+      Cell other = first.other();
       assertEquals(first, AutoSequence.plannedCell(first, Step.SHOOT_PRELOAD));
       assertEquals("the preloads tipped it", other, AutoSequence.plannedCell(first, Step.SHOOT_GARDEN));
       assertEquals("the same Cell after the Flower", other, AutoSequence.plannedCell(first, Step.SHOOT_WALL_FLOWER));

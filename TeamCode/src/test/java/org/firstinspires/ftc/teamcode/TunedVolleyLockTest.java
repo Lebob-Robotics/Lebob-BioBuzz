@@ -7,6 +7,7 @@ import org.firstinspires.ftc.teamcode.auto.AutoField;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.junit.Test;
+import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * Keeps the auto's and TeleOp's volleys as Volley Tuning scored them on 14 Nov: profile 0 (full feeder, full
@@ -31,7 +32,7 @@ public class TunedVolleyLockTest {
   }
 
   @Test public void theAutoShootsFromTheTunedSpots() {
-    for (VisionCorrector.Cell cell : VisionCorrector.Cell.values()) {
+    for (Cell cell : Cell.values()) {
       double[] aim = VisionCorrector.upCellAimPoint(Alliance.RED, cell);
       double[] spot = AutoField.shotSpot(Alliance.RED, cell);
       assertArrayEquals("spot 4", VolleySpotDrive.point(4, aim[0], aim[1]), new double[] {spot[0], spot[1]}, 1e-9);

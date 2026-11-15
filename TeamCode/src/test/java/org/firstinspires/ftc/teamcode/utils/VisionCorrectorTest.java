@@ -6,7 +6,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
+import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.utils.VisionResult.Reason;
 import org.firstinspires.ftc.teamcode.utils.VisionResult.TagReject;
 import org.junit.After;
@@ -219,7 +219,7 @@ public class VisionCorrectorTest {
         List<TagObservation> observations = new ArrayList<>();
         for (CameraMount camera : new CameraMount[] {LEFT, RIGHT}) {
           for (int id = 30; id <= 45; id++) {
-            Cell up = VisionCorrector.tagAlliance(id) == Alliance.RED ? redUp : VisionCorrector.otherCell(redUp);
+            Cell up = VisionCorrector.tagAlliance(id) == Alliance.RED ? redUp : redUp.other();
             observations.add(observe(camera, truth, id, up, Double.NaN, T0 + 50 * MS));
           }
         }
