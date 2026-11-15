@@ -132,6 +132,12 @@ pushes the change. Run it again after every edit. Changes are kept across Hub
 restarts. Only classes in `org.firstinspires.ftc.teamcode` are reloaded, so a
 change elsewhere, or a change to a library, needs a full install.
 
+From a terminal, `tools/deploy.sh` runs the same deploy with checks first. It
+stops within 2 seconds when the Hub isn't reachable, where `deploySloth` alone
+waits about 2 minutes. It also reconnects adb after a Hub reboot, and refuses to
+deploy while an OpMode is writing its log (`tools/deploy.sh --force` deploys
+anyway).
+
 Things to know:
 
 - **A full install removes the Sloth copy.** `installDebug` and
