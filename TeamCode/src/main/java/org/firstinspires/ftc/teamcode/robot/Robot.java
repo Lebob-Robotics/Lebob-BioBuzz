@@ -28,7 +28,6 @@ import org.firstinspires.ftc.teamcode.field.PoseHandoff;
 import org.firstinspires.ftc.teamcode.shooting.feed.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.field.PoseHistory;
 import org.firstinspires.ftc.teamcode.shooting.feed.RpmTrend;
 import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.shooting.Shot;
@@ -40,7 +39,6 @@ import org.firstinspires.ftc.teamcode.shooting.ShooterTuning;
 import org.firstinspires.ftc.teamcode.vision.TagObservation;
 import org.firstinspires.ftc.teamcode.vision.TargetTracker;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
-import org.firstinspires.ftc.teamcode.vision.VisionResult;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.List;
@@ -83,11 +81,12 @@ import org.firstinspires.ftc.teamcode.opmodes.Main;
 public class Robot {
   final Telemetry telemetry;
   private final RobotTelemetry display;
-  private final RobotLogger log = new RobotLogger(this);
+  final RobotLogger log = new RobotLogger(this);
   final BallPath ballPath = new BallPath(this);
   final DriveControl driveControl = new DriveControl(this);
   final ShooterControl shooterControl = new ShooterControl(this);
   final AimSelector aimSelector = new AimSelector(this);
+  final PoseFusion poseFusion = new PoseFusion(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -132,18 +131,7 @@ public class Robot {
   Alliance alliance = Alliance.BLUE;
   private boolean driverOnFarSide = false;
   final TargetTracker tracker = new TargetTracker(VisionConstants.POSE_HISTORY_SIZE);
-  // Vision pose correction. The history holds each loop's odometry pose with the time of that loop's
-  // camera capture, so a frame can be matched to where the robot was. It is separate from the tracker's.
-  private final PoseHistory poseHistory = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
   final VisionCorrector visionCorrector = new VisionCorrector();
-  private long lastHistoryNanos = Long.MIN_VALUE;
-  boolean poseValid = false; // True once a tag fix has placed the robot on the field
-  // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
-  boolean headingValid = false;
-  boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
-  VisionResult lastVision = null; // Last update that looked at tags, for telemetry
-  long lastVisionNanos = 0;
-  private int positionFixes; // Tag fixes applied to the position so far
 
   double hoodLiftTrimDeg = 0;
   double rpmTrim = 0; // Driver's, for the rest of the match
@@ -324,13 +312,8 @@ public class Robot {
     pollAlliance();
     odometry.setHeading(placedHeadingRad());
     tracker.clear();
-    poseHistory.clear();
+    poseFusion.reset();
     visionCorrector.reset();
-    lastHistoryNanos = Long.MIN_VALUE;
-    poseValid = false;
-    headingValid = false;
-    poseSeeded = false;
-    lastVision = null;
     ramp.setDeployed(false);
   }
 
@@ -341,13 +324,13 @@ public class Robot {
    */
   public void seedPose(double xM, double yM, double headingRad) {
     odometry.setPose(xM, yM, headingRad);
-    poseHistory.clear();
+    poseFusion.poseHistory.clear();
     tracker.clear();
-    poseSeeded = true; // headingValid stays false too, so the first heading fix is also taken in full
+    poseFusion.poseSeeded = true; // headingValid stays false too, so the first heading fix is also taken in full
   }
 
   /** Placed by the tags, or seeded by {@link #seedPose} with the odometry still good. */
-  public boolean isPoseKnown() { return poseValid || poseSeeded; }
+  public boolean isPoseKnown() { return poseFusion.poseValid || poseFusion.poseSeeded; }
 
   /** For scripted tests: the alliance without the X and B buttons, which also stop and eject the shooter. */
   public void setAlliance(Alliance alliance) {
@@ -387,7 +370,7 @@ public class Robot {
     }
   }
 
-  private void noteHiveTags(List<TagObservation> observations) {
+  void noteHiveTags(List<TagObservation> observations) {
     for (TagObservation o : observations) {
       Alliance a = VisionCorrector.tagAlliance(o.id);
       if (a != null) {
@@ -428,24 +411,25 @@ public class Robot {
     long nowNanos = vision.getCaptureNanos(); // Logged, so replay gives the same result
     if (odometry.isFaulted()) {
       // The pose is frozen while the robot moves: nothing may aim or drive to it until vision places it again
-      poseValid = false;
-      headingValid = false;
-      poseSeeded = false;
+      poseFusion.poseValid = false;
+      poseFusion.headingValid = false;
+      poseFusion.poseSeeded = false;
     }
 
     if (driver.a && buttonsFree()) { // Shot Tuning's A marks a ball
       odometry.setHeading(placedHeadingRad());
       tracker.clear(); // The frame just turned, so the stored Cell and poses no longer apply
-      headingValid = true; // The driver says this is right, so vision only trims it from here
+      poseFusion.headingValid = true; // The driver says this is right, so vision only trims it from here
       driveControl.headingHold.clear();
-      poseHistory.clear();
+      poseFusion.poseHistory.clear();
       pose = new FieldPose(pose.xM, pose.yM, placedHeadingRad());
     }
 
     times.vision = System.nanoTime();
     if (odometry.isReadGood()) { // A correction from a bad read would write that read back into the Pinpoint
       FieldPose uncorrected = pose;
-      pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
+      // Before aiming, so this loop aims from the corrected pose
+      pose = poseFusion.correctPoseFromVision(pose, velocity, nowNanos);
       // The robot didn't move: only where it thinks it is did, so the held spot moves with it
       driveControl.shiftHoldAnchor(pose.xM - uncorrected.xM, pose.yM - uncorrected.yM);
     }
@@ -559,7 +543,7 @@ public class Robot {
 
     times.run = System.nanoTime();
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
-    stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
+    poseFusion.stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
 
     if (shooter.isStalled() && !shooterWasStalled) {
       physicalDriver.rumble(STALL_RUMBLE_MS);
@@ -585,50 +569,6 @@ public class Robot {
     display.sendPanelsTelemetry(aim, pose);
     times.end = System.nanoTime();
     times.record();
-  }
-
-  /**
-   * Corrects the pose from the Hive tags, and moves the tracker's stored Cell and poses by the same
-   * amount so the aim does not jump. Returns the pose to use this loop.
-   */
-  private FieldPose correctPoseFromVision(FieldPose pose, double[] velocity, long nowNanos) {
-    List<TagObservation> observations = vision.takeNewTagObservations();
-    noteHiveTags(observations);
-    visionCorrector.setHeadingSeeded(poseSeeded);
-    VisionResult result = visionCorrector.process(observations, poseHistory, pose,
-        velocity[0], velocity[1], velocity[2], poseValid, headingValid, nowNanos);
-    if (result.accepted) {
-      odometry.setPose(result.newPose.xM, result.newPose.yM, result.newPose.headingRad);
-      // Turn about the robot by the heading fix, then shift, so stored poses and the Cell stay put relative to it
-      double dHeading = result.appliedDHeadingRad();
-      driveControl.headingHold.shift(dHeading);
-      poseHistory.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
-      tracker.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
-      poseValid |= result.gain > 0; // The first position fix is applied in full, so after it the pose is on the field
-      if (result.gain > 0) { positionFixes++; }
-      headingValid |= result.headingGain > 0; // Likewise the first heading fix
-      pose = result.newPose; // The Pinpoint may not report the new pose until its next update
-    }
-    if (result.reason != VisionResult.Reason.NO_OBSERVATIONS) {
-      lastVision = result;
-      lastVisionNanos = nowNanos;
-    }
-    double frameAgeS = Double.NaN; // Of the newest frame handed in
-    for (TagObservation observation : observations) {
-      double ageS = (nowNanos - observation.frameTimeNanos) * 1e-9;
-      frameAgeS = Double.isNaN(frameAgeS) ? ageS : Math.min(frameAgeS, ageS);
-    }
-    log.logVision(result, frameAgeS, observations.size());
-    return pose;
-  }
-
-  /** Records this loop's pose against this loop's capture time, so later frames can be matched to it. */
-  private void stampPoseHistory(FieldPose pose) {
-    long stampNanos = vision.getCaptureNanos();
-    if (stampNanos > lastHistoryNanos && stampNanos > 0) { // Not before the first capture, or twice for one
-      poseHistory.add(stampNanos, pose);
-      lastHistoryNanos = stampNanos;
-    }
   }
 
   /** While aiming, D-pad up and down nudge the RPM, for when the table is a little off on the day. */
@@ -752,9 +692,9 @@ public class Robot {
   public FieldPose getPose() { return lastPose; }
   /** Field velocity {x, y, turn rate} this loop, m/s and rad/s. */
   public double[] getVelocity() { return lastVelocity.clone(); }
-  public boolean isPoseValid() { return poseValid; }
+  public boolean isPoseValid() { return poseFusion.poseValid; }
   public double getBatteryVolts() { return batteryVolts; }
-  public int getPositionFixes() { return positionFixes; }
+  public int getPositionFixes() { return poseFusion.positionFixes; }
   public double getAimCellX() { return aimSelector.aimCellX; }
   public double getAimCellY() { return aimSelector.aimCellY; }
   /** Aims as RT asks but feeds nothing: a scripted test lining up before the shot it means to take. */
@@ -833,7 +773,7 @@ public class Robot {
 
   /** Seconds since the cameras last saw a tag; infinite if never. */
   public double getTagsSeenAgoS() {
-    return lastVisionNanos == 0 ? Double.POSITIVE_INFINITY : (System.nanoTime() - lastVisionNanos) * 1e-9;
+    return poseFusion.lastVisionNanos == 0 ? Double.POSITIVE_INFINITY : (System.nanoTime() - poseFusion.lastVisionNanos) * 1e-9;
   }
 
   /** Switches to the other alliance when the cameras see its Cell while this alliance's Cell isn't known. */
@@ -943,8 +883,8 @@ public class Robot {
   public void startAt(double xM, double yM, double headingRad) {
     start();
     odometry.setPose(xM, yM, headingRad);
-    poseValid = true;
-    headingValid = true;
+    poseFusion.poseValid = true;
+    poseFusion.headingValid = true;
     lastPose = new FieldPose(xM, yM, headingRad);
   }
 

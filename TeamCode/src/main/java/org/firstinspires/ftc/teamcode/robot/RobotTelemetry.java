@@ -153,7 +153,7 @@ final class RobotTelemetry {
             aim.backward ? "BACKWARD" : "HOODED", aim.shot.distanceToLipM,
             Math.toDegrees(aim.headingErrorRad(pose.headingRad)))});
     lines.add(new String[] {"Pose", String.format("%.2f, %.2f m  %.0f deg%s", pose.xM, pose.yM,
-        Math.toDegrees(pose.headingRad), robot.poseValid ? "" : "  (not placed by tags yet)")});
+        Math.toDegrees(pose.headingRad), robot.poseFusion.poseValid ? "" : "  (not placed by tags yet)")});
     lines.add(new String[] {"Battery", String.format("%.2f V", robot.batteryVolts)});
     if (!panelsBusy.compareAndSet(false, true)) {
       return;
@@ -180,7 +180,7 @@ final class RobotTelemetry {
   /** For example "✓ 6 tags Δ3cm (0.1s ago) | up AUDIENCE", or the reason the last tags were not used. */
   private String visionLine() {
     String upCell = "up " + robot.visionCorrector.upCell(robot.alliance);
-    VisionResult result = robot.lastVision;
+    VisionResult result = robot.poseFusion.lastVision;
     if (result == null) {
       return "no tags yet | " + upCell;
     }
@@ -192,7 +192,7 @@ final class RobotTelemetry {
     } else {
       text = "✗ " + result.reason;
     }
-    double sinceS = (robot.vision.getCaptureNanos() - robot.lastVisionNanos) * 1e-9;
+    double sinceS = (robot.vision.getCaptureNanos() - robot.poseFusion.lastVisionNanos) * 1e-9;
     return text + String.format(" (%.1fs ago) | ", sinceS) + upCell;
   }
 
@@ -231,7 +231,7 @@ final class RobotTelemetry {
     if (robot.volleyMode && robot.volleyShot) {
       telemetry.addData("Volley", "balls out %d", robot.volleyFeedGate.ballsLeft());
     }
-    if (!robot.poseValid) {
+    if (!robot.poseFusion.poseValid) {
       telemetry.addLine("! Pose not placed: point the cameras at the tags");
     }
     if (robot.shooter.isStalled()) {
@@ -249,8 +249,9 @@ final class RobotTelemetry {
   }
 
   private void addDetailTelemetry(Aim aim, FieldPose pose) {
-    telemetry.addData("Alliance", robot.alliance + (robot.poseValid ? "  pose on field" : "  pose not placed yet")
-        + (robot.headingValid ? ", heading set" : ", heading from start"));
+    telemetry.addData("Alliance", robot.alliance
+        + (robot.poseFusion.poseValid ? "  pose on field" : "  pose not placed yet")
+        + (robot.poseFusion.headingValid ? ", heading set" : ", heading from start"));
     telemetry.addData("Aim", robot.aimSelector.aimState);
     if (robot.volleyMode) {
       telemetry.addData("Volley", robot.volleyShot ? String.format("balls out %d  (fed %d)  feed %.2f  boost %+.0f",

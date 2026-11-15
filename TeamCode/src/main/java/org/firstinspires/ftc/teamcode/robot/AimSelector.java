@@ -116,12 +116,13 @@ final class AimSelector {
       frontCell = frontCell(frontCell, pose.xM);
     }
     aimingAtFieldCell = AimConstants.AIM_AT_FIELD_CELL
-        && (robot.poseValid && (AimConstants.AIM_AT_FRONT_CELL || robot.visionCorrector.upCellConfirmed(robot.alliance))
-            || robot.poseSeeded);
+        && (robot.poseFusion.poseValid
+                && (AimConstants.AIM_AT_FRONT_CELL || robot.visionCorrector.upCellConfirmed(robot.alliance))
+            || robot.poseFusion.poseSeeded);
     double cellX;
     double cellY;
     if (aimPointOverride != null) {
-      if (!robot.poseValid) {
+      if (!robot.poseFusion.poseValid) {
         return null;
       }
       cellX = aimPointOverride[0];

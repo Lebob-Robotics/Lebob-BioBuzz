@@ -83,8 +83,8 @@ final class RobotLogger {
     Logger.recordOutput("Vision/Correction/UpCellBlue", robot.visionCorrector.upCell(Alliance.BLUE).name());
     Logger.recordOutput("Vision/Correction/RedFlipped", result.redFlipped);
     Logger.recordOutput("Vision/Correction/BlueFlipped", result.blueFlipped);
-    Logger.recordOutput("Vision/Correction/PoseValid", robot.poseValid);
-    Logger.recordOutput("Vision/Correction/HeadingValid", robot.headingValid);
+    Logger.recordOutput("Vision/Correction/PoseValid", robot.poseFusion.poseValid);
+    Logger.recordOutput("Vision/Correction/HeadingValid", robot.poseFusion.headingValid);
     Logger.recordOutput("Vision/Correction/DHeadingDeg", Math.toDegrees(result.dHeadingRad));
     Logger.recordOutput("Vision/Correction/HeadingGain", result.headingGain);
     Logger.recordOutput("Vision/Correction/HeadingPairs", result.headingPairs);
