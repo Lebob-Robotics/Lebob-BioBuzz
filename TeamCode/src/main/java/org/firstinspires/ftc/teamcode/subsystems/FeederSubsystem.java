@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.hardware.CrServo;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -37,10 +38,10 @@ public class FeederSubsystem extends SubsystemBase {
     // R is the original feeder servo. Reversed: on Mark 3 a positive raw power
     // runs the tunnel backward (Servo Check and driving, 27 Oct).
     // Current three-servo robot uses the legacy FeederServo name on Control Hub port 1.
-    CrServo r = find(hardwareMap, "FeederServoR", true);
-    feederServoR = r != null ? r : find(hardwareMap, "FeederServo", true);
+    CrServo r = find(hardwareMap, HardwareNames.FEEDER_SERVO_RIGHT, true);
+    feederServoR = r != null ? r : find(hardwareMap, HardwareNames.FEEDER_SERVO, true);
     // Optional opposite-facing paired output; absent on the current three-servo robot.
-    feederServoL = find(hardwareMap, "FeederServoL", false);
+    feederServoL = find(hardwareMap, HardwareNames.FEEDER_SERVO_LEFT, false);
 
     setFeederState(FeederState.STOP);
   }

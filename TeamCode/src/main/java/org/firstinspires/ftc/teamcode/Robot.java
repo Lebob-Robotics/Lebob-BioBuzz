@@ -12,6 +12,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Units;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
@@ -1800,7 +1801,7 @@ public class Robot {
     if (deadCameras != null) {
       telemetry.addLine("! CAM " + deadCameras + " DEAD: fewer tag fixes");
     }
-    telemetry.addData("Ramp", !ramp.isPresent() ? "! no " + RampSubsystem.SERVO_NAME + " in the configuration"
+    telemetry.addData("Ramp", !ramp.isPresent() ? "! no " + HardwareNames.RAMP_SERVO + " in the configuration"
         : ramp.isDeployed() ? "DEPLOYED  (D-pad up stows)" : "stowed  (D-pad up deploys)");
   }
 

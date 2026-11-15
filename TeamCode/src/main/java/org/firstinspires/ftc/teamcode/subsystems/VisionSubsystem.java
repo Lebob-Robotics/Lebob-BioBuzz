@@ -17,6 +17,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
 import org.firstinspires.ftc.teamcode.field.Units;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.utils.CameraMount;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.ClusterFromTags;
@@ -265,8 +266,8 @@ public class VisionSubsystem extends SubsystemBase {
     this.hardwareMap = hardwareMap;
     this.library = library;
     this.extraLibrary = extraLibrary;
-    setUpCamera(hardwareMap, Side.LEFT, "CameraL", LENS_LEFT, viewIds == null ? -1 : viewIds[0], library, extraLibrary);
-    setUpCamera(hardwareMap, Side.RIGHT, "CameraR", LENS_RIGHT, viewIds == null ? -1 : viewIds[1], library, extraLibrary);
+    setUpCamera(hardwareMap, Side.LEFT, HardwareNames.CAMERA_LEFT, LENS_LEFT, viewIds == null ? -1 : viewIds[0], library, extraLibrary);
+    setUpCamera(hardwareMap, Side.RIGHT, HardwareNames.CAMERA_RIGHT, LENS_RIGHT, viewIds == null ? -1 : viewIds[1], library, extraLibrary);
   }
 
   private static AprilTagProcessor buildProcessor(AprilTagLibrary library, double[] lens) {
@@ -568,7 +569,7 @@ public class VisionSubsystem extends SubsystemBase {
         frameClocks[i] = new FrameClock();
         threadNices[i] = new ThreadNice();
         // No live view: it is off in matches, and the shared view's container belongs to the first portals
-        setUpCamera(hardwareMap, side, side == Side.LEFT ? "CameraL" : "CameraR",
+        setUpCamera(hardwareMap, side, side == Side.LEFT ? HardwareNames.CAMERA_LEFT : HardwareNames.CAMERA_RIGHT,
             side == Side.LEFT ? LENS_LEFT : LENS_RIGHT, -1, library, extraLibrary);
       }
       synchronized (VisionSubsystem.this) {

@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;
@@ -133,10 +134,10 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     // a clockwise rotate drove it backward (Pinpoint pods), so the left side
     // was inverted. DriveFL's encoder counts against its motor, so it reads
     // backward while the wheel drives forward.
-    frontLeft = createDriveMotor(hardwareMap, "DriveFL", true);
-    frontRight = createDriveMotor(hardwareMap, "DriveFR", true);
-    backLeft = createDriveMotor(hardwareMap, "DriveBL", false);
-    backRight = createDriveMotor(hardwareMap, "DriveBR", true);
+    frontLeft = createDriveMotor(hardwareMap, HardwareNames.DRIVE_FRONT_LEFT, true);
+    frontRight = createDriveMotor(hardwareMap, HardwareNames.DRIVE_FRONT_RIGHT, true);
+    backLeft = createDriveMotor(hardwareMap, HardwareNames.DRIVE_BACK_LEFT, false);
+    backRight = createDriveMotor(hardwareMap, HardwareNames.DRIVE_BACK_RIGHT, true);
   }
 
   private static GobildaMotor createDriveMotor(HardwareMap hardwareMap, String name, boolean reversed) {

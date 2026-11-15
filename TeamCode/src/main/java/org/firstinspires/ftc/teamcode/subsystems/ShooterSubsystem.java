@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.utils.MotorReversalGuard;
 
 /**
@@ -109,10 +110,10 @@ public class ShooterSubsystem extends SubsystemBase {
   private double rightAmps;
 
   public ShooterSubsystem(HardwareMap hardwareMap) {
-    shooterRight = GobildaMotor.speedControlled(hardwareMap, "ShooterR", false, false);
+    shooterRight = GobildaMotor.speedControlled(hardwareMap, HardwareNames.SHOOTER_RIGHT, false, false);
     // Side-by-side wheels spin opposite ways, so one is reversed. Direction is
     // to be verified on the robot.
-    shooterLeft = GobildaMotor.speedControlled(hardwareMap, "ShooterL", true, false);
+    shooterLeft = GobildaMotor.speedControlled(hardwareMap, HardwareNames.SHOOTER_LEFT, true, false);
 
     PIDFCoefficients sdk = shooterRight.getVelocityPidf();
     if (Double.isNaN(VELOCITY_P)) {

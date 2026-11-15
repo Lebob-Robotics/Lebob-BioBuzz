@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.utils.MotorReversalGuard;
 
 import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
@@ -54,10 +55,10 @@ public class IntakeSubsystem extends SubsystemBase {
 
   public IntakeSubsystem(HardwareMap hardwareMap) {
     intakeMotor = INTAKE_USES_ENCODER
-        ? GobildaMotor.speedControlled(hardwareMap, "IntakeMotor", false, false)
-        : GobildaMotor.powerControlled(hardwareMap, "IntakeMotor", false, false);
-    beamBreakTop = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, "BeamBreakT") : null;
-    beamBreakBottom = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, "BeamBreakB") : null;
+        ? GobildaMotor.speedControlled(hardwareMap, HardwareNames.INTAKE_MOTOR, false, false)
+        : GobildaMotor.powerControlled(hardwareMap, HardwareNames.INTAKE_MOTOR, false, false);
+    beamBreakTop = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, HardwareNames.BEAM_BREAK_TOP) : null;
+    beamBreakBottom = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, HardwareNames.BEAM_BREAK_BOTTOM) : null;
     setIntakeState(IntakeState.STOP);
   }
 

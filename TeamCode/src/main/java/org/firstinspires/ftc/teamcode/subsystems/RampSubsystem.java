@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.psilynx.psikit.core.Logger;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 
 /**
  * The Pollen ramp: one REV servo, RampServo on Expansion Hub servo port 1, stowed or deployed. It is stowed when an
@@ -13,7 +14,6 @@ import org.psilynx.psikit.core.Logger;
  * two positions with the Ramp Servo Check OpMode.
  */
 public class RampSubsystem extends SubsystemBase {
-  public static final String SERVO_NAME = "RampServo";
   /** The pulse the Hub sends for each, found with Ramp Servo Check (14 Nov, arm refitted on the spline). */
   public static double STOWED_US = 1490; // 1430 on 14 Nov; 60 us (~8 degrees) further back, 15 Nov
   public static double DEPLOYED_US = 490; // Just past the REV servo's rated 500-2500 us
@@ -30,7 +30,7 @@ public class RampSubsystem extends SubsystemBase {
   private double written = Double.NaN;
 
   public RampSubsystem(HardwareMap hardwareMap) {
-    servo = hardwareMap.tryGet(Servo.class, SERVO_NAME);
+    servo = hardwareMap.tryGet(Servo.class, HardwareNames.RAMP_SERVO);
     widenRange(servo);
   }
 

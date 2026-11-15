@@ -6,6 +6,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.PinpointSettings;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 
 /**
@@ -19,7 +21,7 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
  * <p>Usage: keep the robot still during INIT. After START press A for an
  * automatic spin, or B to start a manual capture (turn the robot by hand, about
  * its centre, then press X to finish). Y aborts. Paste the result into
- * OdometrySubsystem.init()'s setOffsets.
+ * PinpointSettings.X_OFFSET_MM and Y_OFFSET_MM.
  *
  * <p>Sign derivation. Pinpoint frame: X forward, Y left, heading CCW positive.
  * The "X" pod measures forward travel and sits at lateral position xOff (left
@@ -80,10 +82,10 @@ public class OdometryCalibration extends LinearOpMode {
 
   @Override
   public void runOpMode() {
-    pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+    pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, HardwareNames.PINPOINT);
     drive = new MecanumDriveSubsystem(hardwareMap);
 
-    pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+    pinpoint.setEncoderResolution(PinpointSettings.POD);
     pinpoint.setEncoderDirections(
         GoBildaPinpointDriver.EncoderDirection.FORWARD,
         GoBildaPinpointDriver.EncoderDirection.FORWARD);

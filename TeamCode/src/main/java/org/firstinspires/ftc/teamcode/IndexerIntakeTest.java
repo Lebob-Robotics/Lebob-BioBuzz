@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard;
 
 import java.util.Locale;
@@ -51,12 +52,12 @@ public class IndexerIntakeTest extends OpMode {
   @Override
   public void init() {
     // Same directions as IndexerSubsystem and IntakeSubsystem, so + is feeding
-    indexerL = hardwareMap.get(CRServo.class, "IndexerServoL");
+    indexerL = hardwareMap.get(CRServo.class, HardwareNames.INDEXER_SERVO_LEFT);
     indexerL.setDirection(DcMotorSimple.Direction.REVERSE);
-    indexerR = hardwareMap.get(CRServo.class, "IndexerServoR");
+    indexerR = hardwareMap.get(CRServo.class, HardwareNames.INDEXER_SERVO_RIGHT);
     indexerR.setDirection(DcMotorSimple.Direction.FORWARD);
-    feeder = hardwareMap.get(CRServo.class, "FeederServo");
-    intake = hardwareMap.get(DcMotorEx.class, "IntakeMotor");
+    feeder = hardwareMap.get(CRServo.class, HardwareNames.FEEDER_SERVO);
+    intake = hardwareMap.get(DcMotorEx.class, HardwareNames.INTAKE_MOTOR);
     intake.setDirection(DcMotorSimple.Direction.FORWARD);
     intake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);

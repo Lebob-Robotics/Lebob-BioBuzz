@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 
 /**
@@ -23,7 +24,7 @@ public class RampServoCheck extends OpMode {
 
   @Override
   public void init() {
-    servo = hardwareMap.tryGet(Servo.class, RampSubsystem.SERVO_NAME);
+    servo = hardwareMap.tryGet(Servo.class, HardwareNames.RAMP_SERVO);
     if (servo instanceof PwmControl) {
       ((PwmControl) servo).setPwmRange(new PwmControl.PwmRange(LOWER_US, UPPER_US));
     }
@@ -40,8 +41,8 @@ public class RampServoCheck extends OpMode {
   @Override
   public void loop() {
     if (servo == null) {
-      telemetry.addLine("No " + RampSubsystem.SERVO_NAME + " in the robot configuration");
-      telemetry.addLine("Add a Servo named " + RampSubsystem.SERVO_NAME + " on Expansion Hub servo port 1");
+      telemetry.addLine("No " + HardwareNames.RAMP_SERVO + " in the robot configuration");
+      telemetry.addLine("Add a Servo named " + HardwareNames.RAMP_SERVO + " on Expansion Hub servo port 1");
       return;
     }
     double next = us;

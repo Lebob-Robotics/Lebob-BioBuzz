@@ -10,6 +10,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Units;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.PinpointSettings;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.core.wpi.math.Pose2d;
 import org.psilynx.psikit.core.wpi.math.Rotation2d;
@@ -71,7 +73,7 @@ public class OdometrySubsystem extends SubsystemBase {
   public OdometrySubsystem(HardwareMap hardwareMap) {
     GoBildaPinpointDriver found = null;
     try {
-      found = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+      found = hardwareMap.get(GoBildaPinpointDriver.class, HardwareNames.PINPOINT);
     } catch (IllegalArgumentException e) {
       // Not configured; run without odometry.
     }
@@ -97,16 +99,9 @@ public class OdometrySubsystem extends SubsystemBase {
 
   /** Offsets, pods and directions: the Pinpoint forgets them if it resets. */
   private void configure() {
-    // CAD, to the middle of the four wheels, the centre ShootOnTheMoveConstants uses. The old (0, -105) made
-    // spinning in place read as 0.07 m/s forward and 0.10 m/s left per rad/s (fits 0.85-0.99 over four runs),
-    // which worked back to offsets of about (-65, 0): the hooded shot's lead swung with every turn (5 Nov, 084206)
-    pinpoint.setOffsets(-71.5, 0.1, DistanceUnit.MM);
-    pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-    // X (forward) pod counts backward: TeleOp log 3 Nov 22:22, wheels driving the robot backward moved
-    // the pose forward (30 of 31 samples). Y (strafe) counted backward too: pushing the robot right raised Y (4 Nov).
-    pinpoint.setEncoderDirections(
-        GoBildaPinpointDriver.EncoderDirection.REVERSED,
-        GoBildaPinpointDriver.EncoderDirection.REVERSED);
+    pinpoint.setOffsets(PinpointSettings.X_OFFSET_MM, PinpointSettings.Y_OFFSET_MM, DistanceUnit.MM);
+    pinpoint.setEncoderResolution(PinpointSettings.POD);
+    pinpoint.setEncoderDirections(PinpointSettings.X_DIRECTION, PinpointSettings.Y_DIRECTION);
   }
 
   /**

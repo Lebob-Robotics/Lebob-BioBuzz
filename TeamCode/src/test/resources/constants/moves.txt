@@ -12,3 +12,4 @@ org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.IN_TO_M -> org.firs
 org.firstinspires.ftc.teamcode.auto.AutoField.M_PER_IN -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN
 org.firstinspires.ftc.teamcode.pedro.RobotLocalizer.M_PER_IN -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN
 org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem.INCHES_TO_METRES -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN
+org.firstinspires.ftc.teamcode.subsystems.RampSubsystem.SERVO_NAME -> org.firstinspires.ftc.teamcode.hardware.HardwareNames.RAMP_SERVO

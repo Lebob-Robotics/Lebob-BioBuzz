@@ -4,6 +4,7 @@ import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.hardware.CrServo;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -31,8 +32,8 @@ public class IndexerSubsystem extends SubsystemBase {
 
   public IndexerSubsystem(HardwareMap hardwareMap) {
     // Independent stages, retaining their verified forward directions.
-    indexerServoL = new CrServo(hardwareMap, "IndexerServoL", true);
-    indexerServoR = new CrServo(hardwareMap, "IndexerServoR", false);
+    indexerServoL = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_LEFT, true);
+    indexerServoR = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_RIGHT, false);
 
     setIndexerState(IndexerState.STOP);
   }

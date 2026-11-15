@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.hardware.HubMotors;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
@@ -204,13 +205,13 @@ public class HoodSubsystem extends SubsystemBase {
   private boolean lastAtTarget;
 
   public HoodSubsystem(HardwareMap hardwareMap) {
-    hoodMotor = hardwareMap.get(DcMotorEx.class, "HoodMotor");
+    hoodMotor = hardwareMap.get(DcMotorEx.class, HardwareNames.HOOD_MOTOR);
     hubMotor = HubMotors.unwrap(hoodMotor);
     hoodMotor.setDirection(DcMotor.Direction.FORWARD); // Positive raises the hood (verified on robot)
     hoodMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     cut();
     // Read only: never change IntakeMotor's power, mode, direction or encoder zero here.
-    revEncoderInput = hardwareMap.get(DcMotorEx.class, "IntakeMotor");
+    revEncoderInput = hardwareMap.get(DcMotorEx.class, HardwareNames.HOOD_ENCODER);
     fastLoop = HoodLoop.create(hubMotor, HubMotors.unwrap(revEncoderInput), TICKS_PER_DEG);
   }
 

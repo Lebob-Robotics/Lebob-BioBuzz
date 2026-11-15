@@ -10,10 +10,11 @@ import com.pedropathing.math.Matrix;
 import com.pedropathing.math.Vector2D;
 import com.pedropathing.revhub.localizers.PinpointConfig;
 import com.pedropathing.revhub.localizers.PinpointLocalizer;
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.PinpointSettings;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 
 /**
@@ -73,13 +74,13 @@ public final class Constants {
   /** The Pinpoint as OdometrySubsystem configures it, for the tuners, which run without the Robot. */
   public static PinpointConfig pinpointConfig() {
     return new PinpointConfig(c -> {
-      c.name.set("pinpoint");
-      c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.REVERSED);
-      c.yPodDirection.set(GoBildaPinpointDriver.EncoderDirection.REVERSED);
-      c.xPodOffset.set(-71.5);
-      c.yPodOffset.set(0.1);
+      c.name.set(HardwareNames.PINPOINT);
+      c.xPodDirection.set(PinpointSettings.X_DIRECTION);
+      c.yPodDirection.set(PinpointSettings.Y_DIRECTION);
+      c.xPodOffset.set(PinpointSettings.X_OFFSET_MM);
+      c.yPodOffset.set(PinpointSettings.Y_OFFSET_MM);
       c.offsetUnits.set(DistanceUnit.MM);
-      c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+      c.podType.set(PinpointSettings.POD);
       c.resetMode.set(PinpointLocalizer.ResetMode.RESET_AND_RECALIBRATE_IMU);
     });
   }
