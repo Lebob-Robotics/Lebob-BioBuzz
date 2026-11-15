@@ -1,0 +1,4 @@
+# Where constants went after the regionals code (main 28246ea). See ConstantsSnapshotTest.
+# old.Class -> new.Class          a class moved or renamed (all its constants follow)
+# old.Class.FIELD -> new.Class.F  one constant moved
+# old.Class.FIELD -> (deleted)    removed as unused
