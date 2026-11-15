@@ -24,7 +24,7 @@ import org.firstinspires.ftc.teamcode.field.Cell;
  * Whatever it is doing at {@link #PARK_BY_S}, it goes to park; at a Flower it starts backing out
  * {@link #FLOWER_EXIT_S} before that, so the arm is up by then.
  */
-public final class AutoSequence {
+public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
   public enum Step {
     SHOOT_PRELOAD(true),
     DRIVE_TO_GARDEN(false), FACE_GARDEN(false), ONTO_GARDEN_WALL(false), SWEEP_GARDEN(false),
@@ -100,16 +100,11 @@ public final class AutoSequence {
   public static double FLOWER_EXIT_S = 2.0;
 
   private Step step = Step.SHOOT_PRELOAD;
-  private double stepStartS;
-  private double arrivedAtS = Double.NaN;
-  private double emptySinceS = Double.NaN;
-  private int ballsThisVolley = 0;
-  private int ballsShot = 0;
+  private final StepTracker tracker;
   private boolean skipSecondFlower = false;
-  private boolean newStep = true;
 
   public AutoSequence(double startS) {
-    stepStartS = startS;
+    tracker = new StepTracker(startS);
   }
 
   /**
@@ -124,16 +119,9 @@ public final class AutoSequence {
   }
 
   /** As above. @param stackFull the robot is full: a Flower step ends at once instead of after FLOWER_INTAKE_S */
+  @Override
   public void update(double nowS, boolean pathDone, boolean ballLeft, boolean feederEmpty, boolean stackFull) {
-    if (ballLeft) {
-      ballsThisVolley++;
-      ballsShot++;
-    }
-    if (!feederEmpty || ballLeft) {
-      emptySinceS = Double.NaN;
-    } else if (Double.isNaN(emptySinceS)) {
-      emptySinceS = nowS;
-    }
+    tracker.countBalls(nowS, ballLeft, feederEmpty);
     if (inFlower() && nowS >= PARK_BY_S - FLOWER_EXIT_S) {
       leaveFlower(nowS);
       return;
@@ -143,17 +131,12 @@ public final class AutoSequence {
       enter(Step.DRIVE_TO_PARK, nowS);
       return;
     }
-    if (pathDone && Double.isNaN(arrivedAtS)) {
-      arrivedAtS = nowS;
-      if (step.shooting) {
-        emptySinceS = Double.NaN; // Empty counts from the spot, where the feeder starts feeding
-      }
-    }
-    double inStepS = nowS - stepStartS;
+    tracker.arrive(nowS, pathDone, step.shooting);
+    double inStepS = tracker.inStepS(nowS);
     boolean late = nowS >= PARK_BY_S - FLOWER_EXIT_S; // No time for a Flower
     switch (step) {
       case SHOOT_PRELOAD:
-        if (volleyEnded(nowS)) {
+        if (tracker.volleyEnded(nowS)) {
           enter(Step.DRIVE_TO_GARDEN, nowS);
         }
         break;
@@ -178,7 +161,7 @@ public final class AutoSequence {
         }
         break;
       case SHOOT_GARDEN:
-        if (volleyEnded(nowS)) {
+        if (tracker.volleyEnded(nowS)) {
           enter(late ? Step.DRIVE_TO_PARK : Step.DRIVE_TO_WALL_FLOWER, nowS);
         }
         break;
@@ -195,13 +178,13 @@ public final class AutoSequence {
       case LOWER_ARM_WALL:
       case LOWER_ARM_REAR:
         // pathDone here: stopped short of the Flower and facing it. The arm goes down then
-        if ((!Double.isNaN(arrivedAtS) && nowS - arrivedAtS >= ARM_MOVE_S) || inStepS >= FACE_FLOWER_MAX_S) {
+        if ((tracker.arrived() && tracker.arrivedForS(nowS) >= ARM_MOVE_S) || inStepS >= FACE_FLOWER_MAX_S) {
           enter(step == Step.LOWER_ARM_WALL ? Step.INTAKE_WALL_FLOWER : Step.INTAKE_REAR_FLOWER, nowS);
         }
         break;
       case INTAKE_WALL_FLOWER:
       case INTAKE_REAR_FLOWER:
-        boolean dwelt = !Double.isNaN(arrivedAtS) && nowS - arrivedAtS >= FLOWER_DWELL_S;
+        boolean dwelt = tracker.arrived() && tracker.arrivedForS(nowS) >= FLOWER_DWELL_S;
         if (stackFull || dwelt || inStepS >= FLOWER_INTAKE_S) {
           leaveFlower(nowS);
         }
@@ -223,7 +206,7 @@ public final class AutoSequence {
         }
         break;
       case SHOOT_WALL_FLOWER:
-        if (volleyEnded(nowS)) {
+        if (tracker.volleyEnded(nowS)) {
           skipSecondFlower = !SECOND_FLOWER || nowS >= SKIP_SECOND_FLOWER_S;
           enter(skipSecondFlower ? Step.DRIVE_TO_PARK : Step.DRIVE_TO_REAR_FLOWER, nowS);
         }
@@ -258,53 +241,36 @@ public final class AutoSequence {
         || step == Step.BACK_FROM_REAR_FLOWER || step == Step.RAISE_ARM_REAR;
   }
 
-  /** At the shooting spot, and the volley finished or given up on. */
-  private boolean volleyEnded(double nowS) {
-    if (Double.isNaN(arrivedAtS)) {
-      return false;
-    }
-    return volleyDone(nowS) || nowS - arrivedAtS >= VOLLEY_WAIT_S;
-  }
-
-  private boolean volleyDone(double nowS) {
-    return ballsThisVolley >= BALLS_PER_VOLLEY || (!Double.isNaN(emptySinceS) && nowS - emptySinceS >= EMPTY_S);
-  }
-
   private void enter(Step next, double nowS) {
     step = next;
-    stepStartS = nowS;
-    arrivedAtS = Double.NaN;
-    emptySinceS = Double.NaN;
-    if (next.shooting) {
-      ballsThisVolley = 0;
-    }
-    newStep = true;
+    tracker.enter(nowS, next.shooting);
   }
 
+  @Override
   public Step step() {
     return step;
   }
 
-  /** True once after each change of step, including the first: the moment to start that step's drive. */
+  @Override
   public boolean takeNewStep() {
-    boolean was = newStep;
-    newStep = false;
-    return was;
+    return tracker.takeNewStep();
   }
 
   /** Shooting: stopped at a shooting spot, its volley not finished. Parked, until the end. */
+  @Override
   public boolean shoot(double nowS) {
     // Parked, it keeps on to the end, for any ball still stuck: the indexer's retry pulses free it
-    return step.shooting && !Double.isNaN(arrivedAtS) && (step == Step.PARKED || !volleyDone(nowS));
+    return step.shooting && tracker.arrived() && (step == Step.PARKED || !tracker.volleyDone(nowS));
   }
 
   /** The intake runs at the Garden, at the Flowers from lowering the arm to raising it, and through each volley. */
+  @Override
   public boolean intake() {
     switch (step) {
       case SHOOT_PRELOAD: // Once stopped only, for the 4th ball in the intake: on the way, with the wheels spinning,
-        return !Double.isNaN(arrivedAtS); // the full stack pushed a ball through the held feeder (14 Nov 220630)
+        return tracker.arrived(); // the full stack pushed a ball through the held feeder (14 Nov 220630)
       case PARKED: // Once there, pushing any ball left in the intake up (against our wall: nothing to pick up)
-        return !Double.isNaN(arrivedAtS);
+        return tracker.arrived();
       case SHOOT_GARDEN: // The whole volley, drive and shots. 14 Nov 214244 the Garden's balls sat in its mouth,
       case SHOOT_WALL_FLOWER: // switched off as the drive began, and the volley shot none; 214945, off once
         return true; // stopped, every volley left its last balls in
@@ -326,6 +292,7 @@ public final class AutoSequence {
   }
 
   /** True while the indexer stops in its agitation: taking the Garden or a Flower, in each cycle's stop part. */
+  @Override
   public boolean indexerPaused(double nowS) {
     switch (step) {
       case FACE_GARDEN:
@@ -335,7 +302,7 @@ public final class AutoSequence {
       case INTAKE_WALL_FLOWER:
       case LOWER_ARM_REAR:
       case INTAKE_REAR_FLOWER:
-        return agitationPaused(nowS - stepStartS, AGITATE_RUN_S, AGITATE_STOP_S);
+        return agitationPaused(tracker.inStepS(nowS), AGITATE_RUN_S, AGITATE_STOP_S);
       default:
         return false;
     }
@@ -351,11 +318,12 @@ public final class AutoSequence {
    * The Pollen arm is down: from facing the Flower (or giving up on facing it) until it backs out. Up everywhere
    * else, so it is never down on a drive between places.
    */
+  @Override
   public boolean armDown() {
     switch (step) {
       case LOWER_ARM_WALL:
       case LOWER_ARM_REAR:
-        return !Double.isNaN(arrivedAtS);
+        return tracker.arrived();
       case INTAKE_WALL_FLOWER:
       case INTAKE_REAR_FLOWER:
       case BACK_FROM_WALL_FLOWER:
@@ -370,6 +338,7 @@ public final class AutoSequence {
    * Holding a spot until the robot is on it and at its heading: turning to the Garden's line, onto its wall, or to a
    * Flower before the arm goes down.
    */
+  @Override
   public boolean isFacingStep() {
     return step == Step.FACE_GARDEN || step == Step.ONTO_GARDEN_WALL || step == Step.LOWER_ARM_WALL
         || step == Step.LOWER_ARM_REAR;
@@ -379,8 +348,9 @@ public final class AutoSequence {
     return skipSecondFlower;
   }
 
+  @Override
   public int ballsShot() {
-    return ballsShot;
+    return tracker.ballsShot();
   }
 
   /**
@@ -391,9 +361,9 @@ public final class AutoSequence {
     return shootingStep == Step.SHOOT_PRELOAD ? first : first.other();
   }
 
-  /** Seconds since this step's drive was done, or NaN while it is still driving. */
+  @Override
   public double arrivedForS(double nowS) {
-    return nowS - arrivedAtS;
+    return tracker.arrivedForS(nowS);
   }
 
   /**
