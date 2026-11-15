@@ -6,6 +6,52 @@ BIOBUZZ 2026/27 at the Western Australia Qualifier.
 This repository is an unmodified import of the FIRST Tech Challenge SDK with
 our own code in `TeamCode`.
 
+## OpModes
+
+| Driver Station name | Group | Class | What it does |
+| --- | --- | --- | --- |
+| Lebot Teleop | Robot | `opmodes/Main` | The match TeleOp. LT loads, RB fires a standing volley, RT shoots on the move. Reads Volley Tuning's CSV for its volley settings |
+| Lebot Auto Red, Lebot Auto Blue | Robot | `auto/ScoringAutoRed`, `ScoringAutoBlue` | The scoring auto: preloads into the Cell that is up, the Garden into the other, our wall's Flower, then park |
+| Lebot Corner Red, Lebot Corner Blue | Robot | `auto/CornerAutoRed`, `CornerAutoBlue` | The corner auto: preloads from the rear corner, a wait there, our wall's Flower, a volley into the AUDIENCE Cell, then park, shooting what's left |
+| Shoot Auto | Robot | `auto/ShootAuto` | Drives forward, fires the load as one volley, parks in the loading zone. X blue, B red in INIT |
+| Volley Tuning | Tuning | `opmodes/tuning/VolleyTuning` | Four-ball volleys at Shot Tuning's spots; writes `VolleyTuning_v3.csv` |
+| Shot Tuning | Tuning | `opmodes/tuning/ShotTuning` | Standing shots at test spots, to find each spot's scoring hood (or RPM) range and aim trim; writes `ShotTuning_v2.csv` |
+| SOTM Tuning | Tuning | `opmodes/tuning/SotmTuning` | Planned shoot-on-the-move passes, one ball each; writes `SotmTuning.csv` |
+| Special Shot Calibration | Tuning | `opmodes/tuning/SpecialShotCalibration` | The lob over our Hive into its far Cell; writes `SpecialShot.csv` |
+| Vision Calibration | Tuning | `opmodes/check/VisionCalibration` | Measures tags, and in INIT sweeps the camera exposure. Nothing moves |
+| Odometry Calibration | Tuning | `opmodes/check/OdometryCalibration` | Measures the Pinpoint pod offsets by spinning in place, for `hardware/PinpointSettings` |
+| Indexer Intake Test | Test | `opmodes/check/IndexerIntakeTest` | Runs each indexer servo and the intake alone and shows what each draws |
+| Ramp Servo Check | Test | `opmodes/check/RampServoCheck` | Finds the Pollen ramp's stowed and deployed servo pulses |
+
+Each class's comment lists its controls. The autos preselect Lebot Teleop.
+
+## Robot configuration
+
+The names in the Control Hub's robot configuration, from `hardware/HardwareNames.java`. They must match exactly.
+`HardwareNamesReadmeTest` fails when this table and `HardwareNames` disagree.
+
+| Name | Device | Port | Notes |
+| --- | --- | --- | --- |
+| `DriveFL` | Motor | | Front left drive |
+| `DriveFR` | Motor | | Front right drive |
+| `DriveBL` | Motor | | Back left drive |
+| `DriveBR` | Motor | | Back right drive |
+| `ShooterL` | Motor | | Left flywheel |
+| `ShooterR` | Motor | | Right flywheel |
+| `IntakeMotor` | Motor | | Intake. Its encoder port reads the hood's REV encoder |
+| `HoodMotor` | Motor | | Hood |
+| `IndexerServoL` | Continuous rotation servo | Expansion Hub servo 0 | Upstream indexer rollers |
+| `IndexerServoR` | Continuous rotation servo | Control Hub servo 0 | Last indexer roller |
+| `FeederServo` | Continuous rotation servo | Control Hub servo 1 | Feeder |
+| `FeederServoR` | Continuous rotation servo | | Optional paired feeder; used ahead of `FeederServo` when present |
+| `FeederServoL` | Continuous rotation servo | | Optional paired feeder |
+| `RampServo` | Servo | Expansion Hub servo 1 | Pollen ramp. Optional: without it the telemetry says so |
+| `pinpoint` | goBILDA Pinpoint | I2C | Odometry |
+| `CameraL` | Webcam | USB | Left camera |
+| `CameraR` | Webcam | USB | Right camera |
+| `BeamBreakT` | Digital device | | Not needed while `IntakeSubsystem.BEAM_BREAKS_WIRED` is false |
+| `BeamBreakB` | Digital device | | Not needed while `IntakeSubsystem.BEAM_BREAKS_WIRED` is false |
+
 ## Requirements
 
 - **JDK 17.** <https://adoptium.net/temurin/releases/?version=17>
@@ -149,3 +195,63 @@ Things to know:
   `./gradlew :TeamCode:removeSlothRemote`.
 - **In Android Studio,** add a Gradle run configuration for the `TeamCode`
   module with the task `:TeamCode:deploySloth`.
+
+## Tests
+
+```
+./gradlew :TeamCode:testDebugUnitTest
+tools/verify.sh
+```
+
+The unit tests run on the laptop, without the robot. `tools/verify.sh` builds the debug APK, runs every unit test
+and checks the log keys; run it before every commit. These tests guard the robot's behaviour:
+
+- `ConstantsSnapshotTest`: every static constant keeps its value, from
+  `TeamCode/src/test/resources/constants/snapshot.txt`. When a constant or class moves, add the move to
+  `moves.txt` beside it.
+- `RobotLoopTraceTest` and `TuningOpModeTraceTest`: run the robot and the tuning OpModes in a simulation and compare
+  every loop with `robot/loop-trace.txt` and `robot/tuning-trace.txt` in the same folder. A change that is meant to
+  alter behaviour rewrites them with `WRITE_ROBOT_TRACE=1`; check the diff before committing it.
+- `tools/check_log_keys.py`: the log keys still match `tools/log-keys.txt`. `--write` updates the list after a
+  deliberate change.
+
+## Tuning
+
+The tuning OpModes write CSV files to `/sdcard/FIRST/` on the Control Hub. They append, so earlier sessions stay in
+the file. In INIT, Y in Shot, SOTM and Volley Tuning chooses between carrying on the saved searches and starting new
+ones.
+
+1. **Shot Tuning** finds each spot's standing shot. `tools/analysis/tuning_report.py` pulls `ShotTuning_v2.csv` and
+   turns it into table rows; `tools/analysis/tuning_to_fit.py` gives `tools/shots/fit-shots.js` its input. See
+   `tools/shots/README.md` for regenerating the shot table.
+2. **SOTM Tuning** starts each moving spot from Shot Tuning's standing aim trims (it reads `ShotTuning_v2.csv`).
+   `tools/analysis/sotm_report.py` fits `SotmConstants`' moving corrections from `SotmTuning.csv`.
+3. **Volley Tuning** tunes four-ball volleys at Shot Tuning's spots and writes `VolleyTuning_v3.csv`. Lebot Teleop
+   and the Lebot Auto and Lebot Corner autos read this file in INIT for their volley settings, from its confirmed
+   spots only (`VolleyConstants.VOLLEY_USE_TUNING_CSV`). **The file must be on the Hub.** Without it they quietly
+   use the `VolleyConstants` volley instead. The regionals file is in `data/volley/`. To put it on a new or reset
+   Hub (this replaces the Hub's file, so only do it when the Hub has no newer one):
+
+   ```
+   adb push data/volley/VolleyTuning_v3_2026-11-15.csv /sdcard/FIRST/VolleyTuning_v3.csv
+   ```
+
+   After tuning, keep a copy with `adb pull /sdcard/FIRST/VolleyTuning_v3.csv`.
+4. **Special Shot Calibration** writes `SpecialShot.csv`, for the lob into the far Cell.
+
+Vision Calibration (with `tools/vision/`) and Odometry Calibration are for when a camera or an odometry pod moves.
+
+## Logs and analysis
+
+PsiKit logs every OpMode run to `/sdcard/FIRST/PsiKit/*.rlog` on the Hub. Pull them into the analysis folder, where
+git ignores them:
+
+```
+adb pull /sdcard/FIRST/PsiKit/ tools/analysis/logs/
+```
+
+Open them in AdvantageScope, or read them with the scripts in `tools/analysis/` (see its README; `quick.py` gives a
+run at a glance). `Main.LIVE_LOGGING` serves the log live to AdvantageScope on port 5810; it must be false at
+competition. When the robot loop hangs, `LoopWatchdog` writes the loop thread's stack to
+`/sdcard/FIRST/loop_stalls.txt`, which survives the app restart that follows. `tools/README.md` lists the other
+laptop tools.
