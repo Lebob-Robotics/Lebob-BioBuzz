@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.opmodes.tuning;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
-import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
@@ -22,23 +21,17 @@ import org.firstinspires.ftc.teamcode.tuning.ShotTuningSettings;
 import org.firstinspires.ftc.teamcode.tuning.TuningResume;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
-import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.FieldRoute;
-import org.firstinspires.ftc.teamcode.opmodes.Main;
-import org.firstinspires.ftc.teamcode.robot.Robot;
 
 /**
  * Drive to test spots and shoot, to find the hood angle (or RPM) range that scores from each, and how moving shots
@@ -75,7 +68,7 @@ import org.firstinspires.ftc.teamcode.robot.Robot;
  * <p>Nothing aims until the cameras have seen the Hive tags: point the camera side at the Hive first.
  */
 @TeleOp(name = "Shot Tuning", group = "Tuning")
-public class ShotTuning extends PsiKitIterativeOpMode {
+public class ShotTuning extends TuningOpMode {
   // A new file: the old one's header has fewer columns
   private static final String CSV_PATH = "/sdcard/FIRST/ShotTuning_v2.csv";
   private static final String CSV_HEADER = "session,shot,kind,mode,lip_m,x_m,y_m,heading_deg,cell_x_m,cell_y_m,"
@@ -98,9 +91,6 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   private enum PassStage { NONE, TO_START, READY, RUN, BACK }
   private static final String[] PASS_NAMES = {"TOWARD", "AWAY", "ACROSS_LEFT", "ACROSS_RIGHT"};
 
-  private Robot robot;
-  private final ElapsedTime clock = new ElapsedTime();
-  private String session = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
   private boolean backward = false;
   private double rpm = 3400;
   private double hoodLiftDeg = 0; // Above the lower stop; the launch angle is ZERO_ANGLE_DEG less this
@@ -213,27 +203,15 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   private boolean wasY;
   private boolean wasStart;
 
-  @Override
-  protected int getRlogPort() {
-    return Main.LIVE_LOGGING ? Main.RLOG_PORT : 0;
-  }
-
-  @Override
-  protected void onPsiKitConfigureLogging() {
-    Main.configureLogging();
-    Logger.recordMetadata("OpMode", "Shot Tuning");
-    Logger.recordMetadata("TuningSession", session);
+  public ShotTuning() {
+    super("Shot Tuning");
   }
 
   @Override
   protected void onPsiKitInit() {
     hoodedTrim = new AimTrimSearch(ShotTuningSettings.TRIM_STEP_DEG, ShotTuningSettings.TRIM_MIN_STEP_DEG);
     backwardTrim = new AimTrimSearch(ShotTuningSettings.TRIM_STEP_DEG, ShotTuningSettings.TRIM_MIN_STEP_DEG);
-    robot = new Robot(hardwareMap, telemetry, gamepad1);
-    robot.init();
-    robot.setTuningMode(true);
-    robot.setAlliance(Alliance.BLUE);
-    robot.setDriverOnFarSide(true);
+    initTuningRobot();
     robot.setSticksLocked(true);
     robot.setAllianceFromTags(true); // Tunes on whichever Cell the cameras face
     resumeData = readLastSession();
@@ -729,11 +707,6 @@ public class ShotTuning extends PsiKitIterativeOpMode {
       s.append(e.getKey()).append(' ').append(e.getValue());
     }
     return s.toString();
-  }
-
-  private void line(String key, String value) {
-    telemetry.addData(key, value);
-    robot.addPanelsLine(key, value);
   }
 
   // ---- Driving to a spot or a pass's start, the pass itself, and turning to the shot

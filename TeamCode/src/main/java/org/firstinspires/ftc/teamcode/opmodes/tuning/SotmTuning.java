@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.opmodes.tuning;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
-import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
@@ -20,16 +19,13 @@ import org.firstinspires.ftc.teamcode.tuning.SotmSpotSearch;
 import org.firstinspires.ftc.teamcode.tuning.SotmTuningSettings;
 import org.firstinspires.ftc.teamcode.tuning.TuningResume;
 import org.psilynx.psikit.core.Logger;
-import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -37,10 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.FieldRoute;
-import org.firstinspires.ftc.teamcode.opmodes.Main;
-import org.firstinspires.ftc.teamcode.robot.Robot;
 import org.firstinspires.ftc.teamcode.tuning.SotmPath;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 
@@ -76,7 +69,7 @@ import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
  * <p>Any stick, either trigger or RB pushed during a drive stops it. Point the cameras at the Hive tags first.
  */
 @TeleOp(name = "SOTM Tuning", group = "Tuning")
-public class SotmTuning extends PsiKitIterativeOpMode {
+public class SotmTuning extends TuningOpMode {
   private static final String CSV_PATH = "/sdcard/FIRST/SotmTuning.csv";
   private static final String STATE_COLUMNS = "x_m,y_m,heading_deg,vx_mps,vy_mps,omega_dps,ax_mps2,ay_mps2,lip_m,"
       + "toward_mps,sideways_mps,head_err_deg,turning_deg,target_rpm,rpm,hood_target_deg,hood_deg";
@@ -97,9 +90,6 @@ public class SotmTuning extends PsiKitIterativeOpMode {
 
   private enum Stage { IDLE, TO_START, READY, RUN, TO_RELOAD, END }
 
-  private Robot robot;
-  private final ElapsedTime clock = new ElapsedTime();
-  private final String session = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
   private boolean backward = false;
   // Planned on their own thread: on the hub it takes seconds, longer than INIT may block
   private volatile List<SotmPath.Entry> hoodedPlan;
@@ -189,26 +179,14 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     return s.toString();
   }
 
-  @Override
-  protected int getRlogPort() {
-    return Main.LIVE_LOGGING ? Main.RLOG_PORT : 0;
-  }
-
-  @Override
-  protected void onPsiKitConfigureLogging() {
-    Main.configureLogging();
-    Logger.recordMetadata("OpMode", "SOTM Tuning");
-    Logger.recordMetadata("TuningSession", session);
+  public SotmTuning() {
+    super("SOTM Tuning");
   }
 
   @Override
   protected void onPsiKitInit() {
-    robot = new Robot(hardwareMap, telemetry, gamepad1);
-    robot.init();
-    robot.setTuningMode(true);
+    initTuningRobot();
     robot.setTuningLive(true);
-    robot.setAlliance(Alliance.BLUE);
-    robot.setDriverOnFarSide(true);
     robot.setSticksLocked(true);
     robot.setAllianceFromTags(true);
     readCsv();
@@ -1005,11 +983,6 @@ public class SotmTuning extends PsiKitIterativeOpMode {
       case 2: return "none always";
       default: return "per pass";
     }
-  }
-
-  private void line(String key, String value) {
-    telemetry.addData(key, value);
-    robot.addPanelsLine(key, value);
   }
 
   private void logState() {

@@ -295,9 +295,7 @@ public class TuningOpModeTraceTest {
 
   private static Object get(Object o, String name) {
     try {
-      Field f = o.getClass().getDeclaredField(name);
-      f.setAccessible(true);
-      return f.get(o);
+      return field(o, name).get(o);
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(e);
     }
@@ -305,12 +303,24 @@ public class TuningOpModeTraceTest {
 
   private static void set(Object o, String name, Object value) {
     try {
-      Field f = o.getClass().getDeclaredField(name);
-      f.setAccessible(true);
-      f.set(o, value);
+      field(o, name).set(o, value);
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  /** The OpMode's field, or one it inherits. */
+  private static Field field(Object o, String name) throws NoSuchFieldException {
+    for (Class<?> c = o.getClass(); c != null; c = c.getSuperclass()) {
+      try {
+        Field f = c.getDeclaredField(name);
+        f.setAccessible(true);
+        return f;
+      } catch (NoSuchFieldException e) {
+        // Try the superclass
+      }
+    }
+    throw new NoSuchFieldException(name);
   }
 
   private static void setStatic(Class<?> c, String name, Object value) {

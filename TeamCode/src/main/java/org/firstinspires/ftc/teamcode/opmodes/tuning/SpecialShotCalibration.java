@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.opmodes.tuning;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
-import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
@@ -13,18 +12,13 @@ import org.firstinspires.ftc.teamcode.field.CellGeometry;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
-import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.FieldRoute;
-import org.firstinspires.ftc.teamcode.opmodes.Main;
-import org.firstinspires.ftc.teamcode.robot.Robot;
 
 /**
  * Lob over our Hive into its far Cell: the robot stands {@link #LIP_GAP_M} out from the near Cell's lip, on the
@@ -50,7 +44,7 @@ import org.firstinspires.ftc.teamcode.robot.Robot;
  * </ul>
  */
 @TeleOp(name = "Special Shot Calibration", group = "Tuning")
-public class SpecialShotCalibration extends PsiKitIterativeOpMode {
+public class SpecialShotCalibration extends TuningOpMode {
   private static final String CSV_PATH = "/sdcard/FIRST/SpecialShot.csv";
   private static final String CSV_HEADER = "session,shot,kind,x_m,y_m,heading_deg,target_x_m,target_y_m,far_cell,"
       + "far_cell_up,up_confirmed,head_err_deg,target_rpm,rpm_at_feed,launch_deg,hood_at_feed_deg,battery_v,"
@@ -88,9 +82,6 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   private static final double ORIENT_DONE_DEG = 1.0;
   private static final double SPOT_SETTLE_S = 1.5;
 
-  private Robot robot;
-  private final ElapsedTime clock = new ElapsedTime();
-  private final String session = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
   private double rpm = START_RPM_FAR_UP;
   private double launchDeg = START_LAUNCH_DEG_FAR_UP;
   private double trimDeg = 0;
@@ -137,25 +128,13 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   private boolean wasDpadLeft;
   private boolean wasDpadRight;
 
-  @Override
-  protected int getRlogPort() {
-    return Main.LIVE_LOGGING ? Main.RLOG_PORT : 0;
-  }
-
-  @Override
-  protected void onPsiKitConfigureLogging() {
-    Main.configureLogging();
-    Logger.recordMetadata("OpMode", "Special Shot Calibration");
-    Logger.recordMetadata("TuningSession", session);
+  public SpecialShotCalibration() {
+    super("Special Shot Calibration");
   }
 
   @Override
   protected void onPsiKitInit() {
-    robot = new Robot(hardwareMap, telemetry, gamepad1);
-    robot.init();
-    robot.setTuningMode(true);
-    robot.setAlliance(Alliance.BLUE);
-    robot.setDriverOnFarSide(true);
+    initTuningRobot();
     pushShot(null);
   }
 
@@ -306,11 +285,6 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
     if (fileError != null) {
       line("CSV", fileError);
     }
-  }
-
-  private void line(String key, String value) {
-    telemetry.addData(key, value);
-    robot.addPanelsLine(key, value);
   }
 
   // ---- Driving to the spot, and turning to the shot
