@@ -1,40 +1,39 @@
 package org.firstinspires.ftc.teamcode.robot;
 
 import com.arcrobotics.ftclib.command.CommandScheduler;
+import com.bylazar.gamepad.PanelsGamepad;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
+import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.field.Cell;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
+import org.firstinspires.ftc.teamcode.field.PoseHandoff;
 import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
+import org.firstinspires.ftc.teamcode.opmodes.Main;
+import org.firstinspires.ftc.teamcode.shooting.Aim;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
 import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
-import com.bylazar.gamepad.PanelsGamepad;
-import org.firstinspires.ftc.teamcode.shooting.Aim;
-import org.firstinspires.ftc.teamcode.field.PoseHandoff;
-import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
-import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
-import org.firstinspires.ftc.teamcode.vision.VisionConstants;
 import org.firstinspires.ftc.teamcode.vision.TargetTracker;
+import org.firstinspires.ftc.teamcode.vision.VisionConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
-
-import org.firstinspires.ftc.teamcode.field.Cell;
-import org.firstinspires.ftc.teamcode.field.Alliance;
-import org.firstinspires.ftc.teamcode.opmodes.Main;
 
 /**
  * Turns gamepad input into subsystem states each loop, and runs shoot on the move.
