@@ -289,8 +289,8 @@ public class ShotTuning extends TuningOpMode {
 
   /**
    * Whether a backward run began as a search starts now: on the RPM, from the table's launch angle for where it
-   * stood. Runs that searched the launch angle went the wrong way; Shot Tuning 085918 (7 Nov) began one at 0.90 m's
-   * angle from 0.64 m, the table loaded for a Cell guessed before the tags were seen.
+   * stood. Runs that searched the launch angle went the wrong way, and one began at the angle of a table loaded for
+   * a Cell guessed before the tags were seen.
    */
   private static boolean fromBackwardTable(TuningResume.Ball first) {
     double[] table = BackwardShotConstants.BACKWARD_DIST_M;
@@ -490,8 +490,8 @@ public class ShotTuning extends TuningOpMode {
     searchKey = (backward ? "BACK " : "FRONT ") + (spot < 0 ? String.format(Locale.US, "%.2fm", distM) : "G" + spot);
     double launch = launchDeg();
     // On a stop the hood can't move one way, so the RPM moves the ball instead. The backward shot always searches
-    // the RPM: flatter reaches further but comes in under the rim, steeper falls short, and both get marked short
-    // (Shot Tuning 085918, 7 Nov: back G1 lowered 94 -> 88 degrees, 12 of 12 short). More RPM raises and lengthens it.
+    // the RPM: flatter reaches further but comes in under the rim, steeper falls short, and both get marked short.
+    // More RPM raises and lengthens it.
     searchRpm = backward
         || launch >= HoodGeometry.ZERO_ANGLE_DEG - 0.5 || launch <= HoodGeometry.MIN_ANGLE_DEG + 0.5;
     searchStartLaunchDeg = launch;

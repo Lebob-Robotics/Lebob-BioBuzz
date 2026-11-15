@@ -65,7 +65,7 @@ public class SpecialShotCalibration extends TuningOpMode {
    * Far Cell up (mirror of the near one, lip 1.36 m, face at 60 deg): 72 deg scores 5000-5220 rpm, 1.4 s up.
    * 70 deg gives 4570-4780; 74 deg 5660-5900. Steeper is wider but needs more rpm. The model was fitted to shots
    * under about 4200 rpm and leaves out backspin lift, which carries the ball further, so it should need less than
-   * this: walk the rpm down first. The first try, 4960 rpm at 72 deg (the old model's pick), missed.
+   * this: walk the rpm down first.
    *
    * Far Cell down: guessed lip 1.00 m and face at 70 deg. 74 deg scores 5540-5730 rpm; 74.5 deg would need
    * 5760-5960, past the model's 5800 rpm top. Try it last.

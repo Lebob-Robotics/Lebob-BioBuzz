@@ -33,8 +33,8 @@ public final class VolleySpotDrive {
   static final int PARK = FieldRoute.GRID.length;
   /**
    * Volley-only spots after the park, numbered on from it so saved spot numbers keep their meaning. Where TeleOp's
-   * hooded volleys left from 0.3-0.6 m off every tuned spot (15 Nov matches): along the side wall 30-39 degrees off
-   * the Cell (6 balls, on spot 5's settings), and level with the Cell just outside the backward wedge (2 balls).
+   * hooded volleys left from 0.3-0.6 m off every tuned spot: along the side wall 30-39 degrees off the Cell, and
+   * level with the Cell just outside the backward wedge.
    */
   static final double[][] EXTRA = {
       {-1.30, -0.95}, // 11: 1.11 m from the aim point, 34 degrees off
@@ -88,13 +88,12 @@ public final class VolleySpotDrive {
   /**
    * The spots Volley Tuning visits, in order: the auto's two shots (the park, spot 4), then the side spots TeleOp
    * volleys from, with the extra spots beside their neighbours. Not spots 0-3: they are within BACKWARD_ONLY_WEDGE_DEG
-   * of straight out from the Cell, where TeleOp now shoots backward, and hooded volleys there bounced (spot 0: 86 of
-   * 260 IN, 14 Nov).
+   * of straight out from the Cell, where TeleOp now shoots backward, and hooded volleys there bounced.
    */
   static final int[] VOLLEY_ORDER = {PARK, 4, PARK + 1, PARK + 2, 5, 6, 7, 8, 9};
   /**
-   * The backward spots, most used first: TeleOp's backward volleys left from the side wall near B3 and B4, 29 and 28
-   * degrees off (15 Nov matches); B1 is 0.40 m out.
+   * The backward spots, most used first: TeleOp's backward volleys left from the side wall near B3 and B4; B1 is
+   * 0.40 m out.
    */
   static final int[] BACKWARD_ORDER = {BACKWARD_FIRST + 2, BACKWARD_FIRST + 3, BACKWARD_FIRST + 1, BACKWARD_FIRST};
 

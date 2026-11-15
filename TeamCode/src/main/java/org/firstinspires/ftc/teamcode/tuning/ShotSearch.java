@@ -140,8 +140,7 @@ public final class ShotSearch {
       confirmScored += mark.in ? 1 : 0;
       if (phase == Phase.CONFIRM && confirmFired >= confirmBalls && confirmMisses.size() * 2 > confirmFired) {
         // Most confirming balls missed on range: the search reopens, and the ins those misses contradict are
-        // dropped as older (7 Nov, 085204: called found at 3 of 10 in, its three confirming balls all long, two ins
-        // from an earlier session holding the range at -2.0 deg)
+        // dropped as older
         for (double[] m : confirmMisses) {
           if (m[1] > 0) {
             scoredReach.removeIf(r -> r >= m[0]);
@@ -181,8 +180,8 @@ public final class ShotSearch {
     }
     double highest = max(scoredReach);
     double lowest = min(scoredReach);
-    // Fired settings are rounded to the quantum, so a limit off it is reached within half of one (7 Nov, 082948: the
-    // hood limit -3.93 deg, every ball fired at -3.9 went in and the long edge was never found, 38 balls)
+    // Fired settings are rounded to the quantum, so a limit off it is reached within half of one, or an edge beyond
+    // it is never found
     double atLimit = Math.max(1e-9, quantum / 2 + 1e-9);
     boolean longEdgeKnown = shortestLongReach - highest <= resolution || highest >= maxReach - atLimit;
     boolean shortEdgeKnown = lowest - longestShortReach <= resolution || lowest <= minReach + atLimit;

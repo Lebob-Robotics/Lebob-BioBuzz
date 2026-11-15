@@ -19,7 +19,7 @@ public final class VolleyAutoTuner {
   public static final int CONFIRM_ATTEMPTS = 3;
   /**
    * A confirmed setting is solid after this many good volleys in a row: two-volley confirmations were inconsistent
-   * in matches (15 Nov). Volley Tuning revisits confirmed forward spots until solid; TeleOp uses them once confirmed.
+   * in matches. Volley Tuning revisits confirmed forward spots until solid; TeleOp uses them once confirmed.
    */
   public static final int SOLID_GOOD = 4;
   /**
@@ -160,8 +160,8 @@ public final class VolleyAutoTuner {
     if (ins <= POOR_INS && bounces >= POOR_BOUNCES) { poorHere++; }
     if (goodHere >= CONFIRM_GOOD) {
       // Good twice in a row at one setting confirms it. Searching on through all ten settings for a faster one
-      // took 20+ volleys a spot; setting 1 (full feeder and indexer) went 8 of 8 and is what TeleOp runs
-      // At the middle of the trims that scored, as estimate(): 14 Nov spot 4 went 4 of 4 at 0 and at -1
+      // took 20+ volleys a spot
+      // At the middle of the trims that scored, as estimate()
       VolleyCalibration c = models[firedProfile];
       best = new Settings(firedProfile, centreOr(c.firstSearch(), fired.firstTrim),
           centreOr(c.laterSearch(), fired.laterTrim), fired.headingTrim);

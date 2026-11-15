@@ -6,7 +6,6 @@ package org.firstinspires.ftc.teamcode.tuning;
  */
 public final class BallDipDetector {
   // The one-ball gate pulses the feeder again ~0.8 s after a pulse that delivered nothing; those dipped under 150 rpm
-  // (6 Nov 082517)
   private static final double DIP_RPM = 200;
   private static final double WINDOW_S = 0.6;
 

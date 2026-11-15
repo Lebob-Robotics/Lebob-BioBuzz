@@ -34,7 +34,7 @@ public final class AimTrimSearch {
     }
     sameSideRun++;
     if (sameSideRun >= 3) {
-      // Still missing the same way: halved to 0.25 deg it took 8 balls left in a row 1.75 deg (7 Nov, 080156)
+      // Still missing the same way: halved to its smallest, the step took too many balls to move the aim far enough
       stepDeg = Math.min(2 * startStepDeg, stepDeg * 2);
     }
     lastSide = side;

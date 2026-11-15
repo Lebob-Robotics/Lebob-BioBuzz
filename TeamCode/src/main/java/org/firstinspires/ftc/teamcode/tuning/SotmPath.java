@@ -164,7 +164,7 @@ public final class SotmPath {
     switch (kind) {
       case STRAIGHT:
       case ARC: {
-        // FIRE_STEADY_STICK_S and the robot settling at speed: it lags 0.3-0.5 s getting going (7 Nov, 100426)
+        // FIRE_STEADY_STICK_S and the robot settling at speed: it lags 0.3-0.5 s getting going
         sh.fireS = ramp + 0.6;
         sh.windowS = 0.7;
         final double stopS = sh.fireS + sh.windowS + 0.1;
@@ -522,8 +522,7 @@ public final class SotmPath {
   /**
    * This path with its window cut to where the table has a shot, at the planned speed and SHOT_CHECK_SPEED_SCALE
    * times it; null if that leaves less than SHOT_CHECK_MIN_S (or the whole window, if shorter). A line past the
-   * Cell at 1 m/s (7 Nov, 083925) had a shot for the first 0.25 s of its 0.7 s window and backed out of the table
-   * for the rest: three runs, no ball.
+   * Cell can have a shot for only the start of its window and back out of the table for the rest.
    */
   SotmPath trimmedToShot(boolean backward) {
     double shotS = shotS(backward);

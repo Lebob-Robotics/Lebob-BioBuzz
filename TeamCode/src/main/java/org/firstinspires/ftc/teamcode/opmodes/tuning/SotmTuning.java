@@ -675,11 +675,11 @@ public class SotmTuning extends TuningOpMode {
       } else {
         stick = trackStick(want, path.sample(t + SotmTuningSettings.TRACK_LEAD_S), ex, ey);
         // Only the plan's speed: on an arc its direction turns all the time, so a field-frame stick never held still
-        // and the Steady gate never let an arc fire (7 Nov, 085204)
+        // and the Steady gate never let an arc fire
         double[] planStick = stickFor(want[2], want[3]);
         steadyReference = new double[] {Math.hypot(planStick[0], planStick[1]), 0};
         // Held until the ball is out (or the dip window ends): released the loop the feed started, the feeder
-        // stopped after one loop and the ball mostly stayed in (7 Nov, 080123: 5 of 16 passes with no ball)
+        // stopped after one loop and the ball mostly stayed in
         boolean feeding = pendingRow != null && pendingKey.equals(entry.key);
         fire = feeding || (!fed && t >= path.fireS && t <= path.fireS + path.windowS);
       }
