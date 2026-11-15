@@ -5,7 +5,8 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.CellGeometry;
@@ -213,10 +214,10 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
       rpm = Math.max(MIN_RPM, rpm - RPM_STEP);
     }
     if (justPressed(pad.dpad_right, wasDpadRight)) {
-      launchDeg = Math.max(HoodSubsystem.MIN_ANGLE_DEG, launchDeg - HOOD_STEP_DEG);
+      launchDeg = Math.max(HoodGeometry.MIN_ANGLE_DEG, launchDeg - HOOD_STEP_DEG);
     }
     if (justPressed(pad.dpad_left, wasDpadLeft)) {
-      launchDeg = Math.min(HoodSubsystem.ZERO_ANGLE_DEG, launchDeg + HOOD_STEP_DEG);
+      launchDeg = Math.min(HoodGeometry.ZERO_ANGLE_DEG, launchDeg + HOOD_STEP_DEG);
     }
     trimDeg += (justPressed(pad.left_stick_button, wasLeftStick) ? HEADING_TRIM_STEP_DEG : 0)
         - (justPressed(pad.right_stick_button, wasRightStick) ? HEADING_TRIM_STEP_DEG : 0);

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 /**
  * Hood position control in lift degrees, stepped by {@link HoodLoop} at a few hundred hertz on the

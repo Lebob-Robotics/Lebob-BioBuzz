@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.shooting.feed.RpmTrend;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -129,15 +129,15 @@ final class FireControl {
   }
 
   private static int feedStopHoodTicks() {
-    return (int) Math.round(FireConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
+    return (int) Math.round(FireConstants.FEED_STOP_HOOD_DEG * HoodGeometry.TICKS_PER_DEG);
   }
 
   private static int volleyHoodToleranceTicks() {
-    return (int) Math.round(VolleyConstants.VOLLEY_HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
+    return (int) Math.round(VolleyConstants.VOLLEY_HOOD_TOLERANCE_DEG * HoodGeometry.TICKS_PER_DEG);
   }
 
   private static int hoodToleranceTicks() {
-    return (int) Math.round(FireConstants.HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
+    return (int) Math.round(FireConstants.HOOD_TOLERANCE_DEG * HoodGeometry.TICKS_PER_DEG);
   }
 
   /** Top of a volley's matched band: tighter for a backward burst, which goes long when fed fast. */

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.bylazar.configurables.annotations.Configurable;
@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.hardware.HubMotors;
 import org.firstinspires.ftc.teamcode.shooting.AimConstants;
-import org.firstinspires.ftc.teamcode.shooting.ShooterGeometry;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -121,14 +120,6 @@ public class HoodSubsystem extends SubsystemBase {
   /** Backstop on the motor target beyond the REV-mapped range: backlash (16) plus drift. */
   private static final int MOTOR_TARGET_SLACK_TICKS = 20;
 
-  // ---- Geometry --------------------------------------------------------
-  /** Launch angle at the lower hard stop, where the encoder is zeroed. */
-  public static double ZERO_ANGLE_DEG = 99.0;
-  /** Launch angle at the top of the hood's travel; sets the upper soft limit. */
-  public static double MIN_ANGLE_DEG = ShooterGeometry.HOOD_TOP_STOP_DEG;
-  /** Encoder ticks per degree of launch angle: 8192 ticks/rev through the 10:1. */
-  public static double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
-
   private final DcMotorEx hoodMotor;
   private final DcMotorEx hubMotor; // Same motor, past the logging wrapper, for gains and tolerance
   private final DcMotorEx revEncoderInput;
@@ -213,7 +204,7 @@ public class HoodSubsystem extends SubsystemBase {
     cut();
     // Read only: never change IntakeMotor's power, mode, direction or encoder zero here.
     revEncoderInput = hardwareMap.get(DcMotorEx.class, HardwareNames.HOOD_ENCODER);
-    fastLoop = HoodLoop.create(hubMotor, HubMotors.unwrap(revEncoderInput), TICKS_PER_DEG);
+    fastLoop = HoodLoop.create(hubMotor, HubMotors.unwrap(revEncoderInput), HoodGeometry.TICKS_PER_DEG);
   }
 
   /** Copies the Panels-live FAST_* values into the loop's gains. */
@@ -255,7 +246,8 @@ public class HoodSubsystem extends SubsystemBase {
    * margins). NaN returns the fast loop to position control.
    */
   public void setOpenLoopPower(double power) {
-    setOpenLoopPower(power, minTargetTicks() / TICKS_PER_DEG, maxTargetTicks() / TICKS_PER_DEG);
+    setOpenLoopPower(power, minTargetTicks() / HoodGeometry.TICKS_PER_DEG,
+        maxTargetTicks() / HoodGeometry.TICKS_PER_DEG);
   }
 
   /**
@@ -416,8 +408,8 @@ public class HoodSubsystem extends SubsystemBase {
     Logger.recordOutput("Hood/Rehomes", recovery.rehomes());
     Logger.recordOutput("Hood/Speed", appliedPower);
     Logger.recordOutput("Hood/EncoderGuard/DifferencePinionTurns", Math.abs(
-        lastPosition / HoodEncoderGuard.REV_COUNTS_PER_TURN
-        - lastMotorPosition / HoodEncoderGuard.MOTOR_COUNTS_PER_TURN));
+        lastPosition / HoodGeometry.REV_COUNTS_PER_TURN
+        - lastMotorPosition / HoodGeometry.MOTOR_COUNTS_PER_TURN));
     Logger.recordOutput("Hood/Fast/Available", fastLoop != null);
     if (fastLoop != null) {
       Logger.recordOutput("Hood/Fast/Active", fastLoop.isActive());
@@ -494,8 +486,8 @@ public class HoodSubsystem extends SubsystemBase {
     }
     if (encoderGuard.takeRebase()) { // Belt skipped: the REV is the hood, so move the motor's zero to match it
       recovery.onSlip();
-      int motorFromRev = (int) Math.round(position / HoodEncoderGuard.REV_COUNTS_PER_TURN
-          * HoodEncoderGuard.MOTOR_COUNTS_PER_TURN);
+      int motorFromRev = (int) Math.round(position / HoodGeometry.REV_COUNTS_PER_TURN
+          * HoodGeometry.MOTOR_COUNTS_PER_TURN);
       motorZero += motorPosition - motorFromRev;
       motorPosition = motorFromRev;
       lastMotorPosition = motorPosition;
@@ -521,8 +513,8 @@ public class HoodSubsystem extends SubsystemBase {
     targeting.observe(position, motorPosition, moveDone, target, DEADBAND_TICKS);
     // A wrong offset (say a REV fault the guard has not yet caught) must not aim past either stop.
     int motorTarget = Math.max(
-        (int) Math.round(minTargetTicks() * HoodMotorTargeting.MOTOR_PER_REV) - MOTOR_TARGET_SLACK_TICKS,
-        Math.min((int) Math.round(maxTargetTicks() * HoodMotorTargeting.MOTOR_PER_REV) + MOTOR_TARGET_SLACK_TICKS,
+        (int) Math.round(minTargetTicks() * HoodGeometry.MOTOR_PER_REV) - MOTOR_TARGET_SLACK_TICKS,
+        Math.min((int) Math.round(maxTargetTicks() * HoodGeometry.MOTOR_PER_REV) + MOTOR_TARGET_SLACK_TICKS,
             targeting.motorTargetFor(target, position, DEADBAND_TICKS, !atRest)));
     // Rebases move motorZero to the REV; the ceiling stays counted from the stop
     motorTarget = Math.min(motorTarget, motorCeilingTicks() - (motorZero - homedMotorZero));
@@ -550,7 +542,8 @@ public class HoodSubsystem extends SubsystemBase {
       drivingFast = false; // Start it again below; its last reading is stale, so skip the mismatch check
     }
     // Same encoder, read on two paths: a disagreement at rest means the loop's reading is wrong
-    if (drivingFast && atRest && Math.abs(fastLoop.posDeg() - position / TICKS_PER_DEG) > FAST_MISMATCH_DEG) {
+    if (drivingFast && atRest
+        && Math.abs(fastLoop.posDeg() - position / HoodGeometry.TICKS_PER_DEG) > FAST_MISMATCH_DEG) {
       if (++fastMismatchLoops >= 3) {
         fastLoop.fail("its REV reading disagreed with the main loop's");
         cut();
@@ -561,9 +554,9 @@ public class HoodSubsystem extends SubsystemBase {
     }
     // The rate only applies to the aimed target it came with, and not at either end of the range
     double rate = FAST_TRACK_RATE && directMode && target == directTicks && target != 0 ? targetLiftRateDegPerSec : 0;
-    fastLoop.setGoal(target / TICKS_PER_DEG, rate, minTargetTicks() / TICKS_PER_DEG,
-        maxTargetTicks() / TICKS_PER_DEG);
-    fastLoop.setLimits(0.3, maxTargetTicks() / TICKS_PER_DEG + 0.5);
+    fastLoop.setGoal(target / HoodGeometry.TICKS_PER_DEG, rate, minTargetTicks() / HoodGeometry.TICKS_PER_DEG,
+        maxTargetTicks() / HoodGeometry.TICKS_PER_DEG);
+    fastLoop.setLimits(0.3, maxTargetTicks() / HoodGeometry.TICKS_PER_DEG + 0.5);
     fastLoop.setSpeedScale(recovery.speed(1.0, RETRY_SPEED_FACTOR, MIN_RETRY_SPEED));
     if (!drivingFast) {
       fastLoop.activate(position + revZero);
@@ -631,15 +624,15 @@ public class HoodSubsystem extends SubsystemBase {
 
   /**
    * Converts a launch angle to encoder ticks. Ticks count up as the hood
-   * raises and the launch angle drops from {@link #ZERO_ANGLE_DEG}.
+   * raises and the launch angle drops from {@link HoodGeometry#ZERO_ANGLE_DEG}.
    */
   public static int angleToTicks(double launchAngleDeg) {
-    return (int) Math.round((ZERO_ANGLE_DEG - launchAngleDeg) * TICKS_PER_DEG);
+    return (int) Math.round((HoodGeometry.ZERO_ANGLE_DEG - launchAngleDeg) * HoodGeometry.TICKS_PER_DEG);
   }
 
   /** Lowest target, in ticks: the stop margin above the lower stop. */
   public static int minTargetTicks() {
-    return (int) Math.round(STOP_MARGIN_DEG * TICKS_PER_DEG);
+    return (int) Math.round(STOP_MARGIN_DEG * HoodGeometry.TICKS_PER_DEG);
   }
 
   /**
@@ -647,12 +640,13 @@ public class HoodSubsystem extends SubsystemBase {
    * backlash and drift. Counted on the motor, so it holds even when the REV stops counting.
    */
   static int motorCeilingTicks() {
-    return (int) Math.round(angleToTicks(MIN_ANGLE_DEG) * HoodMotorTargeting.MOTOR_PER_REV) + MOTOR_TARGET_SLACK_TICKS;
+    return (int) Math.round(angleToTicks(HoodGeometry.MIN_ANGLE_DEG) * HoodGeometry.MOTOR_PER_REV)
+        + MOTOR_TARGET_SLACK_TICKS;
   }
 
   /** Highest target, in ticks: the stop margin below the top of travel. */
   static int maxTargetTicks() {
-    return angleToTicks(MIN_ANGLE_DEG + STOP_MARGIN_DEG);
+    return angleToTicks(HoodGeometry.MIN_ANGLE_DEG + STOP_MARGIN_DEG);
   }
 
   /** Kept inside the margins, except that a target at or below the lower stop rests on it (0). */
@@ -665,7 +659,7 @@ public class HoodSubsystem extends SubsystemBase {
 
   /** Converts encoder ticks to a launch angle in degrees. */
   public static double ticksToAngle(int ticks) {
-    return ZERO_ANGLE_DEG - ticks / TICKS_PER_DEG;
+    return HoodGeometry.ZERO_ANGLE_DEG - ticks / HoodGeometry.TICKS_PER_DEG;
   }
 
   /** Hood position from the REV encoder input, relative to the lower-stop zero. */
@@ -675,20 +669,20 @@ public class HoodSubsystem extends SubsystemBase {
 
   /** Physical hood lift above the lower stop, independent of the launch-angle convention. */
   public double getLiftDegrees() {
-    return getPosition() / TICKS_PER_DEG;
+    return getPosition() / HoodGeometry.TICKS_PER_DEG;
   }
 
   public double getTargetLiftDegrees() {
-    return getTarget() / TICKS_PER_DEG;
+    return getTarget() / HoodGeometry.TICKS_PER_DEG;
   }
 
   public void setTargetLiftDegrees(double liftDegrees) {
-    setTargetTicks((int) Math.round(liftDegrees * TICKS_PER_DEG));
+    setTargetTicks((int) Math.round(liftDegrees * HoodGeometry.TICKS_PER_DEG));
   }
 
   /** A lift target moving at liftRateDegPerSec; see {@link #setTargetTicks(int, double)}. */
   public void setTargetLiftDegrees(double liftDegrees, double liftRateDegPerSec) {
-    setTargetTicks((int) Math.round(liftDegrees * TICKS_PER_DEG), liftRateDegPerSec);
+    setTargetTicks((int) Math.round(liftDegrees * HoodGeometry.TICKS_PER_DEG), liftRateDegPerSec);
   }
 
   public boolean hasEncoderFault() {
@@ -725,7 +719,7 @@ public class HoodSubsystem extends SubsystemBase {
       return false;
     }
     double positionTicks = drivingFast && !Double.isNaN(fastLoop.posDeg())
-        ? fastLoop.posDeg() * TICKS_PER_DEG : getPosition();
+        ? fastLoop.posDeg() * HoodGeometry.TICKS_PER_DEG : getPosition();
     return Math.abs(getTarget() - positionTicks) <= toleranceTicks;
   }
 
@@ -737,6 +731,6 @@ public class HoodSubsystem extends SubsystemBase {
     if (!atTarget(toleranceTicks)) {
       return false;
     }
-    return !drivingFast || fastLoop.maxErrorDeg(STEADY_S) * TICKS_PER_DEG <= toleranceTicks;
+    return !drivingFast || fastLoop.maxErrorDeg(STEADY_S) * HoodGeometry.TICKS_PER_DEG <= toleranceTicks;
   }
 }

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 /**
  * Turns a hood target on the REV Through Bore into a RUN_TO_POSITION target on the hood motor's
@@ -16,10 +16,6 @@ package org.firstinspires.ftc.teamcode.subsystems;
  * are left alone, so a settled hood does not hunt by one tick.
  */
 final class HoodMotorTargeting {
-  /** Motor encoder ticks per REV tick: 384.5 vs 8192 counts per pinion turn, 1:1. */
-  static final double MOTOR_PER_REV =
-      HoodEncoderGuard.MOTOR_COUNTS_PER_TURN / HoodEncoderGuard.REV_COUNTS_PER_TURN;
-
   private int offsetUp;
   private int offsetDown;
   private int direction; // +1 up, -1 down, 0 none yet: the way the belt was last driven
@@ -51,7 +47,7 @@ final class HoodMotorTargeting {
     if (!moveDone || Math.abs(revTargetTicks - revTicks) < deadbandTicks) {
       return;
     }
-    int learned = motorTicks - (int) Math.round(revTicks * MOTOR_PER_REV);
+    int learned = motorTicks - (int) Math.round(revTicks * HoodGeometry.MOTOR_PER_REV);
     if (direction < 0) {
       offsetDown = learned;
     } else {
@@ -77,6 +73,6 @@ final class HoodMotorTargeting {
     if (Math.abs(error) >= deadbandTicks && (!motorMoving || direction == 0)) {
       direction = error > 0 ? 1 : -1;
     }
-    return (int) Math.round(revTargetTicks * MOTOR_PER_REV) + offset();
+    return (int) Math.round(revTargetTicks * HoodGeometry.MOTOR_PER_REV) + offset();
   }
 }

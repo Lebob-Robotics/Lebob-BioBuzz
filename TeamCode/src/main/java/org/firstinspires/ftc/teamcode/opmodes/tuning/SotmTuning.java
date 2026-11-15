@@ -5,7 +5,8 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.tuning.BallMark;
@@ -414,8 +415,8 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     boolean valid = a.shot.valid && !Double.isNaN(a.hoodNowDeg) && !Double.isNaN(a.rpmNow);
     List<String[]> old = csvSpotBalls.get(e.key);
     boolean rpm = old != null && !old.isEmpty() ? "RPM".equals(old.get(0)[0])
-        : back || !valid || a.hoodNowDeg >= HoodSubsystem.ZERO_ANGLE_DEG - RPM_SEARCH_NEAR_STOP_DEG
-            || a.hoodNowDeg <= HoodSubsystem.MIN_ANGLE_DEG + RPM_SEARCH_NEAR_STOP_DEG;
+        : back || !valid || a.hoodNowDeg >= HoodGeometry.ZERO_ANGLE_DEG - RPM_SEARCH_NEAR_STOP_DEG
+            || a.hoodNowDeg <= HoodGeometry.MIN_ANGLE_DEG + RPM_SEARCH_NEAR_STOP_DEG;
     double min;
     double max;
     if (rpm) {
@@ -423,8 +424,8 @@ public class SotmTuning extends PsiKitIterativeOpMode {
       min = Math.max(-MAX_RPM_TRIM, MIN_RPM - base);
       max = Math.min(MAX_RPM_TRIM, robot.shooter.getMaxRpm() - base);
     } else {
-      min = Math.max(-MAX_HOOD_TRIM_DEG, HoodSubsystem.MIN_ANGLE_DEG - a.hoodNowDeg);
-      max = Math.min(MAX_HOOD_TRIM_DEG, HoodSubsystem.ZERO_ANGLE_DEG - a.hoodNowDeg);
+      min = Math.max(-MAX_HOOD_TRIM_DEG, HoodGeometry.MIN_ANGLE_DEG - a.hoodNowDeg);
+      max = Math.min(MAX_HOOD_TRIM_DEG, HoodGeometry.ZERO_ANGLE_DEG - a.hoodNowDeg);
     }
     double startTrim = old != null && !old.isEmpty() ? parseOr(old.get(0)[2], 0)
         : back ? standingBackwardTrimDeg : standingHoodedTrimDeg;
@@ -735,7 +736,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     robot.setHoldPoint(stage == Stage.READY || stage == Stage.END || stage == Stage.IDLE ? holdPoint : null);
     robot.setForceAim(aim);
     robot.setTuningLive(true);
-    robot.setTuningShot(shotBackward, 3400, HoodSubsystem.ZERO_ANGLE_DEG);
+    robot.setTuningShot(shotBackward, 3400, HoodGeometry.ZERO_ANGLE_DEG);
     robot.setScriptedOneBall(fire);
     robot.setSteadyGateBypassed(stage == Stage.RUN && relaxed);
     robot.setCloseMovingGateBypassed(stage == Stage.RUN && SotmTuningSettings.GATES != 1

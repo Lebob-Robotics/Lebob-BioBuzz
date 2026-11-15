@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 /**
  * What the hood does about a loose belt, so one bad move does not leave it dead until the next INIT.

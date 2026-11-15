@@ -12,7 +12,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
@@ -451,7 +452,7 @@ public class Robot {
    */
   public void setTuningMode(boolean on) { tuningMode = on; }
 
-  /** @param hoodDeg launch angle; HoodSubsystem.ZERO_ANGLE_DEG is the hood on its lower stop */
+  /** @param hoodDeg launch angle; HoodGeometry.ZERO_ANGLE_DEG is the hood on its lower stop */
   public void setTuningShot(boolean backward, double rpm, double hoodDeg) {
     aimSelector.tuningBackward = backward;
     aimSelector.tuningRpm = rpm;

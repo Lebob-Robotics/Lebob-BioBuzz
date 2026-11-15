@@ -255,3 +255,17 @@ org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_RUMBLE_MS -> org.firstins
 org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_REMIND_MS -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_REMIND_MS
 org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_REMIND_S -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_REMIND_S
 org.firstinspires.ftc.teamcode.robot.Robot.BATTERY_SAMPLE_PERIOD_S -> org.firstinspires.ftc.teamcode.robot.BatteryMonitor.BATTERY_SAMPLE_PERIOD_S
+# Hood classes into subsystems.hood; encoder counts and geometry into HoodGeometry
+org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem
+org.firstinspires.ftc.teamcode.subsystems.HoodLoop -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodLoop
+org.firstinspires.ftc.teamcode.subsystems.HoodController -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodController
+org.firstinspires.ftc.teamcode.subsystems.HoodEncoderGuard -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodEncoderGuard
+org.firstinspires.ftc.teamcode.subsystems.HoodFollowCheck -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodFollowCheck
+org.firstinspires.ftc.teamcode.subsystems.HoodMotorTargeting -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodMotorTargeting
+org.firstinspires.ftc.teamcode.subsystems.HoodRecovery -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodRecovery
+org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.ZERO_ANGLE_DEG -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.ZERO_ANGLE_DEG
+org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.MIN_ANGLE_DEG -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.MIN_ANGLE_DEG
+org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.TICKS_PER_DEG -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.TICKS_PER_DEG
+org.firstinspires.ftc.teamcode.subsystems.HoodEncoderGuard.REV_COUNTS_PER_TURN -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.REV_COUNTS_PER_TURN
+org.firstinspires.ftc.teamcode.subsystems.HoodEncoderGuard.MOTOR_COUNTS_PER_TURN -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.MOTOR_COUNTS_PER_TURN
+org.firstinspires.ftc.teamcode.subsystems.HoodMotorTargeting.MOTOR_PER_REV -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.MOTOR_PER_REV

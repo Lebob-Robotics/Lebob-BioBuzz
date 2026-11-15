@@ -10,7 +10,8 @@ import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
 import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.shooting.ShotPickConstants;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.vision.CellSighting;
 import org.firstinspires.ftc.teamcode.vision.VisionConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
@@ -31,7 +32,7 @@ final class AimSelector {
   AimState aimState = AimState.OFF;
   boolean tuningBackward = false;
   double tuningRpm = 3400;
-  double tuningHoodDeg = HoodSubsystem.ZERO_ANGLE_DEG;
+  double tuningHoodDeg = HoodGeometry.ZERO_ANGLE_DEG;
   double[] aimPointOverride = null; // Field {x, y} aimed at instead of the Cell; needs the tags' pose
   boolean allianceFromTags = false; // Takes the alliance of the Cell seen while its own is unknown
   boolean hoodedOnly = false;

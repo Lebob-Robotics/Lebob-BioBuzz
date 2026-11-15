@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
@@ -9,7 +9,7 @@ public class HoodMotorTargetingTest {
   private static final int TWENTY_DEG = 4552;
 
   private static int revFor(int motorTicks) {
-    return (int) Math.round(motorTicks / HoodMotorTargeting.MOTOR_PER_REV);
+    return (int) Math.round(motorTicks / HoodGeometry.MOTOR_PER_REV);
   }
 
   @Test public void reAnchorsOnTheRevAtRestToTakeUpBacklash() {
@@ -85,6 +85,6 @@ public class HoodMotorTargetingTest {
     t.observe(revFor(91), 107, true, TEN_DEG, DEADBAND);
     // A target 20 ticks below the hood is inside the deadband: still the up offset, no flip.
     assertEquals(16, t.motorTargetFor(TEN_DEG - 20, TEN_DEG, DEADBAND)
-        - (int) Math.round((TEN_DEG - 20) * HoodMotorTargeting.MOTOR_PER_REV));
+        - (int) Math.round((TEN_DEG - 20) * HoodGeometry.MOTOR_PER_REV));
   }
 }

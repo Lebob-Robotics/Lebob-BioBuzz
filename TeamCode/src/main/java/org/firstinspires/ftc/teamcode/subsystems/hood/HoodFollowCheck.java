@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 /**
  * Checks that the REV moves with the hood motor: over each stretch of {@link #WINDOW_MOTOR_TICKS} of motor
@@ -34,7 +34,7 @@ final class HoodFollowCheck {
     if (Math.abs(motorMoved) < WINDOW_MOTOR_TICKS) {
       return false;
     }
-    double revMoved = (revTicks - anchorRev) * HoodMotorTargeting.MOTOR_PER_REV;
+    double revMoved = (revTicks - anchorRev) * HoodGeometry.MOTOR_PER_REV;
     anchorRev = revTicks;
     anchorMotor = motorTicks;
     return revMoved * Math.signum(motorMoved) < SHARE * Math.abs(motorMoved);

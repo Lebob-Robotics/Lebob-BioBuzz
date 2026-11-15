@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 import com.qualcomm.hardware.lynx.LynxController;
 import com.qualcomm.hardware.lynx.LynxModuleIntf;
@@ -54,7 +54,7 @@ final class HoodLoop implements Runnable {
   private static final int MOTOR_READ_EVERY = 4;
   private static final double CEILING_NEAR_DEG = 10;
   private static final int CEILING_NEAR_MOTOR_TICKS =
-      (int) Math.ceil(CEILING_NEAR_DEG * HoodSubsystem.TICKS_PER_DEG * HoodMotorTargeting.MOTOR_PER_REV);
+      (int) Math.ceil(CEILING_NEAR_DEG * HoodGeometry.TICKS_PER_DEG * HoodGeometry.MOTOR_PER_REV);
 
   /** The goal as the main loop last set it, read whole by the loop thread. */
   private static final class Goal {

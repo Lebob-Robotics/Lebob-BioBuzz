@@ -5,7 +5,8 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.tuning.AimTrimSearch;
 import org.firstinspires.ftc.teamcode.tuning.BackwardShotSearch;
@@ -318,7 +319,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
         }
       }
       rpm = first.rpm;
-      hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodSubsystem.ZERO_ANGLE_DEG - first.launchDeg));
+      hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodGeometry.ZERO_ANGLE_DEG - first.launchDeg));
       applySearchValue();
       searchKey = current;
       searchX = last.xM;
@@ -542,7 +543,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     // the RPM: flatter reaches further but comes in under the rim, steeper falls short, and both get marked short
     // (Shot Tuning 085918, 7 Nov: back G1 lowered 94 -> 88 degrees, 12 of 12 short). More RPM raises and lengthens it.
     searchRpm = backward
-        || launch >= HoodSubsystem.ZERO_ANGLE_DEG - 0.5 || launch <= HoodSubsystem.MIN_ANGLE_DEG + 0.5;
+        || launch >= HoodGeometry.ZERO_ANGLE_DEG - 0.5 || launch <= HoodGeometry.MIN_ANGLE_DEG + 0.5;
     searchStartLaunchDeg = launch;
     beginSearch(searchRpm ? rpm : launch);
     applySearchValue();
@@ -604,8 +605,8 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     }
     // A flatter hooded shot goes further
     return new ShotSearch(start, -1, ShotTuningSettings.SEARCH_HOOD_STEP_DEG,
-        ShotTuningSettings.SEARCH_HOOD_RESOLUTION_DEG, 0.1, HoodSubsystem.MIN_ANGLE_DEG,
-        HoodSubsystem.ZERO_ANGLE_DEG, ShotTuningSettings.CONFIRM_BALLS);
+        ShotTuningSettings.SEARCH_HOOD_RESOLUTION_DEG, 0.1, HoodGeometry.MIN_ANGLE_DEG,
+        HoodGeometry.ZERO_ANGLE_DEG, ShotTuningSettings.CONFIRM_BALLS);
   }
 
   private void applySearchValue() {
@@ -615,10 +616,10 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     if (searchRpm) {
       rpm = search.next();
       if (backSearch != null) {
-        hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodSubsystem.ZERO_ANGLE_DEG - backSearch.launchDeg()));
+        hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodGeometry.ZERO_ANGLE_DEG - backSearch.launchDeg()));
       }
     } else {
-      hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodSubsystem.ZERO_ANGLE_DEG - search.next()));
+      hoodLiftDeg = Math.max(0, Math.min(maxLiftDeg(), HoodGeometry.ZERO_ANGLE_DEG - search.next()));
     }
   }
 
@@ -707,7 +708,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
         : table == null ? String.format(Locale.US, "no %s shot from %.2f m", backward ? "backward" : "hooded",
             aim.shot.distanceToLipM)
         : String.format(Locale.US, "%.0f rpm  launch %.1f deg  at %.2f m", table[0],
-            HoodSubsystem.ZERO_ANGLE_DEG - table[1], aim.shot.distanceToLipM));
+            HoodGeometry.ZERO_ANGLE_DEG - table[1], aim.shot.distanceToLipM));
     line("Spot (B: next)", (spot < 0 ? "none yet: B drives to G0" : "G" + spot + (driving ? " driving" : ""))
         + (driveStatus.isEmpty() ? "" : "  " + driveStatus)
         + (holdPoint == null ? "" : String.format(Locale.US, "  held, %.1f cm off",
@@ -1061,11 +1062,11 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   // ---- The shot
 
   private double launchDeg() {
-    return HoodSubsystem.ZERO_ANGLE_DEG - hoodLiftDeg;
+    return HoodGeometry.ZERO_ANGLE_DEG - hoodLiftDeg;
   }
 
   private static double maxLiftDeg() {
-    return HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG;
+    return HoodGeometry.ZERO_ANGLE_DEG - HoodGeometry.MIN_ANGLE_DEG;
   }
 
   private AimTrimSearch trim() {
@@ -1114,12 +1115,12 @@ public class ShotTuning extends PsiKitIterativeOpMode {
       Shot shot = ShootOnTheMove.calculateBackward(
           Math.max(table[0], Math.min(table[table.length - 1], distM)), 0, 0);
       return shot.valid ? new double[] {Math.round(shot.targetRpm / 10.0) * 10.0,
-          Math.round((HoodSubsystem.ZERO_ANGLE_DEG - shot.hoodDeg) * 10.0) / 10.0} : null;
+          Math.round((HoodGeometry.ZERO_ANGLE_DEG - shot.hoodDeg) * 10.0) / 10.0} : null;
     }
     Shot shot = ShootOnTheMove.calculate(distM, 0, 0);
     return shot.valid ? new double[] {
         Math.round((shot.targetRpm + AimConstants.HOODED_RPM_OFFSET) / 10.0) * 10.0,
-        Math.round((HoodSubsystem.ZERO_ANGLE_DEG - shot.hoodDeg) * 10.0) / 10.0} : null;
+        Math.round((HoodGeometry.ZERO_ANGLE_DEG - shot.hoodDeg) * 10.0) / 10.0} : null;
   }
 
   // ---- The CSV

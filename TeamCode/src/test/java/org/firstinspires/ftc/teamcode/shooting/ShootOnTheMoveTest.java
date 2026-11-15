@@ -6,7 +6,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.field.Angles;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -367,7 +367,7 @@ public class ShootOnTheMoveTest {
     assertEquals(3460, ShootOnTheMove.calculateBackward(1.8, 0, 0).targetRpm, 1e-6);
     assertEquals(3800, ShootOnTheMove.calculateBackward(2.3, 0, 0).targetRpm, 1e-6);
     assertEquals(3630, ShootOnTheMove.calculateBackward(2.05, 0, 0).targetRpm, 1e-6);
-    assertEquals("on the hood's lower stop", HoodSubsystem.ZERO_ANGLE_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
+    assertEquals("on the hood's lower stop", HoodGeometry.ZERO_ANGLE_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
   }
 
   @Test public void backwardCloseInLiftsTheHoodOffItsStop() {

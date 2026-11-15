@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.robot.Robot.AimState;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.AimConstants;
 import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.vision.VisionResult;
 import org.psilynx.psikit.core.Logger;

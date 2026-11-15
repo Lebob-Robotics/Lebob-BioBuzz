@@ -10,8 +10,9 @@ import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.shooting.ShooterTuning;
 import org.firstinspires.ftc.teamcode.shooting.SotmConstants;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.HoodPreset;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem.HoodPreset;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 
 /**
@@ -130,7 +131,7 @@ final class ShooterControl {
     }
     double lift = robot.hood.getTargetLiftDegrees();
     double steppedLift = hoodSteps.update(lift, robot.driver.dpad_right, robot.driver.dpad_left,
-        HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG);
+        HoodGeometry.ZERO_ANGLE_DEG - HoodGeometry.MIN_ANGLE_DEG);
     if (steppedLift != lift) {
       if (aiming || prepositioning) { robot.hoodLiftTrimDeg += steppedLift - lift; }
       robot.hood.setTargetLiftDegrees(steppedLift);

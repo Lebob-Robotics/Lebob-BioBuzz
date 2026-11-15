@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -7,7 +7,7 @@ import org.junit.Test;
 
 public class HoodFollowCheckTest {
   private static int rev(double motorTicks) {
-    return (int) Math.round(motorTicks / HoodMotorTargeting.MOTOR_PER_REV);
+    return (int) Math.round(motorTicks / HoodGeometry.MOTOR_PER_REV);
   }
 
   @Test public void deadRevIsCaughtWithinOneWindow() {

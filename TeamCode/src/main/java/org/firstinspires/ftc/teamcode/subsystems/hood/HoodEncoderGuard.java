@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.subsystems.hood;
 
 /**
  * Cross-checks the independent REV and motor encoders on the same 1:1 pinion shaft.
@@ -14,8 +14,6 @@ package org.firstinspires.ftc.teamcode.subsystems;
  * (085313: three rebases to a dead REV drove the hood past its top).
  */
 public final class HoodEncoderGuard {
-  public static final double REV_COUNTS_PER_TURN = 8192;
-  public static final double MOTOR_COUNTS_PER_TURN = 384.5; // 435 RPM 5203 output shaft
   // Measured at rest: about 16 motor ticks (15 pinion degrees) of belt lost motion on reversal, plus a
   // few ticks of offset at the stop. Mid-move the two hubs are read at different instants, which adds
   // several more ticks at speed, so small disagreements are only judged at rest.
@@ -64,7 +62,8 @@ public final class HoodEncoderGuard {
       lastRevTicks = revTicks;
       lastMotorTicks = motorTicks;
     }
-    double difference = Math.abs(revTicks / REV_COUNTS_PER_TURN - motorTicks / MOTOR_COUNTS_PER_TURN);
+    double difference = Math.abs(revTicks / HoodGeometry.REV_COUNTS_PER_TURN
+        - motorTicks / HoodGeometry.MOTOR_COUNTS_PER_TURN);
     if (difference > MAX_DIFFERENCE_TURNS && (atRest || difference > GROSS_DIFFERENCE_TURNS)) {
       if (Double.isNaN(mismatchSince)) { mismatchSince = nowS; }
       if (nowS - mismatchSince >= DISAGREEMENT_TIME_S) {

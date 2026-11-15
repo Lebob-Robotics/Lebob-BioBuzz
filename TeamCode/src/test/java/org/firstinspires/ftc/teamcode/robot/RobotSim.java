@@ -55,7 +55,7 @@ final class RobotSim {
   static final double DT_S = 0.02;
   private static final long DT_NANOS = 20_000_000L;
   private static final String[] SHOOTERS = {HardwareNames.SHOOTER_LEFT, HardwareNames.SHOOTER_RIGHT};
-  /** Motor counts per REV count on the hood's pinion (HoodEncoderGuard: 384.5 vs 8192 a turn). */
+  /** Motor counts per REV count on the hood's pinion (HoodGeometry: 384.5 vs 8192 a turn). */
   private static final double REV_PER_MOTOR = 8192 / 384.5;
   private static final double M_PER_IN = 0.0254;
 
