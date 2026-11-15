@@ -34,12 +34,12 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
   private static final double MIN_PATH_IN = 1.0;
 
   private final Alliance alliance;
-  private final RobotLocalizer localizer = new RobotLocalizer();
-  private final CapturedDrivetrain drivetrain = new CapturedDrivetrain();
+  final RobotLocalizer localizer = new RobotLocalizer();
+  final CapturedDrivetrain drivetrain = new CapturedDrivetrain();
   private final ElapsedTime clock = new ElapsedTime();
   private Robot robot;
   private boolean odometryReady;
-  private Follower follower;
+  Follower follower;
   private CornerSequence sequence;
   private boolean stopped;
   private VolleySettings volley;
@@ -119,6 +119,16 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
     robot.setAutoIntake(sequence.intake());
   }
 
+  /** The Robot's corrected pose. */
+  FieldPose pose() {
+    return robot.getPose();
+  }
+
+  /** The heading lock's target, NaN to leave the turn to Pedro. */
+  void lockHeading(double headingRad) {
+    robot.setAutoHeading(headingRad);
+  }
+
   /** Called by the Robot each loop with the corrected pose, before it drives. */
   private double[] pedroPowers(FieldPose pose, double[] velocity) {
     if (!odometryReady) { // Still while the Pinpoint finishes the reset from INIT (13 Nov)
@@ -182,26 +192,35 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
 
   /** The step's drive is done: for a facing step, on its spot and at its heading. */
   private boolean stepArrived() {
-    CornerSequence.Step step = sequence.step();
-    if (step == CornerSequence.Step.INTAKE_FLOWER && clock.seconds() - stepStartS >= ScoringAuto.FLOWER_STALL_AFTER_S
-        && speedMps <= ScoringAuto.FLOWER_STALLED_MPS) {
+    return stepArrived(sequence.step(), sequence.isFacingStep(), clock.seconds() - stepStartS, speedMps);
+  }
+
+  /** As above, for a step this far in, the robot moving this fast. */
+  boolean stepArrived(CornerSequence.Step step, boolean facingStep, double inStepS, double robotSpeedMps) {
+    if (step == CornerSequence.Step.INTAKE_FLOWER && inStepS >= ScoringAuto.FLOWER_STALL_AFTER_S
+        && robotSpeedMps <= ScoringAuto.FLOWER_STALLED_MPS) {
       return true; // Pushed up against the Flower short of the intake point: in it
     }
-    if (!sequence.isFacingStep()) {
+    if (!facingStep) {
       return !follower.following();
     }
     double[] stop = step == CornerSequence.Step.FACE_WALL ? CornerSequence.preloadSpot(alliance)
         : AutoField.forAlliance(AutoField.WALL_FLOWER, alliance);
-    FieldPose pose = robot.getPose();
+    FieldPose pose = pose();
     return Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= ScoringAuto.FACE_FLOWER_M
         && Math.abs(Angles.normalize(pose.headingRad - wallHeading())) <= ScoringAuto.FACE_FLOWER_RAD;
   }
 
   private Cell aimCell() {
-    if (sequence == null) {
+    return aimCell(sequence == null ? null : sequence.step());
+  }
+
+  /** The Cell to aim at in a step; null, before the start, is the preloads'. */
+  Cell aimCell(CornerSequence.Step current) {
+    if (current == null) {
       return CornerSequence.nearCell(alliance);
     }
-    int step = sequence.step().ordinal();
+    int step = current.ordinal();
     if (step >= CornerSequence.Step.DRIVE_TO_PARK.ordinal()) {
       return CornerSequence.parkCell(alliance);
     }
@@ -215,8 +234,8 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
   }
 
   /** Starts the drive for a step, from where the robot is now. */
-  private void startStep(CornerSequence.Step step) {
-    FieldPose now = robot.getPose();
+  void startStep(CornerSequence.Step step) {
+    FieldPose now = pose();
     Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean intoFlower = step == CornerSequence.Step.INTAKE_FLOWER;
     drivetrain.setScale(intoFlower ? ScoringAuto.SWEEP_POWER_SCALE : 1.0);
@@ -226,7 +245,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
     // Shooting, the aim's lock turns the robot instead
     boolean turning = step == CornerSequence.Step.SHOOT_GARDEN_SIDE || step == CornerSequence.Step.DRIVE_TO_PARK
         || step == CornerSequence.Step.PARKED;
-    robot.setAutoHeading(turning ? Double.NaN : wallHeading());
+    lockHeading(turning ? Double.NaN : wallHeading());
     Pose preload = poseOf(CornerSequence.preloadSpot(alliance));
     Pose flowerStop = pedro(AutoField.WALL_FLOWER, alliance);
     switch (step) {

@@ -58,12 +58,12 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   private static final double MIN_PATH_IN = 1.0;
 
   private final Alliance alliance;
-  private final RobotLocalizer localizer = new RobotLocalizer();
-  private final CapturedDrivetrain drivetrain = new CapturedDrivetrain();
+  final RobotLocalizer localizer = new RobotLocalizer();
+  final CapturedDrivetrain drivetrain = new CapturedDrivetrain();
   private final ElapsedTime clock = new ElapsedTime();
   private Robot robot;
   private boolean odometryReady;
-  private Follower follower;
+  Follower follower;
   private AutoSequence sequence;
   private TipPredictor tips;
   private boolean stopped;
@@ -75,7 +75,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   /** The Cell the current shooting spot is in front of, picked as its drive started. */
   private Cell shotSpotCell;
   /** The Cell up at the start, the first volley's: the plan's later volleys alternate from it. */
-  private Cell firstCell;
+  Cell firstCell;
 
   protected ScoringAuto(Alliance alliance) {
     this.alliance = alliance;
@@ -150,6 +150,16 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     startStep(sequence.step());
     robot.setAutoShoot(sequence.shoot(0));
     robot.setAutoIntake(sequence.intake());
+  }
+
+  /** The Robot's corrected pose. */
+  FieldPose pose() {
+    return robot.getPose();
+  }
+
+  /** The heading lock's target, NaN to leave the turn to Pedro. */
+  void lockHeading(double headingRad) {
+    robot.setAutoHeading(headingRad);
   }
 
   /** Called by the Robot each loop with the corrected pose, before it drives. */
@@ -232,23 +242,26 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
    * is on the spot and facing it: the sweep then starts facing the Pollen, and the arm doesn't swing down mid-turn.
    */
   private boolean stepArrived() {
-    AutoSequence.Step step0 = sequence.step();
-    if ((step0 == AutoSequence.Step.INTAKE_WALL_FLOWER || step0 == AutoSequence.Step.INTAKE_REAR_FLOWER)
-        && clock.seconds() - stepStartS >= FLOWER_STALL_AFTER_S && speedMps <= FLOWER_STALLED_MPS) {
+    return stepArrived(sequence.step(), sequence.isFacingStep(), clock.seconds() - stepStartS, speedMps);
+  }
+
+  /** As above, for a step this far in, the robot moving this fast. */
+  boolean stepArrived(AutoSequence.Step step, boolean facingStep, double inStepS, double robotSpeedMps) {
+    if ((step == AutoSequence.Step.INTAKE_WALL_FLOWER || step == AutoSequence.Step.INTAKE_REAR_FLOWER)
+        && inStepS >= FLOWER_STALL_AFTER_S && robotSpeedMps <= FLOWER_STALLED_MPS) {
       return true; // Pushed up against the Flower short of the intake point: in it (14 Nov 212840 stopped 12 cm short)
     }
-    if (step0 == AutoSequence.Step.SWEEP_GARDEN && clock.seconds() - stepStartS >= FLOWER_STALL_AFTER_S
-        && speedMps <= WALL_STOPPED_MPS) {
+    if (step == AutoSequence.Step.SWEEP_GARDEN && inStepS >= FLOWER_STALL_AFTER_S
+        && robotSpeedMps <= WALL_STOPPED_MPS) {
       return true; // In the corner: the sweep drives past our wall, so the wall ends it
     }
-    if (!sequence.isFacingStep()) {
+    if (!facingStep) {
       return !follower.following();
     }
-    AutoSequence.Step step = sequence.step();
     double[] stop = AutoField.forAlliance(holdSpot(step), alliance);
-    FieldPose pose = robot.getPose();
-    if (step == AutoSequence.Step.ONTO_GARDEN_WALL && clock.seconds() - stepStartS >= WALL_SETTLE_S
-        && speedMps <= WALL_STOPPED_MPS) {
+    FieldPose pose = pose();
+    if (step == AutoSequence.Step.ONTO_GARDEN_WALL && inStepS >= WALL_SETTLE_S
+        && robotSpeedMps <= WALL_STOPPED_MPS) {
       return true; // Stopped by the wall, wherever odometry puts it
     }
     double within = step == AutoSequence.Step.ONTO_GARDEN_WALL ? ONTO_WALL_M : FACE_FLOWER_M;
@@ -257,13 +270,13 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   }
 
   /** The Cell to aim at: the plan's for the last shooting step started, the start's up Cell before the first. */
-  private Cell aimCell() {
+  Cell aimCell() {
     return shotSpotCell != null ? shotSpotCell : firstCell;
   }
 
   /** Starts the drive for a step, from where the robot is now. */
-  private void startStep(AutoSequence.Step step) {
-    FieldPose now = robot.getPose();
+  void startStep(AutoSequence.Step step) {
+    FieldPose now = pose();
     Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean slow = step == AutoSequence.Step.SWEEP_GARDEN || step == AutoSequence.Step.INTAKE_WALL_FLOWER
         || step == AutoSequence.Step.INTAKE_REAR_FLOWER;
@@ -271,7 +284,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     boolean onWall = step == AutoSequence.Step.ONTO_GARDEN_WALL || step == AutoSequence.Step.SWEEP_GARDEN;
     drivetrain.setStrafeBias(onWall ? WALL_PUSH : 0.0);
     drivetrain.setForwardBias(0.0);
-    robot.setAutoHeading(lockedHeading(step));
+    lockHeading(lockedHeading(step));
     Logger.recordOutput("Auto/HeadingTarget", lockedHeading(step));
     switch (step) {
       case SHOOT_PRELOAD: // To the spot in front of whichever Cell is up now, back (shooter) to it
