@@ -775,7 +775,7 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   /** Closes both portals. Call from the OpMode's stop(). */
-  public void close() {
+  public void stop() {
     closed = true;
     for (ExecutorService worker : cameraWorkers) {
       worker.shutdownNow();

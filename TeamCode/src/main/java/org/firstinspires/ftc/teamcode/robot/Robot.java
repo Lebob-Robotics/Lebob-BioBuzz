@@ -725,8 +725,8 @@ public class Robot {
       PoseHandoff.save(isPoseKnown() && !odometry.isFaulted() ? lastPose : null, alliance, System.nanoTime());
     }
     display.stop();
-    hood.disable(); // Its loop thread would otherwise hold the hood until it misses the heartbeat
-    vision.close();
+    hood.stop(); // Its loop thread would otherwise hold the hood until it misses the heartbeat
+    vision.stop();
     CommandScheduler.getInstance().cancelAll();
     CommandScheduler.getInstance().reset();
     watchdog.stop();

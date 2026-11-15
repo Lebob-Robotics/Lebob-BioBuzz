@@ -94,7 +94,7 @@ public class VisionCalibration extends PsiKitIterativeOpMode {
   @Override protected void onPsiKitStop() {
     VisionSubsystem.overrideExposureMs = -1;
     VisionSubsystem.overrideGain = -1;
-    if (vision != null) { vision.close(); }
+    if (vision != null) { vision.stop(); }
     com.arcrobotics.ftclib.command.CommandScheduler.getInstance().reset();
   }
 }

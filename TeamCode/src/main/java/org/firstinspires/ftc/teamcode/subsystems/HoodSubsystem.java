@@ -588,7 +588,7 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /** Removes drive power until the next target. Open loop, so nothing holds a setpoint. */
-  public void disable() {
+  public void stop() {
     enabled = false;
     cut();
   }
