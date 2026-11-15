@@ -26,12 +26,10 @@ import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionConstants;
-import org.firstinspires.ftc.teamcode.vision.TagObservation;
 import org.firstinspires.ftc.teamcode.vision.TargetTracker;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
 
-import java.util.List;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.opmodes.Main;
@@ -79,6 +77,7 @@ public class Robot {
   final PoseFusion poseFusion = new PoseFusion(this);
   final FireControl fireControl = new FireControl(this);
   final DriverPad driverPad = new DriverPad(this);
+  final AlliancePicker alliancePicker = new AlliancePicker(this);
   final BatteryMonitor batteryMonitor; // Made in the constructor, which has the hardware map
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
@@ -140,7 +139,6 @@ public class Robot {
   private boolean buttonsReserved = false;
   private boolean handsOffPose = false;
   private boolean startedFromAuto = false;
-  private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
   private FieldPose lastPose = new FieldPose(0, 0, 0);
   double[] lastVelocity = {0, 0, 0};
@@ -235,7 +233,7 @@ public class Robot {
   public void initLoop() {
     watchdog.feed();
     refreshDriver();
-    pollAlliance();
+    alliancePicker.pollAlliance();
     shooter.periodic();
     if (!mechanismsWaitForStart) {
       hood.periodic(); // Drives the hood down onto its stop and zeroes it there; nothing else moves
@@ -243,7 +241,7 @@ public class Robot {
     vision.periodic(); // Read and log tags in INIT without running any mechanism commands.
     batteryMonitor.update(true);
     batteryMonitor.warnIfLowAtRest();
-    noteHiveTags(vision.takeNewTagObservations());
+    alliancePicker.noteHiveTags(vision.takeNewTagObservations());
     display.addInitTelemetry();
   }
 
@@ -256,7 +254,7 @@ public class Robot {
     if (mechanismsWaitForStart) {
       startMechanisms();
     }
-    pollAlliance();
+    alliancePicker.pollAlliance();
     odometry.setHeading(placedHeadingRad());
     tracker.clear();
     poseFusion.reset();
@@ -309,42 +307,8 @@ public class Robot {
 
   public boolean isDriverOnFarSide() { return driverOnFarSide; }
 
-  private void pollAlliance() {
-    if (driver.x) {
-      alliance = Alliance.BLUE;
-    } else if (driver.b) {
-      alliance = Alliance.RED;
-    }
-  }
-
-  void noteHiveTags(List<TagObservation> observations) {
-    for (TagObservation o : observations) {
-      Alliance a = VisionCorrector.tagAlliance(o.id);
-      if (a != null) {
-        hiveTagSeenS[a.ordinal()] = clock.seconds();
-      }
-    }
-  }
-
   /** A warning while the cameras see only the other alliance's Hive, else null. */
-  public String allianceWarning() {
-    Alliance other = alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;
-    double nowS = clock.seconds();
-    return allianceWarning(alliance, nowS - hiveTagSeenS[alliance.ordinal()], nowS - hiveTagSeenS[other.ordinal()]);
-  }
-
-  /**
-   * Shoot Auto set to BLUE saw only RED's Hive tags and never fired: it ignores the other alliance's Hive (13 Nov,
-   * 193125). Warns while the other Hive was seen in the last second and ours not in the last three.
-   */
-  static String allianceWarning(Alliance alliance, double ownSeenAgoS, double otherSeenAgoS) {
-    Alliance other = alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;
-    if (otherSeenAgoS <= 1.0 && ownSeenAgoS > 3.0) {
-      return "!! CAMERAS SEE " + other + "'S HIVE, NOT " + alliance + "'S. If you are " + other + ", press "
-          + (other == Alliance.RED ? "B" : "X");
-    }
-    return null;
-  }
+  public String allianceWarning() { return alliancePicker.allianceWarning(); }
 
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {

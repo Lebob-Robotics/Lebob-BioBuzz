@@ -41,7 +41,7 @@ final class PoseFusion {
    */
   FieldPose correctPoseFromVision(FieldPose pose, double[] velocity, long nowNanos) {
     List<TagObservation> observations = robot.vision.takeNewTagObservations();
-    robot.noteHiveTags(observations);
+    robot.alliancePicker.noteHiveTags(observations);
     robot.visionCorrector.setHeadingSeeded(poseSeeded);
     VisionResult result = robot.visionCorrector.process(observations, poseHistory, pose,
         velocity[0], velocity[1], velocity[2], poseValid, headingValid, nowNanos);

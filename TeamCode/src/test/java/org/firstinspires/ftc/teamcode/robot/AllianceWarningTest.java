@@ -10,11 +10,11 @@ import org.firstinspires.ftc.teamcode.field.Alliance;
 public class AllianceWarningTest {
   @Test
   public void warnsWhileOnlyTheOtherHiveIsSeen() {
-    String w = Robot.allianceWarning(Alliance.BLUE, Double.POSITIVE_INFINITY, 0.2); // 193125: only red tags
+    String w = AlliancePicker.allianceWarning(Alliance.BLUE, Double.POSITIVE_INFINITY, 0.2); // 193125: only red tags
     assertNotNull(w);
     assertTrue(w.contains("press B"));
-    assertNull(Robot.allianceWarning(Alliance.BLUE, 0.5, 0.2)); // Both Hives in view: ours is there
-    assertNull(Robot.allianceWarning(Alliance.BLUE, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY));
-    assertTrue(Robot.allianceWarning(Alliance.RED, 10, 0).contains("press X"));
+    assertNull(AlliancePicker.allianceWarning(Alliance.BLUE, 0.5, 0.2)); // Both Hives in view: ours is there
+    assertNull(AlliancePicker.allianceWarning(Alliance.BLUE, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY));
+    assertTrue(AlliancePicker.allianceWarning(Alliance.RED, 10, 0).contains("press X"));
   }
 }
