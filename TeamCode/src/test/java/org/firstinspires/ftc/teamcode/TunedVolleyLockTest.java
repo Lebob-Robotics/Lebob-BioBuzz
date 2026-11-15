@@ -18,8 +18,9 @@ public class TunedVolleyLockTest {
     assertEquals(1.0, ShootOnTheMoveConstants.VOLLEY_FEED_POWER, 0);
     assertEquals(1.0, ShootOnTheMoveConstants.VOLLEY_INDEXER_SCALE, 0);
     assertEquals(0, ShootOnTheMoveConstants.VOLLEY_BOOST_RPM, 0);
-    assertEquals(0, ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG, 0);
-    assertEquals(0, ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG, 0);
+    // Without the CSV: the medians of the seven spots confirmed 14-15 Nov
+    assertEquals(-0.5, ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG, 0);
+    assertEquals(-1.0, ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG, 0);
     assertEquals(0, ShootOnTheMoveConstants.HOODED_RPM_OFFSET, 0);
     assertEquals("profile 0 fed 0.30 s apart or more", 0.30, ShootOnTheMoveConstants.VOLLEY_MIN_FEED_SPACING_S, 0);
   }

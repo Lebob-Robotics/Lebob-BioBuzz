@@ -12,9 +12,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Main;
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.VolleySettings;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
+import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
@@ -62,6 +64,9 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   private AutoSequence sequence;
   private TipPredictor tips;
   private boolean stopped;
+  /** Volley Tuning's confirmed spots, as Lebot Teleop shoots them; null for the constants. */
+  private VolleySettings volley;
+  private boolean shotLastLoop; // The volley's settings are picked only before it starts, never mid-burst
   private double speedMps;
   private double stepStartS;
   /** The Cell the current shooting spot is in front of, picked as its drive started. */
@@ -99,6 +104,9 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     robot.setAlliance(alliance);
     robot.setHandsOffPose(true);
     robot.init();
+    if (ShootOnTheMoveConstants.VOLLEY_USE_TUNING_CSV) {
+      volley = VolleySettings.loadTuned(); // Reads a file only: INIT moves nothing
+    }
     follower = new Follower(localizer, drivetrain, Constants.algorithm());
   }
 
@@ -169,7 +177,14 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
       return;
     }
     tips.onVision(robot.getUpCell(), robot.getUpCellAgreeingFrames(), t);
-    robot.setAimPointOverride(AutoField.autoAimPoint(alliance, aimCell()));
+    double[] aimPoint = AutoField.autoAimPoint(alliance, aimCell());
+    robot.setAimPointOverride(aimPoint);
+    if (volley != null && !shotLastLoop) {
+      // The tuned spot nearest where it is about to shoot: spot 4 (VOLLEY_SPOT) at each Cell, the park spot at the end
+      int spot = volley.spotFor(robot.getPose(), aimPoint[0], aimPoint[1]);
+      VolleySettings.apply(robot, volley.get(spot));
+      Logger.recordOutput("Auto/VolleySpot", spot);
+    }
     addTelemetry(t);
     robot.periodic();
 
@@ -182,7 +197,8 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
       stepStartS = t;
       startStep(sequence.step());
     }
-    robot.setAutoShoot(sequence.shoot(t));
+    shotLastLoop = sequence.shoot(t);
+    robot.setAutoShoot(shotLastLoop);
     robot.setAutoIntake(sequence.intake());
     robot.ramp.setDeployed(sequence.armDown());
     AutoSequence.Step step = sequence.step();

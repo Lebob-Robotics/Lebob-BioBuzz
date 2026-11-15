@@ -48,6 +48,38 @@ public class VolleySettingsTest {
     assertFalse(VolleySettings.fromLines(spotZero(1, "IN")).isConfirmed(0));
   }
 
+  @Test public void anUnconfirmedSpotIsNotUsed() {
+    // One good volley is a best-so-far, which can be from an old feed (spot 0's 12 Nov 0.6 feeder): constants instead
+    assertEquals(-1, VolleySettings.fromLines(spotZero(1, "IN")).spotFor(new Pose(-1, -0.32, 0), -1.5, -1.5));
+  }
+
+  @Test public void awayFromEveryTunedSpotTheNearestConfirmedOneIsUsed() throws Exception {
+    List<String> lines = new ArrayList<>();
+    try (java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(
+        getClass().getResourceAsStream("/volley/VolleyTuning_20261115.csv"), "UTF-8"))) {
+      for (String l = in.readLine(); l != null; l = in.readLine()) { lines.add(l); }
+    }
+    VolleySettings v = VolleySettings.fromLines(lines);
+    assertNull(v.get(0)); // Spot 0 is unconfirmed old data
+    // 0.6 m past spot 9, the farthest out: spot 9's, though over NEAR_SPOT_M from it
+    double[] p9 = VolleySpotDrive.point(9, -1.5, -1.5);
+    Pose far = new Pose(p9[0], p9[1] + 0.6, 0);
+    assertEquals(9, v.spotFor(far, -1.5, -1.5));
+    assertFalse(v.isNear(far, -1.5, -1.5, 9));
+    assertTrue(v.isConfirmed(6)); // Spot 6 confirmed at feed profile 1 this morning
+    assertEquals(0.75, v.get(6).indexerScale, 1e-9);
+    assertTrue(v.isConfirmed(VolleySpotDrive.PARK)); // The park is loaded too
+  }
+
+  @Test public void awayFromEverySpotTheDistanceToTheCellPicks() {
+    boolean[] known = new boolean[VolleySpotDrive.SPOTS];
+    known[4] = true; known[9] = true; // 0.76 m and 1.57 m from the lip
+    double[] cell = {-0.44, -0.32};
+    // 1.8 m from the Cell on the far side of it: spot 9's distance, though nowhere near spot 9
+    assertEquals(9, VolleySettings.nearestRange(new Pose(1.2, 0.5, 0), cell[0], cell[1], known));
+    assertEquals(4, VolleySettings.nearestRange(new Pose(0.5, -0.32, 0), cell[0], cell[1], known));
+  }
+
   @Test public void unscoredSpotGivesNoSettings() {
     VolleySettings v = VolleySettings.fromLines(spotZero(3, VolleyCalibration.UNSEEN));
     assertEquals(-1, v.spotFor(new Pose(0, 0, 0), -1.5, -1.5));

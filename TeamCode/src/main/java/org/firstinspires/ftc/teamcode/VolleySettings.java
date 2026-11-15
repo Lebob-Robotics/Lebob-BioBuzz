@@ -12,19 +12,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lebot Teleop's RB volley settings, from Volley Tuning's CSV. Each tuned spot gives its confirmed setting, or until
- * then its best estimate ({@link VolleyAutoTuner#estimate}). A shot near a tuned spot uses that spot's; anywhere
- * else uses the best tuned spot's, a guess: the trims are launch-angle offsets on the shot table, so the table
- * still does the distance and angle and the offsets carry over until those spots are tuned too. With no CSV the
- * ShootOnTheMoveConstants VOLLEY_* values apply, which are set from the same data.
+ * The volley settings Lebot Teleop and the scoring auto shoot with, from Volley Tuning's CSV. Only confirmed spots
+ * count: an unconfirmed estimate can come from an old feed (spot 0's is 12 Nov's 0.6 feeder). A shot near a confirmed
+ * spot uses that spot's; anywhere else the confirmed spot nearest its distance to the Cell, a guess: the trims are
+ * launch-angle offsets on the shot table, so the table still does the distance and angle, and what is left mostly
+ * follows the distance. With no CSV the ShootOnTheMoveConstants VOLLEY_* values apply, set from the same data.
  */
-final class VolleySettings {
+public final class VolleySettings {
   static final double NEAR_SPOT_M = 0.5;
 
-  private final Settings[] spots = new Settings[FieldRoute.GRID.length];
-  private final boolean[] confirmed = new boolean[FieldRoute.GRID.length];
-  private final double[] rates = new double[FieldRoute.GRID.length];
-  private int fallback = -1; // The spot used away from every tuned spot
+  // The grid and the park (VolleySpotDrive.PARK); sized by the grid alone the park's tuning was never loaded
+  private final Settings[] spots = new Settings[VolleySpotDrive.SPOTS];
+  private final boolean[] confirmed = new boolean[VolleySpotDrive.SPOTS];
+  private final double[] rates = new double[VolleySpotDrive.SPOTS];
+
+  /** Volley Tuning's results on the Hub; empty (constants) if the file is missing. */
+  public static VolleySettings loadTuned() {
+    return load(VolleyTuning.CSV_PATH);
+  }
 
   /** Reads the CSV at {@code path}; empty (constants) if it is missing or unreadable. */
   static VolleySettings load(String path) {
@@ -49,34 +54,45 @@ final class VolleySettings {
       if (rows.size() < 2) { continue; }
       VolleyAutoTuner tuner = new VolleyAutoTuner();
       tuner.replay(rows);
+      if (!tuner.done()) { continue; }
       v.spots[i] = tuner.estimate();
-      v.confirmed[i] = tuner.done();
+      v.confirmed[i] = v.spots[i] != null;
       v.rates[i] = tuner.estimateRate();
-    }
-    // Away from tuned spots: a confirmed spot first, then the one whose estimate puts the most balls in
-    for (int i = 0; i < v.spots.length; i++) {
-      if (v.spots[i] == null) { continue; }
-      if (v.fallback < 0 || v.confirmed[i] && !v.confirmed[v.fallback]
-          || v.confirmed[i] == v.confirmed[v.fallback] && v.rates[i] > v.rates[v.fallback]) {
-        v.fallback = i;
-      }
     }
     return v;
   }
 
-  /** The tuned spot whose settings apply at {@code pose}; -1 for the constants. */
-  int spotFor(Pose pose, double cellX, double cellY) {
+  /**
+   * The confirmed spot whose settings apply at {@code pose}: one within NEAR_SPOT_M, else the one whose distance to
+   * the Cell is nearest the robot's. -1 for the constants.
+   */
+  public int spotFor(Pose pose, double cellX, double cellY) {
     boolean[] known = new boolean[spots.length];
     for (int i = 0; i < spots.length; i++) { known[i] = spots[i] != null; }
-    int near = pose == null ? -1 : nearestSpot(pose, cellX, cellY, known);
-    return near >= 0 ? near : fallback;
+    if (pose == null) { return -1; }
+    int near = nearestSpot(pose, cellX, cellY, known);
+    return near >= 0 ? near : nearestRange(pose, cellX, cellY, known);
   }
 
-  Settings get(int spot) { return spot >= 0 ? spots[spot] : null; }
+  /** The known spot whose distance to the Cell is nearest the robot's; -1 if none is known. */
+  static int nearestRange(Pose pose, double cellX, double cellY, boolean[] known) {
+    double range = Math.hypot(pose.xM - cellX, pose.yM - cellY);
+    int best = -1;
+    double off = Double.POSITIVE_INFINITY;
+    for (int i = 0; i < known.length; i++) {
+      if (!known[i]) { continue; }
+      double[] p = VolleySpotDrive.point(i, cellX, cellY);
+      double d = Math.abs(Math.hypot(p[0] - cellX, p[1] - cellY) - range);
+      if (d < off) { best = i; off = d; }
+    }
+    return best;
+  }
+
+  public Settings get(int spot) { return spot >= 0 ? spots[spot] : null; }
 
   boolean isConfirmed(int spot) { return spot >= 0 && confirmed[spot]; }
 
-  boolean isNear(Pose pose, double cellX, double cellY, int spot) {
+  public boolean isNear(Pose pose, double cellX, double cellY, int spot) {
     if (spot < 0 || pose == null) { return false; }
     double[] p = VolleySpotDrive.point(spot, cellX, cellY);
     return Math.hypot(p[0] - pose.xM, p[1] - pose.yM) <= NEAR_SPOT_M;
@@ -95,7 +111,7 @@ final class VolleySettings {
   }
 
   /** Puts these settings (null: the constants) on the robot's volley. */
-  static void apply(Robot robot, Settings s) {
+  public static void apply(Robot robot, Settings s) {
     robot.setVolleyTrimsDeg(s == null ? Double.NaN : s.firstTrim, s == null ? Double.NaN : s.laterTrim);
     robot.setVolleyHeadingTrimDeg(s == null ? Double.NaN : s.headingTrim);
     robot.setVolleyFeedPower(s == null ? Double.NaN : s.feeder);

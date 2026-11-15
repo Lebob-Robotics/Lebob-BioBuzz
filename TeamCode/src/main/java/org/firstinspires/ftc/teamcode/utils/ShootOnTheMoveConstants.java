@@ -353,14 +353,14 @@ public final class ShootOnTheMoveConstants {
   // rest). No boost and no hood trims: the backward hood follows its own table
   public static boolean VOLLEY_BACKWARD_ON = true;
   public static double VOLLEY_BACKWARD_READY_ABOVE_RPM = 25;
-  // Launch angle added for the first ball and for balls 2-4. 0: each ball is now fed like RT's calibrated one-ball
-  // shot (full feeder from the held stack, at the matched speed), so the shot table's own angle applies. Volley
-  // Tuning's 12 Nov trims (+0.9 / -1.0) came from balls fed mid-way through the recovery ringing below, at 0.6 feed
-  public static double VOLLEY_FIRST_BALL_TRIM_DEG = 0;
-  public static double VOLLEY_LATER_BALL_TRIM_DEG = 0;
-  // Lebot Teleop's RB reads Volley Tuning's CSV for its settings. Off: the CSV's results so far were tuned with the
-  // ringing recovery and slow feed, which these constants replace (12 Nov)
-  public static boolean VOLLEY_USE_TUNING_CSV = false;
+  // Launch angle added for the first ball and for balls 2-4, used only without Volley Tuning's CSV. The medians of
+  // the seven spots confirmed on 14-15 Nov at full feed (first -1..+0.9, later -1..-0.5)
+  public static double VOLLEY_FIRST_BALL_TRIM_DEG = -0.5;
+  public static double VOLLEY_LATER_BALL_TRIM_DEG = -1.0;
+  // Lebot Teleop and the scoring auto read Volley Tuning's CSV for their volley settings (VolleySettings), from its
+  // confirmed spots only. Back on 15 Nov: spots 4-10 are confirmed at today's full feed, 80-90% in; it was off from
+  // 12 Nov while the CSV held only the old ringing recovery and slow feed, whose spot 0 is still unconfirmed
+  public static boolean VOLLEY_USE_TUNING_CSV = true;
   // Lebot Teleop's RT shoot on the move fires its aimed hooded shots as a volley too, with RB's feed, recovery and
   // matched band; the robot keeps moving and the aim keeps leading it. False: RT one ball at a time as before
   public static boolean VOLLEY_ON_RT = true;

@@ -201,8 +201,7 @@ public class Main extends PsiKitIterativeOpMode {
       source = "constants (no tuned spot, or pose not placed)";
     } else {
       boolean near = volley.isNear(robot.getPose(), robot.getAimCellX(), robot.getAimCellY(), volleySpot);
-      source = (volley.isConfirmed(volleySpot) ? "confirmed" : "best so far") + " at spot " + (volleySpot + 1)
-          + (near ? "" : ", guessed for here");
+      source = "tuned spot " + (volleySpot + 1) + (near ? "" : ", the nearest tuned one");
     }
     if (robot.isTelemetryDetail()) {
       telemetry.addData("Volley (RB)", source);
