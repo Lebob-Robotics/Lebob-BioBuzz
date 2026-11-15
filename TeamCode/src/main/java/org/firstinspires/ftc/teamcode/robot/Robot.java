@@ -217,21 +217,16 @@ public class Robot {
   private boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
   private boolean hoodedOnly = false;
   private boolean backwardOnly = false;
-  private double volleyHeadingTrimDeg = Double.NaN;
-  final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
+  final OneBallFeedGate volleyFeedGate
+ = new OneBallFeedGate(0.0,
       FireConstants.AIMED_FEED_STOP_UNREADY_S, VolleyConstants.VOLLEY_FEED_PULSE_S,
       VolleyConstants.VOLLEY_FEED_PAUSE_S,
       VolleyConstants.VOLLEY_MIN_GAP_S, true);
   private OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
   boolean volleyShot = false; // This loop's shot is a volley
-  // Volley Tuning's settings in place of the constants; NaN (null) for the constant
-  private double volleyFirstTrimDeg = Double.NaN;
-  private double volleyLaterTrimDeg = Double.NaN;
-  private boolean volleyTrimsBackward = false; // The trims were tuned on backward volleys, not hooded ones
-  private double volleyIndexerPower = Double.NaN;
-  private double volleyFeedPower = Double.NaN;
-  private double volleyBoostRpm = Double.NaN;
-  private Boolean volleyFastRecovery = null;
+  // Volley Tuning's settings in place of the constants
+  private final VolleyConfig volley = new VolleyConfig();
+
   double volleyHoodDeg = 0; // Launch angle the volley added this loop, for the log
   // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
@@ -574,7 +569,7 @@ public class Robot {
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     times.aimed = System.nanoTime();
     double turnDeg = aimTrimDeg(tuningMode, headingTrimDeg, aim != null && aim.backward) + movingHeadingDeg(aim);
-    if (volleyAim(aim) && !Double.isNaN(volleyHeadingTrimDeg)) { turnDeg += volleyHeadingTrimDeg; }
+    if (volleyAim(aim) && !Double.isNaN(volley.headingTrimDeg())) { turnDeg += volley.headingTrimDeg(); }
     if (aim != null && turnDeg != 0) {
       aim = aim.turnedBy(Math.toRadians(turnDeg));
     }
@@ -1233,8 +1228,8 @@ public class Robot {
       shooterStopLatched = true;
     }
     if (volleyMode) { // Full power back up to speed after each ball of a volley
-      boolean fast = volleyShot && (volleyFastRecovery != null ? volleyFastRecovery
-          : VolleyConstants.VOLLEY_FAST_RECOVERY);
+      boolean fast = volleyShot && volley.fastRecovery();
+
       shooter.setSpinThresholds(fast ? VolleyConstants.VOLLEY_OPEN_LOOP_BELOW_RPM : Double.NaN,
           fast ? VolleyConstants.VOLLEY_HANDBACK_RPM : Double.NaN);
     }
@@ -1878,30 +1873,25 @@ public class Robot {
 
   /** As above; {@code backward} when they were tuned on backward volleys, which use them as RPM. */
   public void setVolleyTrimsDeg(double firstDeg, double laterDeg, boolean backward) {
-    volleyFirstTrimDeg = firstDeg;
-    volleyLaterTrimDeg = laterDeg;
-    volleyTrimsBackward = backward;
+    volley.setTrimsDeg(firstDeg, laterDeg, backward);
   }
 
   /** Feeder and indexer power during a volley; NaN for VOLLEY_FEED_POWER. */
-  public void setVolleyFeedPower(double power) { volleyFeedPower = power; }
+  public void setVolleyFeedPower(double power) { volley.setFeedPower(power); }
 
   /** Separate queue pressure for calibration; NaN follows the feeder as normal Volley TeleOp does. */
-  public void setVolleyIndexerPower(double power) { volleyIndexerPower = power; }
+  public void setVolleyIndexerPower(double power) { volley.setIndexerPower(power); }
 
   /** Automatic calibration's aim correction, in addition to the standing shot trim. */
-  public void setVolleyHeadingTrimDeg(double deg) { volleyHeadingTrimDeg = deg; }
+  public void setVolleyHeadingTrimDeg(double deg) { volley.setHeadingTrimDeg(deg); }
 
-  public double volleyIndexerPower() {
-    return Double.isNaN(volleyIndexerPower)
-        ? volleyFeedPower() * VolleyConstants.VOLLEY_INDEXER_SCALE : volleyIndexerPower;
-  }
+  public double volleyIndexerPower() { return volley.indexerPower(); }
 
   /** RPM over the table's for a volley; NaN for VOLLEY_BOOST_RPM. */
-  public void setVolleyBoostRpm(double rpm) { volleyBoostRpm = rpm; }
+  public void setVolleyBoostRpm(double rpm) { volley.setBoostRpm(rpm); }
 
   /** Full-power recovery between a volley's balls; null for VOLLEY_FAST_RECOVERY. */
-  public void setVolleyFastRecovery(Boolean on) { volleyFastRecovery = on; }
+  public void setVolleyFastRecovery(Boolean on) { volley.setFastRecovery(on); }
 
   /** This loop's shot is a volley: volley mode, RB or RT, an aimed shot (backward too), not a tuning tool's. */
   public boolean isVolleyShot() { return volleyShot; }
@@ -1912,17 +1902,11 @@ public class Robot {
   /** How far the wheels have dropped since the last volley ball left; NaN if none. */
   public double getVolleyDipDepthRpm() { return volleyFeedGate.lastDipDepthRpm(); }
 
-  public double volleyFeedPower() {
-    return Double.isNaN(volleyFeedPower) ? VolleyConstants.VOLLEY_FEED_POWER : volleyFeedPower;
-  }
+  public double volleyFeedPower() { return volley.feedPower(); }
 
-  public double volleyBoostRpm() {
-    return Double.isNaN(volleyBoostRpm) ? VolleyConstants.VOLLEY_BOOST_RPM : volleyBoostRpm;
-  }
+  public double volleyBoostRpm() { return volley.boostRpm(); }
 
-  public boolean volleyFastRecovery() {
-    return volleyFastRecovery != null ? volleyFastRecovery : VolleyConstants.VOLLEY_FAST_RECOVERY;
-  }
+  public boolean volleyFastRecovery() { return volley.fastRecovery(); }
 
   private boolean buttonsFree() {
     return !tuningMode && !buttonsReserved;
@@ -1966,26 +1950,13 @@ public class Robot {
     return finiteOr0(boostDeg + followDeg) + volleyTrimDeg(false);
   }
 
-  /**
-   * The trim for the ball about to go. A backward volley uses only trims tuned on backward volleys, else the backward
-   * constants; a hooded one only hooded trims, else the hooded constants.
-   */
+  /** The trim for the ball about to go (VolleyConfig.trimDeg). */
   private double volleyTrimDeg(boolean backward) {
-    boolean first = volleyFeedGate.ballsLeft() == 0;
-    return volleyTrimDeg(first ? volleyFirstTrimDeg : volleyLaterTrimDeg, volleyTrimsBackward, backward, first);
+    return volley.trimDeg(volleyFeedGate.ballsLeft() == 0, backward);
   }
 
   public static double volleyTrimDeg(double trim, boolean volleyTrimsBackward, boolean backward, boolean first) {
-    if (backward) {
-      if (volleyTrimsBackward && !Double.isNaN(trim)) { return trim; }
-      return first ? VolleyConstants.VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG
-          : VolleyConstants.VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG;
-    }
-    if (volleyTrimsBackward || Double.isNaN(trim)) {
-      return first ? VolleyConstants.VOLLEY_FIRST_BALL_TRIM_DEG
-          : VolleyConstants.VOLLEY_LATER_BALL_TRIM_DEG;
-    }
-    return trim;
+    return VolleyConfig.trimDeg(trim, volleyTrimsBackward, backward, first);
   }
 
   /** A backward volley's trim, as wheel speed: its hood follows the table, and its range comes from the RPM. */
