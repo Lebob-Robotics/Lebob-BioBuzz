@@ -156,7 +156,7 @@ final class DriveControl {
     return steady || steadyGateBypassed;
   }
 
-  /** {forward, right} for the drive, from the left stick or, while one is set, {@link #setDriveOverride}. */
+  /** {forward, right} for the drive, from the left stick or, while one is set, {@link Robot#setDriveOverride}. */
   private double[] stickTranslation(double maxPower) {
     if (driveOverride == null && sticksLocked) {
       return new double[] {0, 0};

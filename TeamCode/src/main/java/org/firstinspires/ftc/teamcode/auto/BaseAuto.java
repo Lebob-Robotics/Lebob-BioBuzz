@@ -185,7 +185,7 @@ public abstract class BaseAuto<S extends Enum<S>, P extends AutoPlan<S>> extends
       odometryReady = robot.isOdometryReady();
       Logger.recordOutput("Auto/WaitingForOdometry", !odometryReady);
       if (!odometryReady) {
-        return null; // Robot.driveAuto: still, without the aim's turn
+        return null; // DriveControl.driveAuto: still, without the aim's turn
       }
     }
     localizer.set(pose.xM, pose.yM, pose.headingRad, velocity[0], velocity[1], velocity[2]);
