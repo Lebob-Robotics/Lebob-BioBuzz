@@ -28,7 +28,6 @@ import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.field.PoseHandoff;
 import org.firstinspires.ftc.teamcode.shooting.feed.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.control.HoodStepControl;
-import org.firstinspires.ftc.teamcode.control.HeadingHold;
 import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
 import org.firstinspires.ftc.teamcode.vision.CellSighting;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
@@ -93,6 +92,7 @@ public class Robot {
   private final RobotTelemetry display;
   private final RobotLogger log = new RobotLogger(this);
   final BallPath ballPath = new BallPath(this);
+  final DriveControl driveControl = new DriveControl(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -117,10 +117,6 @@ public class Robot {
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
   private static final double BATTERY_SAMPLE_PERIOD_S = 0.1;
-  /** Feedforward cap: very close to the Cell the lock heading can swing faster than the robot can turn. */
-  private static final double MAX_LOCK_RATE_RAD_S = 3.0;
-  /** Share of each loop's new sideways-turn rate taken in: it comes from differenced odometry velocity. */
-  private static final double TURNING_RATE_SMOOTHING = 0.5;
 
   /** Null if the config has no voltage sensor. */
   private final VoltageSensor battery;
@@ -168,35 +164,13 @@ public class Robot {
   private double tuningRpm = 3400;
   private double tuningHoodDeg = HoodSubsystem.ZERO_ANGLE_DEG;
   boolean tuningLive = false; // Shot Tuning's moving pass: the tables' shot, moving corrections and all
-  private boolean steadyGateBypassed = false; // SOTM Tuning's passes that fire mid-change
   private boolean closeMovingGateBypassed = false; // SOTM Tuning's passes that fire moving close to the lip
-  private double[] steadyStickReference; // SOTM Tuning: the plan's stick size, without its tracking corrections
   boolean scriptedOneBall = false; // As RB held in Shot Tuning, from a script
   private boolean scriptedVolley = false; // As RB held in Lebot Teleop, from a script (autonomous)
   private Aim lastAim = null;
-  private double[] driveOverride = null; // Field-frame stick {+x, +y} for a scripted drive; null for the driver's
   private boolean forceAim = false; // Aims as RB does, without firing
   private double[] aimPointOverride = null; // Field {x, y} aimed at instead of the Cell; needs the tags' pose
-  private double holdAnchorX = Double.NaN; // Where RB holds the robot; NaN while not holding
-  private double holdAnchorY = Double.NaN;
-  private double[] holdPoint = null; // A scripted field spot held while no drive is scripted; null for none
-  private boolean sticksLocked = false; // The drive and turn sticks do nothing
-  private double turnOverride = 0; // Turn stick for a scripted turn while the sticks are locked
   private boolean allianceFromTags = false; // Takes the alliance of the Cell seen while its own is unknown
-  // RB's position hold: field-frame power toward the anchor, less a share of the speed to damp it
-  private static final double HOLD_DEADBAND_M = 0.02;
-  private static final double HOLD_GAIN_PER_M = 2.5;
-  private static final double HOLD_MIN_POWER = 0.08; // Gets the wheels past their friction
-  private static final double HOLD_MAX_POWER = 0.4;
-  private static final double HOLD_DAMPING_S = 0.3;
-  // A scripted hold point rests the wheels near it: holding there, too weak to move the robot, stalled them with
-  // a whine. Pushed past RETURN it drives back to DONE, its least power rising until the robot moves
-  private static final double HOLD_POINT_RETURN_M = 0.04;
-  private static final double HOLD_POINT_DONE_M = 0.015;
-  private static final double HOLD_POINT_BOOST_PER_S = 0.3;
-  private static final double HOLD_POINT_MOVING_MPS = 0.05;
-  private boolean holdPointReturning = false;
-  private double holdPointStuckSinceS;
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private final LoopWatchdog watchdog = new LoopWatchdog();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
@@ -232,12 +206,7 @@ public class Robot {
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
   private double backwardBlockedSinceS = Double.NaN;
-  // Rate the aimed shot's sideways turn changes, smoothed, for the fire check and the heading lock
-  private double turningRateRadPerSec = 0.0;
   private final RpmTrend rpmTrend = new RpmTrend(FireConstants.RPM_TREND_WINDOW_S);
-  private double lastTurningRad = Double.NaN;
-  private double lastTurningS = Double.NaN;
-  private boolean lastTurningBackward = false;
   private static final double PREPOSITION_SETTLE_S = 0.5;
   private boolean prepositionBackward = false;
   private double prepositionSwitchSinceS = Double.NaN;
@@ -262,16 +231,11 @@ public class Robot {
   static final int INTAKE_LOCK_RUMBLE_MS = 1000;
   static final int INTAKE_LOCK_REMIND_MS = 400;
   static final double INTAKE_LOCK_REMIND_S = 2.0;
-  private final HeadingHold headingHold = new HeadingHold();
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
   private FieldPose lastPose = new FieldPose(0, 0, 0);
-  private double[] lastVelocity = {0, 0, 0};
+  double[] lastVelocity = {0, 0, 0};
   private double[] aimVelocity; // Low-passed {x, y} the aim uses; null until the first loop
   private double aimVelocityS;
-  private double feedCommitUntilS = Double.NEGATIVE_INFINITY;
-  private double[] committedTranslation; // Held while a fed ball is still in the shooter; null otherwise
-  private double committedSinceS;
-  private double[] lastTranslation = {0.0, 0.0};
   // Scoring Auto (6 Nov, feature/auto): no gamepad is read (G401); it drives, aims and intakes through these
   boolean autonomous = false;
   boolean autoIndexerPaused = false; // The auto's agitation: a loading indexer stops while true
@@ -279,13 +243,6 @@ public class Robot {
   private final Gamepad noGamepad = new Gamepad();
   private boolean autoShoot = false;
   boolean autoIntake = false;
-  private AutoDriver autoDriver = null;
-  /** A heading the auto wants held with the heading lock instead of Pedro's turn, or NaN. */
-  private double autoHeadingRad = Double.NaN;
-  private double autoHeadingRateRadPerSec = 0.0;
-  private double[] steadyStick = {0.0, 0.0};
-  private double steadyStickSinceS = Double.NEGATIVE_INFINITY;
-  private final java.util.ArrayDeque<double[]> velocityHistory = new java.util.ArrayDeque<>(); // {t, x, y}
 
   boolean mechanismsWaitForStart;
 
@@ -517,7 +474,7 @@ public class Robot {
       odometry.setHeading(placedHeadingRad());
       tracker.clear(); // The frame just turned, so the stored Cell and poses no longer apply
       headingValid = true; // The driver says this is right, so vision only trims it from here
-      headingHold.clear();
+      driveControl.headingHold.clear();
       poseHistory.clear();
       pose = new FieldPose(pose.xM, pose.yM, placedHeadingRad());
     }
@@ -527,8 +484,7 @@ public class Robot {
       FieldPose uncorrected = pose;
       pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
       // The robot didn't move: only where it thinks it is did, so the held spot moves with it
-      holdAnchorX += pose.xM - uncorrected.xM;
-      holdAnchorY += pose.yM - uncorrected.yM;
+      driveControl.shiftHoldAnchor(pose.xM - uncorrected.xM, pose.yM - uncorrected.yM);
     }
 
     double fireTrigger = fireTrigger();
@@ -539,17 +495,7 @@ public class Robot {
     boolean oneBallHeld = driver.right_bumper || scriptedOneBall;
     boolean oneBall = tuningMode && oneBallHeld && fireTrigger <= TRIGGER_PRESSED; // RT wins
     boolean aiming = shootAll || oneBallHeld || forceAim;
-    if (!holdShot) {
-      holdAnchorX = Double.NaN;
-      holdAnchorY = Double.NaN;
-    } else if (Double.isNaN(holdAnchorX)) {
-      holdAnchorX = pose.xM;
-      holdAnchorY = pose.yM;
-    }
-    if (holdPoint != null && driveOverride == null) {
-      holdAnchorX = holdPoint[0];
-      holdAnchorY = holdPoint[1];
-    }
+    driveControl.updateHoldAnchor(holdShot, pose);
     times.aim = System.nanoTime();
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     times.aimed = System.nanoTime();
@@ -559,7 +505,7 @@ public class Robot {
       aim = aim.turnedBy(Math.toRadians(turnDeg));
     }
     lastAim = aim;
-    double lockRateRadPerSec = updateLockRate(aiming, aim);
+    double lockRateRadPerSec = driveControl.updateLockRate(aiming, aim);
     updateTrim(aiming);
     updateToggles(aiming);
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
@@ -591,12 +537,12 @@ public class Robot {
     // A volley's hood stays put between balls, so after the first it needn't wait to settle
     boolean hoodReady = volleyShot && volleyFeedGate.ballsLeft() > 0
         ? hood.atTarget(volleyHoodToleranceTicks()) : hood.atTargetSteady(hoodToleranceTicks());
-    boolean motionSteady = updateMotionSteady(aiming, velocity);
+    boolean motionSteady = driveControl.updateMotionSteady(aiming, velocity);
     boolean ready = aim != null && motionSteady && ShootOnTheMove.readyToFire(aim, flywheelsReady, hoodReady,
-        pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed);
+        pose.headingRad, velocity[2], driveControl.turningRateRadPerSec, closeMovingGateBypassed);
     // What READY waits on, one by one: the shot and heading alone, then the wheels and the hood
     Logger.recordOutput("SOTM/Gate/AimReady", aim != null && ShootOnTheMove.readyToFire(aim, true, true,
-        pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed));
+        pose.headingRad, velocity[2], driveControl.turningRateRadPerSec, closeMovingGateBypassed));
     Logger.recordOutput("SOTM/Gate/CloseMoving", aim != null && ShootOnTheMove.tooCloseToShootMoving(aim.shot));
     Logger.recordOutput("SOTM/Gate/CloseMovingBypassed", closeMovingGateBypassed);
     Logger.recordOutput("SOTM/Gate/Flywheels", flywheelsReady);
@@ -609,11 +555,7 @@ public class Robot {
     updateAimState(aiming, aim, ready);
 
     times.drive = System.nanoTime();
-    if (autoDriver != null) {
-      driveAuto(aiming, aim, lockRateRadPerSec, pose, velocity);
-    } else {
-      updateDrive(aiming, aim, lockRateRadPerSec, pose, velocity[2]);
-    }
+    driveControl.update(aiming, aim, lockRateRadPerSec, pose, velocity);
     times.driveSet = System.nanoTime();
     // Without the Cell in view there is nothing to aim at, so RT shoots at full flywheel speed and the
     // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
@@ -632,7 +574,7 @@ public class Robot {
         : VolleyConstants.VOLLEY_LEAD_BELOW_RPM);
     volleyFeedGate.setMinFeedSpacingS(VolleyConstants.VOLLEY_MIN_FEED_SPACING_S);
     boolean readyButWheels = aim != null && motionSteady && hoodReady && ShootOnTheMove.readyToFire(aim, true,
-        hoodReady, pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed);
+        hoodReady, pose.headingRad, velocity[2], driveControl.turningRateRadPerSec, closeMovingGateBypassed);
     boolean aimedFeed = feedGate.update(clock.seconds(), ((shootAll && aim != null) || oneBall) && !holdFire && !loadingShooter.blocksSpin(),
         oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall, shotLost,
         readyButWheels && !shooter.isStalled());
@@ -646,7 +588,7 @@ public class Robot {
     ballPath.update(aiming, aimedFeed || manualReady);
     times.feedSet = System.nanoTime();
     if (aimedFeed) {
-      feedCommitUntilS = clock.seconds() + FireConstants.FEED_COMMIT_S;
+      driveControl.commitFeed();
     }
     lastPose = pose;
     lastVelocity = velocity;
@@ -695,7 +637,7 @@ public class Robot {
       odometry.setPose(result.newPose.xM, result.newPose.yM, result.newPose.headingRad);
       // Turn about the robot by the heading fix, then shift, so stored poses and the Cell stay put relative to it
       double dHeading = result.appliedDHeadingRad();
-      headingHold.shift(dHeading);
+      driveControl.headingHold.shift(dHeading);
       poseHistory.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
       tracker.transform(pose.xM, pose.yM, dHeading, result.appliedDxM(), result.appliedDyM());
       poseValid |= result.gain > 0; // The first position fix is applied in full, so after it the pose is on the field
@@ -971,220 +913,6 @@ public class Robot {
     return pressedNow && !pressedLastLoop;
   }
 
-  /**
-   * Rate the aimed lock heading moves, CCW positive, for the heading lock's feedforward. 0 when not aiming.
-   * The direction to the Cell's rate comes from the velocity; the shooter's sideways turn changes with the
-   * acceleration, so its rate is taken loop to loop and smoothed.
-   */
-  private double updateLockRate(boolean aiming, Aim aim) {
-    double nowS = clock.seconds();
-    if (!aiming || aim == null || aim.backward != lastTurningBackward) {
-      turningRateRadPerSec = 0.0;
-      lastTurningRad = Double.NaN;
-    } else if (!Double.isNaN(lastTurningRad) && nowS - lastTurningS > 1e-3) {
-      double rate = (aim.shot.turningRad - lastTurningRad) / (nowS - lastTurningS);
-      rate = Math.max(-MAX_LOCK_RATE_RAD_S, Math.min(MAX_LOCK_RATE_RAD_S, rate));
-      turningRateRadPerSec += TURNING_RATE_SMOOTHING * (rate - turningRateRadPerSec);
-    }
-    if (aiming && aim != null) {
-      lastTurningRad = aim.shot.turningRad;
-      lastTurningS = nowS;
-      lastTurningBackward = aim.backward;
-    }
-    double lockRateRadPerSec = !aiming || aim == null ? 0.0
-        : Math.max(-MAX_LOCK_RATE_RAD_S, Math.min(MAX_LOCK_RATE_RAD_S, aim.lockRateRadPerSec + turningRateRadPerSec));
-    Logger.recordOutput("Drive/HeadingLock/TargetRateRadPerSec", lockRateRadPerSec);
-    Logger.recordOutput("SOTM/TurningRateRadPerSec", turningRateRadPerSec);
-    return lockRateRadPerSec;
-  }
-
-  /**
-   * True once the drive command has held still long enough for the robot to reach its speed, and the robot is no
-   * longer speeding up or slowing down: a shot is aimed for the speed now, so it must still be the speed at release.
-   */
-  private boolean updateMotionSteady(boolean aiming, double[] velocity) {
-    double nowS = clock.seconds();
-    double maxPower = aiming ? DriverConstants.AIM_DRIVE_MAX_POWER : 1.0;
-    // Held on the spot the driver asks for no motion; the hold's own corrections show up as acceleration
-    double[] stick = isHolding() ? new double[] {0, 0}
-        : driveOverride != null && steadyStickReference != null ? steadyStickReference
-        : stickTranslation(maxPower);
-    if (Math.hypot(stick[0] - steadyStick[0], stick[1] - steadyStick[1]) > FireConstants.FIRE_STICK_CHANGE) {
-      steadyStick = stick;
-      steadyStickSinceS = nowS;
-    }
-    velocityHistory.addLast(new double[] {nowS, velocity[0], velocity[1]});
-    while (velocityHistory.size() > 2 && nowS - velocityHistory.peekFirst()[0] > FireConstants.ACCEL_WINDOW_S) {
-      velocityHistory.removeFirst();
-    }
-    double[] oldest = velocityHistory.peekFirst();
-    double spanS = nowS - oldest[0];
-    double accelMps2 = spanS > 0.02 ? Math.hypot(velocity[0] - oldest[1], velocity[1] - oldest[2]) / spanS : 0.0;
-    boolean steady = nowS - steadyStickSinceS >= FireConstants.FIRE_STEADY_STICK_S
-        && accelMps2 <= FireConstants.MAX_ACCEL_TO_FIRE_MPS2;
-    Logger.recordOutput("SOTM/AccelMps2", accelMps2);
-    Logger.recordOutput("SOTM/Gate/Steady", steady);
-    Logger.recordOutput("SOTM/Gate/SteadyBypassed", steadyGateBypassed);
-    return steady || steadyGateBypassed;
-  }
-
-  /** {forward, right} for the drive, from the left stick or, while one is set, {@link #setDriveOverride}. */
-  private double[] stickTranslation(double maxPower) {
-    if (driveOverride == null && sticksLocked) {
-      return new double[] {0, 0};
-    }
-    if (driveOverride == null) {
-      return MecanumDriveSubsystem.shapeTranslation(-driver.left_stick_y, driver.left_stick_x, maxPower);
-    }
-    double f = driverForwardHeadingRad();
-    double forward = driveOverride[0] * Math.cos(f) + driveOverride[1] * Math.sin(f);
-    double right = driveOverride[0] * Math.sin(f) - driveOverride[1] * Math.cos(f);
-    return MecanumDriveSubsystem.shapeTranslation(forward, right, maxPower);
-  }
-
-  boolean isHolding() { return !Double.isNaN(holdAnchorX); }
-
-  /** {forward, right} power back to RB's held spot, damped by the speed. Not curved as a stick is. */
-  private double[] holdTranslation(FieldPose pose, double minPower) {
-    double ex = holdAnchorX - pose.xM;
-    double ey = holdAnchorY - pose.yM;
-    double away = Math.hypot(ex, ey);
-    double vx = -HOLD_DAMPING_S * HOLD_GAIN_PER_M * lastVelocity[0];
-    double vy = -HOLD_DAMPING_S * HOLD_GAIN_PER_M * lastVelocity[1];
-    if (away > HOLD_DEADBAND_M) {
-      double power = Math.min(HOLD_MAX_POWER, minPower + HOLD_GAIN_PER_M * (away - HOLD_DEADBAND_M));
-      vx += ex / away * power;
-      vy += ey / away * power;
-    }
-    double magnitude = Math.hypot(vx, vy);
-    if (magnitude > HOLD_MAX_POWER) {
-      vx *= HOLD_MAX_POWER / magnitude;
-      vy *= HOLD_MAX_POWER / magnitude;
-    }
-    Logger.recordOutput("Drive/PositionHold/ErrorM", away);
-    double f = driverForwardHeadingRad();
-    return new double[] {vx * Math.cos(f) + vy * Math.sin(f), vx * Math.sin(f) - vy * Math.cos(f)};
-  }
-
-  /** {@link #holdTranslation} for a scripted hold point: nothing near it, and back to it once pushed off. */
-  private double[] holdPointTranslation(FieldPose pose) {
-    double nowS = clock.seconds();
-    double away = Math.hypot(holdAnchorX - pose.xM, holdAnchorY - pose.yM);
-    if (!holdPointReturning && away > HOLD_POINT_RETURN_M) {
-      holdPointReturning = true;
-      holdPointStuckSinceS = nowS;
-    } else if (holdPointReturning && away < HOLD_POINT_DONE_M) {
-      holdPointReturning = false;
-    }
-    Logger.recordOutput("Drive/PositionHold/Returning", holdPointReturning);
-    if (!holdPointReturning) {
-      Logger.recordOutput("Drive/PositionHold/ErrorM", away);
-      return new double[] {0, 0};
-    }
-    if (Math.hypot(lastVelocity[0], lastVelocity[1]) > HOLD_POINT_MOVING_MPS) {
-      holdPointStuckSinceS = nowS;
-    }
-    return holdTranslation(pose, HOLD_MIN_POWER + HOLD_POINT_BOOST_PER_S * (nowS - holdPointStuckSinceS));
-  }
-
-  private void updateDrive(boolean aiming, Aim aim, double lockRateRadPerSec, FieldPose pose, double turnRateRadPerSec) {
-    // Slower while shooting, so the shot's lead for the robot's speed stays small and the aim keeps up
-    double maxPower = aiming ? DriverConstants.AIM_DRIVE_MAX_POWER : 1.0;
-    double[] translation = !isHolding() ? stickTranslation(maxPower)
-        : holdPoint != null && driveOverride == null ? holdPointTranslation(pose) : holdTranslation(pose, HOLD_MIN_POWER);
-    // The drive runs before this loop's feed check, so lastTranslation is what was commanded as the feed started
-    double nowS = clock.seconds();
-    boolean stickReleased = translation[0] == 0.0 && translation[1] == 0.0;
-    if (isHolding()) {
-      feedCommitUntilS = Double.NEGATIVE_INFINITY; // The hold keeps it still through the feed already
-    }
-    if (committedTranslation != null
-        && (stickReleased || nowS - committedSinceS > FireConstants.FEED_COMMIT_MAX_S)) {
-      feedCommitUntilS = Double.NEGATIVE_INFINITY;
-    }
-    if (aiming && nowS < feedCommitUntilS) {
-      if (committedTranslation == null) {
-        committedTranslation = lastTranslation;
-        committedSinceS = nowS;
-      }
-      translation = committedTranslation;
-    } else {
-      committedTranslation = null;
-    }
-    lastTranslation = translation;
-    Logger.recordOutput("Drive/FeedCommit", committedTranslation != null);
-    double forward = translation[0];
-    double right = translation[1];
-    double forwardOffsetRad = driverForwardHeadingRad();
-    double driverHeadingRad = pose.headingRad - forwardOffsetRad;
-    if (aiming && aim != null) { // Lines up even without a valid shot, so it's ready the moment one appears
-      // Target and heading both less the offset, so the error is the same and the driving is driver relative
-      drive.driveHeadingLock(forward, right, aim.lockHeadingRad - forwardOffsetRad, lockRateRadPerSec,
-          driverHeadingRad, turnRateRadPerSec);
-      headingHold.clear();
-    } else {
-      double turn = sticksLocked ? turnOverride : MecanumDriveSubsystem.shapeTurnStick(driver.right_stick_x);
-      double holdRad = headingHold.update(turn != 0.0, forward != 0.0 || right != 0.0, pose.headingRad,
-          turnRateRadPerSec, clock.seconds());
-      if (Double.isNaN(holdRad)) {
-        drive.drive(forward, right, turn, true, driverHeadingRad);
-      } else {
-        drive.driveHeadingHold(forward, right, holdRad - forwardOffsetRad, driverHeadingRad, turnRateRadPerSec);
-      }
-    }
-    Logger.recordOutput("Drive/HeadingHold/TargetRad", headingHold.getTargetRad());
-  }
-
-  /**
-   * Drives with the Scoring Auto's powers. They are robot-frame (Pedro's), so they go to the field frame and then to
-   * the driver frame the drive takes. While aiming the heading lock does the turning, as it does for the driver.
-   * Straight to the drive: no stick curve, so Pedro's powers are the motors' powers.
-   */
-  private void driveAuto(boolean aiming, Aim aim, double lockRateRadPerSec, FieldPose pose, double[] velocity) {
-    double[] powers = autoDriver.drive(pose, velocity); // {forward, left, counterclockwise}
-    if (powers == null) { // Hold still: no aim turn either
-      drive.drive(0, 0, 0, true, pose.headingRad - driverForwardHeadingRad());
-      headingHold.clear();
-      lastTranslation = new double[] {0, 0};
-      Logger.recordOutput("Auto/DrivePowers", new double[] {0, 0, 0});
-      return;
-    }
-    double f = driverForwardHeadingRad();
-    double[] translation = robotToDriverFrame(powers[0], powers[1], pose.headingRad, f);
-    double magnitude = Math.hypot(translation[0], translation[1]);
-    if (aiming && magnitude > DriverConstants.AIM_DRIVE_MAX_POWER) { // Slower while shooting, as for the driver
-      translation[0] *= DriverConstants.AIM_DRIVE_MAX_POWER / magnitude;
-      translation[1] *= DriverConstants.AIM_DRIVE_MAX_POWER / magnitude;
-    }
-    double forward = translation[0];
-    double right = translation[1];
-    double driverHeadingRad = pose.headingRad - f;
-    if (aiming && aim != null) {
-      drive.driveHeadingLock(forward, right, aim.lockHeadingRad - f, lockRateRadPerSec, driverHeadingRad, velocity[2]);
-    } else if (!Double.isNaN(autoHeadingRad)) {
-      // Pedro's turn fades under the friction near its heading: 14 Nov it stalled 8 degrees off at 0.14 power, where
-      // the lock's least power and stuck boost turn the robot
-      drive.driveHeadingLock(forward, right, autoHeadingRad - f, autoHeadingRateRadPerSec, driverHeadingRad,
-          velocity[2]);
-    } else {
-      drive.drive(forward, right, -powers[2], true, driverHeadingRad);
-    }
-    headingHold.clear();
-    lastTranslation = new double[] {forward, right};
-    Logger.recordOutput("Auto/DrivePowers", powers);
-  }
-
-  /**
-   * A robot-frame translation {forward, left} as the driver-frame {forward, right} the field-centric drive takes,
-   * for a robot at headingRad and a driver whose forward is driverForwardRad.
-   */
-  static double[] robotToDriverFrame(double forward, double left, double headingRad, double driverForwardRad) {
-    double fieldX = forward * Math.cos(headingRad) - left * Math.sin(headingRad);
-    double fieldY = forward * Math.sin(headingRad) + left * Math.cos(headingRad);
-    return new double[] {fieldX * Math.cos(driverForwardRad) + fieldY * Math.sin(driverForwardRad),
-        fieldX * Math.sin(driverForwardRad) - fieldY * Math.cos(driverForwardRad)};
-  }
-
   private void updateShooterAndHood(boolean aiming, Aim aim) {
     volleyHoodDeg = 0;
     boolean validShot = aim != null && aim.shot.valid;
@@ -1458,7 +1186,7 @@ public class Robot {
   public void setTuningLive(boolean on) { tuningLive = on; }
 
   /** Tuning only: fire without waiting for a steady stick and low acceleration, to measure shots fired mid-change. */
-  public void setSteadyGateBypassed(boolean on) { steadyGateBypassed = on; }
+  public void setSteadyGateBypassed(boolean on) { driveControl.steadyGateBypassed = on; }
 
   /** Tuning only: fire moving close to the lip, which the match's gate refuses, to measure whether those shots score. */
   public void setCloseMovingGateBypassed(boolean on) { closeMovingGateBypassed = on; }
@@ -1468,7 +1196,7 @@ public class Robot {
    * the scripted drive, whose tracking corrections change every loop and so never read as held; null for the drive.
    */
   public void setSteadyStickReference(double[] fieldStick) {
-    steadyStickReference = fieldStick == null ? null : fieldStick.clone();
+    driveControl.steadyStickReference = fieldStick == null ? null : fieldStick.clone();
   }
 
   /** Shot Tuning: fires one ball once ready, as holding RB does. Release before asking for the next. */
@@ -1484,7 +1212,7 @@ public class Robot {
    * Drives as if the left stick were pushed this far along the field's +x and +y (each -1..1), instead of reading
    * it; null hands it back. The turn still comes from the right stick, or the aim.
    */
-  public void setDriveOverride(double[] fieldStick) { driveOverride = fieldStick; }
+  public void setDriveOverride(double[] fieldStick) { driveControl.driveOverride = fieldStick; }
 
   /** Brakes the wheels at zero power (on) instead of letting them roll; teleop keeps them rolling. */
   public void setDriveBrake(boolean on) { drive.setBrake(on); }
@@ -1496,13 +1224,15 @@ public class Robot {
    * Holds the robot on this field point {x, y}, as RB holds it in Lebot Teleop, while no drive is scripted;
    * null lets it go. Unlike RB's spot it stays put on the field when the tags move the pose.
    */
-  public void setHoldPoint(double[] point) { holdPoint = point == null ? null : point.clone(); }
+  public void setHoldPoint(double[] point) {
+    driveControl.holdPoint = point == null ? null : point.clone();
+  }
 
   /** The driver's drive and turn sticks do nothing while on; scripted drives and the aim still move the robot. */
-  public void setSticksLocked(boolean on) { sticksLocked = on; }
+  public void setSticksLocked(boolean on) { driveControl.sticksLocked = on; }
 
   /** With the sticks locked and nothing aiming, turns as the turn stick pushed this far (-1..1) would. */
-  public void setTurnOverride(double turn) { turnOverride = turn; }
+  public void setTurnOverride(double turn) { driveControl.turnOverride = turn; }
 
   /** Seconds since the cameras last saw a tag; infinite if never. */
   public double getTagsSeenAgoS() {
@@ -1596,15 +1326,15 @@ public class Robot {
   public void setAutoIndexerReverse(boolean reverse) { autoIndexerReverse = reverse; }
 
   /** Drives from these powers instead of the sticks; null hands the drive back. */
-  public void setAutoDriver(AutoDriver driver) { autoDriver = driver; }
+  public void setAutoDriver(AutoDriver driver) { driveControl.autoDriver = driver; }
 
   /** The auto's drive turns with the heading lock to this field heading, not Pedro's turn; NaN gives it back. */
   public void setAutoHeading(double headingRad) { setAutoHeading(headingRad, 0.0); }
 
   /** As above, for a heading that moves at this rate (CCW positive), as the Flower wiggle. */
   public void setAutoHeading(double headingRad, double rateRadPerSec) {
-    autoHeadingRad = headingRad;
-    autoHeadingRateRadPerSec = rateRadPerSec;
+    driveControl.autoHeadingRad = headingRad;
+    driveControl.autoHeadingRateRadPerSec = rateRadPerSec;
   }
 
   /**

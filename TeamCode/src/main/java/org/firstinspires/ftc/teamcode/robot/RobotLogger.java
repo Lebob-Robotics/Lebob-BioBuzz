@@ -43,7 +43,7 @@ final class RobotLogger {
     Logger.recordOutput("Robot/OneBallShot", robot.tuningMode && (robot.driver.right_bumper || robot.scriptedOneBall)
         && robot.driver.right_trigger <= Robot.TRIGGER_PRESSED);
     Logger.recordOutput("Robot/TuningLive", robot.tuningLive);
-    Logger.recordOutput("Robot/PositionHold", robot.isHolding());
+    Logger.recordOutput("Robot/PositionHold", robot.driveControl.isHolding());
     Logger.recordOutput("Robot/IntakeOn", robot.ballPath.intakeOn);
     if (aim == null) {
       return;

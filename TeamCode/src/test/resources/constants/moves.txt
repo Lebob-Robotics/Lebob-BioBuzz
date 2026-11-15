@@ -235,3 +235,14 @@ org.firstinspires.ftc.teamcode.auto.CornerAuto.MIN_PATH_IN -> org.firstinspires.
 org.firstinspires.ftc.teamcode.robot.Robot.DS_TELEMETRY_PERIOD_S -> org.firstinspires.ftc.teamcode.robot.RobotTelemetry.DS_TELEMETRY_PERIOD_S
 org.firstinspires.ftc.teamcode.robot.Robot.PANELS_TELEMETRY_PERIOD_S -> org.firstinspires.ftc.teamcode.robot.RobotTelemetry.PANELS_TELEMETRY_PERIOD_S
 org.firstinspires.ftc.teamcode.robot.Robot.WHEELS_STOPPED_RPM -> org.firstinspires.ftc.teamcode.robot.BallPath.WHEELS_STOPPED_RPM
+org.firstinspires.ftc.teamcode.robot.Robot.MAX_LOCK_RATE_RAD_S -> org.firstinspires.ftc.teamcode.robot.DriveControl.MAX_LOCK_RATE_RAD_S
+org.firstinspires.ftc.teamcode.robot.Robot.TURNING_RATE_SMOOTHING -> org.firstinspires.ftc.teamcode.robot.DriveControl.TURNING_RATE_SMOOTHING
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_DEADBAND_M -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_DEADBAND_M
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_GAIN_PER_M -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_GAIN_PER_M
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_MIN_POWER -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_MIN_POWER
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_MAX_POWER -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_MAX_POWER
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_DAMPING_S -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_DAMPING_S
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_RETURN_M -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_RETURN_M
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_DONE_M -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_DONE_M
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_BOOST_PER_S -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_BOOST_PER_S
+org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_MOVING_MPS -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_MOVING_MPS

@@ -20,7 +20,7 @@ public class RobotAutoDriveFrameTest {
     for (double f : driverForwards) {
       for (double h : headings) {
         for (double[] p : powers) {
-          double[] driver = Robot.robotToDriverFrame(p[0], p[1], h, f);
+          double[] driver = DriveControl.robotToDriverFrame(p[0], p[1], h, f);
           double[] robot = driveToRobot(driver[0], driver[1], h - f);
           assertEquals("forward", p[0], robot[0], 1e-9);
           assertEquals("right is minus left", -p[1], robot[1], 1e-9);
