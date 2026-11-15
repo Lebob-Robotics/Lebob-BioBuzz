@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
+import org.firstinspires.ftc.teamcode.field.Angles;
 
 public class PoseHistoryTest {
   private static final double TOLERANCE = 1e-9;
@@ -30,7 +31,7 @@ public class PoseHistoryTest {
     history.add(100, new Pose(0, 0, -Math.PI + 0.1));
     assertEquals(Math.PI, Math.abs(history.sample(50).headingRad), TOLERANCE); // Not 0
     double quarter = history.sample(25).headingRad;
-    assertEquals(0, ShootOnTheMove.normalizeAngle(quarter - (Math.PI - 0.05)), TOLERANCE);
+    assertEquals(0, Angles.normalize(quarter - (Math.PI - 0.05)), TOLERANCE);
   }
 
   @Test

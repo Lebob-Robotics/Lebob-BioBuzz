@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.utils;
 import static org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.*;
 
 import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.utils.VisionResult.Reason;
 import org.firstinspires.ftc.teamcode.utils.VisionResult.TagReject;
 
@@ -70,8 +72,8 @@ public final class VisionCorrector {
         tags++;
       }
     }
-    double outM = CLUSTER_UP_X_M + CELL_REF_UP_TOWARD_IN * IN_TO_M;
-    return new double[] {cell == Cell.AUDIENCE ? outM : -outM, ySumIn / tags * IN_TO_M};
+    double outM = CLUSTER_UP_X_M + CELL_REF_UP_TOWARD_IN * Units.M_PER_IN;
+    return new double[] {cell == Cell.AUDIENCE ? outM : -outM, ySumIn / tags * Units.M_PER_IN};
   }
 
   /**
@@ -141,7 +143,7 @@ public final class VisionCorrector {
     if (alliance == null || cell == null) {
       return null;
     }
-    double yM = TAG_Y_IN[id - 30] * IN_TO_M;
+    double yM = TAG_Y_IN[id - 30] * Units.M_PER_IN;
     boolean up = cell == upCellOfThatHive;
     double xM = up ? CLUSTER_UP_X_M : CLUSTER_DOWN_X_M;
     double zM = up ? CLUSTER_UP_Z_M : CLUSTER_DOWN_Z_M;
@@ -266,7 +268,7 @@ public final class VisionCorrector {
         }
         double seenX = (b[4] + b[2]) - (a[4] + a[2]);
         double seenY = (b[5] + b[3]) - (a[5] + a[3]);
-        headingFixes.add(ShootOnTheMove.normalizeAngle(Math.atan2(fieldY, fieldX) - Math.atan2(seenY, seenX)));
+        headingFixes.add(Angles.normalize(Math.atan2(fieldY, fieldX) - Math.atan2(seenY, seenX)));
       }
     }
     double dHeading = 0;
@@ -276,7 +278,7 @@ public final class VisionCorrector {
     boolean consistentFirstPair = false;
     if (VISION_HEADING && !headingValid && steadyForHeading && usedTags.size() == 2) {
       double[] a = usedTags.get(0), b = usedTags.get(1);
-      double initialHeading = ShootOnTheMove.normalizeAngle(Math.atan2(b[1] - a[1], b[0] - a[0])
+      double initialHeading = Angles.normalize(Math.atan2(b[1] - a[1], b[0] - a[0])
           - Math.atan2((b[5] + b[3]) - (a[5] + a[3]), (b[4] + b[2]) - (a[4] + a[2])));
       consistentFirstPair = firstPairAgrees(usedTags, ids, initialHeading, newestFrame, nowNanos);
       // Close pairs are never used for normal heading trims or an isolated first fix. Only this
@@ -296,7 +298,7 @@ public final class VisionCorrector {
         headingDisagreeFrames = 0;
       } else {
         // A big fix the tags keep giving means odometry has lost its heading, so take it once it repeats
-        boolean agrees = headingDisagreeFrames > 0 && Math.abs(ShootOnTheMove.normalizeAngle(dHeading - lastDisagreeRad))
+        boolean agrees = headingDisagreeFrames > 0 && Math.abs(Angles.normalize(dHeading - lastDisagreeRad))
             <= Math.toRadians(HEADING_OVERRIDE_AGREE_DEG);
         headingDisagreeFrames = agrees ? headingDisagreeFrames + 1 : 1;
         lastDisagreeRad = dHeading;
@@ -390,7 +392,7 @@ public final class VisionCorrector {
     boolean headingStillGood = reason == Reason.OUT_OF_FIELD || reason == Reason.JUMP; // Not about the heading
     if (reason != Reason.ACCEPTED && headingStillGood && headingGain > 0) {
       // The heading from tag pairs doesn't depend on where the robot is, so keep it
-      Pose turned = new Pose(now.xM, now.yM, ShootOnTheMove.normalizeAngle(now.headingRad + headingGain * dHeading));
+      Pose turned = new Pose(now.xM, now.yM, Angles.normalize(now.headingRad + headingGain * dHeading));
       VisionResult headingOnly = new VisionResult(Reason.HEADING_ONLY, firstReject, 0, 0, 0, turned, used,
           rejected, spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
       headingOnly.dHeadingRad = dHeading;
@@ -408,7 +410,7 @@ public final class VisionCorrector {
 
     double gain = poseValid && reason != Reason.RELOCATED ? CORRECTION_GAIN : 1.0;
     Pose newPose = new Pose(now.xM + gain * medianDx, now.yM + gain * medianDy,
-        ShootOnTheMove.normalizeAngle(now.headingRad + headingGain * dHeading));
+        Angles.normalize(now.headingRad + headingGain * dHeading));
     VisionResult result = new VisionResult(reason, firstReject, medianDx, medianDy, gain, newPose, used,
         rejected, spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
     result.dHeadingRad = dHeading;
@@ -442,7 +444,7 @@ public final class VisionCorrector {
     if (firstPairFrames > 0 && frame <= firstPairFrame) { return false; }
     boolean agrees = firstPairFrames > 0 && now - firstPairAt <= 2_000_000_000L
         && idA == firstPairIdA && idB == firstPairIdB
-        && Math.abs(ShootOnTheMove.normalizeAngle(heading - firstPairHeading)) <= Math.toRadians(3)
+        && Math.abs(Angles.normalize(heading - firstPairHeading)) <= Math.toRadians(3)
         && Math.hypot(x - firstPairX, y - firstPairY) <= 0.05;
     if (!agrees) {
       firstPairFrames = 0; firstPairSince = now;
@@ -498,9 +500,9 @@ public final class VisionCorrector {
   private static double angleMedian(double[] angles) {
     double[] unwrapped = new double[angles.length];
     for (int i = 0; i < angles.length; i++) {
-      unwrapped[i] = angles[0] + ShootOnTheMove.normalizeAngle(angles[i] - angles[0]);
+      unwrapped[i] = angles[0] + Angles.normalize(angles[i] - angles[0]);
     }
-    return ShootOnTheMove.normalizeAngle(median(unwrapped));
+    return Angles.normalize(median(unwrapped));
   }
 
   private static double median(double[] values) {

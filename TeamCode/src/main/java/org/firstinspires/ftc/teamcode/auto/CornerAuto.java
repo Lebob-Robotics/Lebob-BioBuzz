@@ -13,6 +13,8 @@ import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Main;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.VolleySettings;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
@@ -191,7 +193,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
         : AutoField.forAlliance(AutoField.WALL_FLOWER, alliance);
     org.firstinspires.ftc.teamcode.utils.Pose pose = robot.getPose();
     return Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= ScoringAuto.FACE_FLOWER_M
-        && Math.abs(AutoField.normalize(pose.headingRad - wallHeading())) <= ScoringAuto.FACE_FLOWER_RAD;
+        && Math.abs(Angles.normalize(pose.headingRad - wallHeading())) <= ScoringAuto.FACE_FLOWER_RAD;
   }
 
   private VisionCorrector.Cell aimCell() {
@@ -214,7 +216,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
   /** Starts the drive for a step, from where the robot is now. */
   private void startStep(CornerSequence.Step step) {
     org.firstinspires.ftc.teamcode.utils.Pose now = robot.getPose();
-    Pose here = new Pose(now.xM / AutoField.M_PER_IN, now.yM / AutoField.M_PER_IN, now.headingRad);
+    Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean intoFlower = step == CornerSequence.Step.INTAKE_FLOWER;
     drivetrain.setScale(intoFlower ? ScoringAuto.SWEEP_POWER_SCALE : 1.0);
     drivetrain.setStrafeBias(0.0);
@@ -277,7 +279,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
   }
 
   private static Pose poseOf(double[] field) {
-    return new Pose(field[0] / AutoField.M_PER_IN, field[1] / AutoField.M_PER_IN, field[2]);
+    return new Pose(field[0] / Units.M_PER_IN, field[1] / Units.M_PER_IN, field[2]);
   }
 
   /** A straight drive to the end's heading: turning on the way, or facing it from the start. */

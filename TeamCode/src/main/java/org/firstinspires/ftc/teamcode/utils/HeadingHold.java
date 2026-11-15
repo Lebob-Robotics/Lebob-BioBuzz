@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
 import com.bylazar.configurables.annotations.Configurable;
+import org.firstinspires.ftc.teamcode.field.Angles;
 
 /**
  * Picks the heading to hold while the driver translates without turning. Open loop, the base swings up to
@@ -43,7 +44,7 @@ public final class HeadingHold {
   /** The heading estimate was corrected by this much: the held heading moves with it, so the robot doesn't turn. */
   public void shift(double dHeadingRad) {
     if (!Double.isNaN(targetRad)) {
-      targetRad = ShootOnTheMove.normalizeAngle(targetRad + dHeadingRad);
+      targetRad = Angles.normalize(targetRad + dHeadingRad);
     }
   }
 

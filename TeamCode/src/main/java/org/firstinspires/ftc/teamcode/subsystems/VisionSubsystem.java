@@ -16,6 +16,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainCon
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.utils.CameraMount;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.ClusterFromTags;
@@ -652,7 +653,6 @@ public class VisionSubsystem extends SubsystemBase {
     return true;
   }
 
-  private static final double INCHES_TO_METRES = 0.0254; // The processor is set to inches
 
   // Each consumer keeps its own mark per camera, so taking frames for one never starves the other.
   private final long[] newestCellFrameHandedOutNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
@@ -701,7 +701,7 @@ public class VisionSubsystem extends SubsystemBase {
         boolean isNewFrame = camera.frameNanos[i] > previousNewestNanos;
         if (isCluster && isNewFrame && !Double.isNaN(camera.x[i]) && frameTimesTrusted(camera.fps)) {
           sightings.add(new CellSighting(camera.clusterNames[i], mount, camera.frameNanos[i],
-              camera.x[i] * INCHES_TO_METRES, camera.y[i] * INCHES_TO_METRES, camera.z[i] * INCHES_TO_METRES));
+              camera.x[i] * Units.M_PER_IN, camera.y[i] * Units.M_PER_IN, camera.z[i] * Units.M_PER_IN));
         }
         newestNanos = Math.max(newestNanos, camera.frameNanos[i]);
       }
@@ -734,7 +734,7 @@ public class VisionSubsystem extends SubsystemBase {
         boolean isNewFrame = camera.frameNanos[i] > previousNewestNanos;
         if (isSingleTag && isNewFrame && frameTimesTrusted(camera.fps)) {
           observations.add(new TagObservation(camera.tagIds[i], mount,
-              camera.x[i] * INCHES_TO_METRES, camera.y[i] * INCHES_TO_METRES, camera.z[i] * INCHES_TO_METRES,
+              camera.x[i] * Units.M_PER_IN, camera.y[i] * Units.M_PER_IN, camera.z[i] * Units.M_PER_IN,
               camera.decisionMargin[i], camera.frameNanos[i]));
         }
         newestNanos = Math.max(newestNanos, camera.frameNanos[i]);

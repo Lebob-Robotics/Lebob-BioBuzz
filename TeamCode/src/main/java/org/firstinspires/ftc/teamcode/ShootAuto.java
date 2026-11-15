@@ -5,6 +5,7 @@ import com.pedropathing.api.Paths;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.Path;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
@@ -312,7 +313,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   }
 
   private static com.pedropathing.math.Pose inches(double xM, double yM, double headingRad) {
-    return new com.pedropathing.math.Pose(xM / RobotLocalizer.M_PER_IN, yM / RobotLocalizer.M_PER_IN, headingRad);
+    return new com.pedropathing.math.Pose(xM / Units.M_PER_IN, yM / Units.M_PER_IN, headingRad);
   }
 
   /**

@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.utils;
 
 import static org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.*;
 
+import org.firstinspires.ftc.teamcode.field.Angles;
+
 /**
  * Shoot on the move maths. Pure Java with no hardware, so it is unit tested on a laptop.
  *
@@ -167,8 +169,8 @@ public final class ShootOnTheMove {
     Shot shotNow = calculate(now.distanceToLipM, now.speedTowardCellMps * SOTM_TOWARD_GAIN,
         now.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     boolean both = shot.valid && shotNow.valid;
-    double robotHeadingRad = normalizeAngle(g.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
-    double lockHeadingRad = normalizeAngle(now.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
+    double robotHeadingRad = Angles.normalize(g.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
+    double lockHeadingRad = Angles.normalize(now.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
         headingTolerance(g.distanceToClusterM), false,
         both ? shotNow.hoodDeg : shot.hoodDeg, both ? shotNow.targetRpm : shot.targetRpm,
@@ -193,8 +195,8 @@ public final class ShootOnTheMove {
     // Also while it waits for the robot to slow, so the hood is there already
     double hoodNow = shotNow.valid ? shotNow.hoodDeg : shot.valid ? shot.hoodDeg
         : stillNow.valid ? stillNow.hoodDeg : still.hoodDeg;
-    double robotHeadingRad = normalizeAngle(g.directionToCellRad - BACKWARD_DIRECTION_RAD);
-    double lockHeadingRad = normalizeAngle(now.directionToCellRad - BACKWARD_DIRECTION_RAD);
+    double robotHeadingRad = Angles.normalize(g.directionToCellRad - BACKWARD_DIRECTION_RAD);
+    double lockHeadingRad = Angles.normalize(now.directionToCellRad - BACKWARD_DIRECTION_RAD);
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
         headingTolerance(g.distanceToClusterM), true, hoodNow, rpmNow, 0,
         still.valid && stillNow.valid ? rate(stillNow.targetRpm, still.targetRpm, MAX_RPM_RATE_PER_SEC) : 0);
@@ -210,7 +212,7 @@ public final class ShootOnTheMove {
     if (reason == Shot.Reason.OUT_OF_RANGE || reason == Shot.Reason.NO_SAFE_SHOT) {
       return Double.POSITIVE_INFINITY;
     }
-    double turnDeg = Math.abs(Math.toDegrees(normalizeAngle(aim.targetHeadingRad - headingRad)));
+    double turnDeg = Math.abs(Math.toDegrees(Angles.normalize(aim.targetHeadingRad - headingRad)));
     double turnS = turnDeg < 3 ? 0 : SHOT_PICK_TURN_BASE_S + turnDeg / SHOT_PICK_TURN_DEG_PER_S;
     double hoodMoveDeg = Double.isNaN(hoodDeg) || Double.isNaN(aim.hoodNowDeg) ? 0 : Math.abs(aim.hoodNowDeg - hoodDeg);
     double hoodS = hoodMoveDeg < 1 ? 0 : SHOT_PICK_HOOD_BASE_S + hoodMoveDeg / SHOT_PICK_HOOD_DEG_PER_S;
@@ -347,7 +349,7 @@ public final class ShootOnTheMove {
    */
   public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
       double turnRateRadPerSec, double turningRateRadPerSec, boolean closeMovingAllowed) {
-    double errorNowRad = normalizeAngle(aim.lockHeadingRad - headingRad);
+    double errorNowRad = Angles.normalize(aim.lockHeadingRad - headingRad);
     double targetRateRadPerSec = aim.lockRateRadPerSec + turningRateRadPerSec;
     double errorAtLatestExitRad = errorNowRad + (targetRateRadPerSec - turnRateRadPerSec) * FEED_DELAY_MAX_S;
     return aim.shot.valid
@@ -391,11 +393,6 @@ public final class ShootOnTheMove {
   static double headingTolerance(double distanceToClusterM) {
     double clearanceM = CELL_HALF_WIDTH_M - BALL_RADIUS_M - SIDE_MARGIN_M;
     return Math.min(Math.atan(clearanceM / distanceToClusterM), Math.toRadians(MAX_HEADING_TOLERANCE_DEG));
-  }
-
-  /** Same angle, between minus pi and pi. */
-  public static double normalizeAngle(double angleRad) {
-    return Math.atan2(Math.sin(angleRad), Math.cos(angleRad));
   }
 
   /** Reads the table between grid points, from the four cells around a distance and speed. */

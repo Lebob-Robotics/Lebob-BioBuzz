@@ -4,6 +4,7 @@ import static org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.field.Units;
 
 /**
  * Works out where the SDK's cluster detector would put each Cell, from the single tags alone, so only one
@@ -97,7 +98,7 @@ public final class ClusterFromTags {
       if (dot(towardCamera, centre) > 0) {
         towardCamera = scale(towardCamera, -1);
       }
-      double heightM = camera.toRobotFrame(centre[0] * IN_TO_M, centre[1] * IN_TO_M, centre[2] * IN_TO_M)[2];
+      double heightM = camera.toRobotFrame(centre[0] * Units.M_PER_IN, centre[1] * Units.M_PER_IN, centre[2] * Units.M_PER_IN)[2];
       boolean cellUp = Math.abs(heightM - CLUSTER_UP_Z_M) < Math.abs(heightM - CLUSTER_DOWN_Z_M);
       double upIn = cellUp ? CELL_REF_UP_UP_IN : CELL_REF_DOWN_UP_IN;
       double towardIn = cellUp ? CELL_REF_UP_TOWARD_IN : CELL_REF_DOWN_TOWARD_IN;

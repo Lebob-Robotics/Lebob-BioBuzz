@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
+import org.firstinspires.ftc.teamcode.field.Angles;
+
 /**
  * The robot's recent poses with their times, so a camera frame can be matched to where the robot was
  * when it was taken. A ring: the oldest is overwritten first. Times must increase. Not thread safe.
@@ -59,7 +61,7 @@ public final class PoseHistory {
       double y = yM[slot] - pivotYM;
       xM[slot] = pivotXM + x * cos - y * sin + dxM;
       yM[slot] = pivotYM + x * sin + y * cos + dyM;
-      headingsRad[slot] = ShootOnTheMove.normalizeAngle(headingsRad[slot] + dHeadingRad);
+      headingsRad[slot] = Angles.normalize(headingsRad[slot] + dHeadingRad);
     }
   }
 
@@ -93,8 +95,8 @@ public final class PoseHistory {
         return new Pose(
             xM[a] + fraction * (xM[b] - xM[a]),
             yM[a] + fraction * (yM[b] - yM[a]),
-            ShootOnTheMove.normalizeAngle(headingsRad[a]
-                + fraction * ShootOnTheMove.normalizeAngle(headingsRad[b] - headingsRad[a])));
+            Angles.normalize(headingsRad[a]
+                + fraction * Angles.normalize(headingsRad[b] - headingsRad[a])));
       }
     }
     return at(count - 1);

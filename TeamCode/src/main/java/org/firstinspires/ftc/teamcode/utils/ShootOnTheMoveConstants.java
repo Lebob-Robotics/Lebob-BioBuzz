@@ -95,7 +95,6 @@ public final class ShootOnTheMoveConstants {
       -19.25, -15.5, -10.0, -6.25,
       6.25, 10.0, 15.5, 19.25,
       19.25, 15.5, 10.0, 6.25};
-  public static final double IN_TO_M = 0.0254;
   // Where the SDK cluster detector puts a Cell, from the centre of its line of tags: up, and toward the
   // camera (negative is away). Measured 4 Nov against the SDK on the same frames; see ClusterFromTags.
   public static double CELL_REF_UP_UP_IN = 8.0; // Cell up

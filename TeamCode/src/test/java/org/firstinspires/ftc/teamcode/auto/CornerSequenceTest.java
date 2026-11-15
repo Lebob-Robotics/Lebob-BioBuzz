@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.auto.CornerSequence.Step;
+import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
 import org.junit.Test;
 
@@ -181,7 +182,7 @@ public class CornerSequenceTest {
       double[] spot = CornerSequence.parkSpot(a);
       double[] aim = AutoField.autoAimPoint(a, Cell.SCORING);
       double back = Math.atan2(spot[1] - aim[1], spot[0] - aim[0]);
-      assertEquals("shooter to SCORING", 0, AutoField.normalize(spot[2] - back), 1e-3);
+      assertEquals("shooter to SCORING", 0, Angles.normalize(spot[2] - back), 1e-3);
     }
   }
 

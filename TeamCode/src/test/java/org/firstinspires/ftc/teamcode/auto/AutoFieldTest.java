@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
 import org.junit.Test;
@@ -106,7 +107,7 @@ public class AutoFieldTest {
         assertTrue("on our side", alliance == Alliance.RED ? spot[1] < aim[1] : spot[1] > aim[1]);
         double back = spot[2] + Math.PI; // The shooter fires out the back
         double toCell = Math.atan2(aim[1] - spot[1], aim[0] - spot[0]);
-        assertEquals(alliance + " " + cell + " back to the Cell", 0, AutoField.normalize(back - toCell), 1e-9);
+        assertEquals(alliance + " " + cell + " back to the Cell", 0, Angles.normalize(back - toCell), 1e-9);
       }
     }
   }

@@ -6,3 +6,9 @@
 # Phase 1: unused
 org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG -> (deleted)
 org.firstinspires.ftc.teamcode.Robot.HEADING_OFF_RAD -> (deleted)
+
+# Phase 2: one copy of shared helpers
+org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.IN_TO_M -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN
+org.firstinspires.ftc.teamcode.auto.AutoField.M_PER_IN -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN
+org.firstinspires.ftc.teamcode.pedro.RobotLocalizer.M_PER_IN -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN
+org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem.INCHES_TO_METRES -> org.firstinspires.ftc.teamcode.field.Units.M_PER_IN

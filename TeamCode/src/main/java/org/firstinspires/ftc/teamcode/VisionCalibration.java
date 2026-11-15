@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.subsystems.VisionInputs;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.utils.CameraMount;
@@ -75,7 +76,7 @@ public class VisionCalibration extends PsiKitIterativeOpMode {
       double[] horizontalM = new double[in.tagIds.length];
       double[] slantM = new double[in.tagIds.length];
       for (int i = 0; i < in.tagIds.length; i++) {
-        double x = in.x[i] * 0.0254, y = in.y[i] * 0.0254, z = in.z[i] * 0.0254;
+        double x = in.x[i] * Units.M_PER_IN, y = in.y[i] * Units.M_PER_IN, z = in.z[i] * Units.M_PER_IN;
         horizontalM[i] = mount.horizontalDistanceFromLens(x, y, z);
         slantM[i] = Math.sqrt(x * x + y * y + z * z);
         telemetry.addData(side + " tag " + in.tagIds[i], "floor %.3f m, slant %.3f m, margin %.0f",

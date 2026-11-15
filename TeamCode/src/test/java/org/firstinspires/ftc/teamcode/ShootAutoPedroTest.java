@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
@@ -43,8 +44,8 @@ public class ShootAutoPedroTest {
     Path path = ShootAuto.pedroParkPath(1.583, -0.556, -0.17, ShootAuto.parkRoute(f, 1.583, -0.556));
     for (int i = 0; i <= 200; i++) {
       Pose p = path.get(i / 200.0);
-      double x = p.x() * RobotLocalizer.M_PER_IN;
-      double y = p.y() * RobotLocalizer.M_PER_IN;
+      double x = p.x() * Units.M_PER_IN;
+      double y = p.y() * Units.M_PER_IN;
       assertFalse("in the Hive at " + x + ", " + y, Math.abs(x) < 0.80 && Math.abs(y) < 1.00);
       assertFalse("into the Flower at " + x + ", " + y, Math.abs(x - 0.61) < 0.35 && y < -1.30); // Red's
     }

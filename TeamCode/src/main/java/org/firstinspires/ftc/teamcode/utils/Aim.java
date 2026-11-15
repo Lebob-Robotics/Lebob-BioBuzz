@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
+import org.firstinspires.ftc.teamcode.field.Angles;
+
 /** Where the robot should point, and the shot to take from there: the output of {@link ShootOnTheMove#aim}. */
 public final class Aim {
   public final Shot shot;
@@ -49,8 +51,8 @@ public final class Aim {
 
   /** This aim pointed rad further anticlockwise, the shot otherwise unchanged. */
   public Aim turnedBy(double rad) {
-    return new Aim(shot, ShootOnTheMove.normalizeAngle(targetHeadingRad + rad),
-        ShootOnTheMove.normalizeAngle(lockHeadingRad + rad), lockRateRadPerSec, headingToleranceRad, backward,
+    return new Aim(shot, Angles.normalize(targetHeadingRad + rad),
+        Angles.normalize(lockHeadingRad + rad), lockRateRadPerSec, headingToleranceRad, backward,
         hoodNowDeg, rpmNow, hoodRateDegPerSec, rpmRatePerSec);
   }
 
@@ -67,6 +69,6 @@ public final class Aim {
 
   /** How far the robot still has to turn, anticlockwise positive. */
   public double headingErrorRad(double currentHeadingRad) {
-    return ShootOnTheMove.normalizeAngle(targetHeadingRad - currentHeadingRad);
+    return Angles.normalize(targetHeadingRad - currentHeadingRad);
   }
 }

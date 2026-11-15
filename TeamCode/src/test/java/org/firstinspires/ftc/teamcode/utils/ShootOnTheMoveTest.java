@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.junit.After;
 import org.junit.Before;
@@ -183,7 +184,7 @@ public class ShootOnTheMoveTest {
   public void standingStillTheBackOfTheRobotFacesTheCell() {
     Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0); // Cell along +x, shooter fires out the back
     assertTrue(aim.shot.valid);
-    assertEquals(0, ShootOnTheMove.normalizeAngle(aim.targetHeadingRad - Math.PI), TOLERANCE);
+    assertEquals(0, Angles.normalize(aim.targetHeadingRad - Math.PI), TOLERANCE);
   }
 
   @Test
@@ -218,7 +219,7 @@ public class ShootOnTheMoveTest {
     Aim standing = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, 1.5, 0);
     Aim strafing = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, 1.5, 0);
     assertTrue(strafing.shot.valid);
-    double headingChange = ShootOnTheMove.normalizeAngle(strafing.targetHeadingRad - standing.targetHeadingRad);
+    double headingChange = Angles.normalize(strafing.targetHeadingRad - standing.targetHeadingRad);
     assertEquals(strafing.shot.turningRad, headingChange, TOLERANCE);
   }
 
@@ -314,7 +315,7 @@ public class ShootOnTheMoveTest {
     // Moving +y past a Cell at +x: by the time the ball leaves the Cell is further clockwise
     Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, 1.5, 0);
     assertTrue(aim.shot.valid);
-    double targetAheadOfLock = ShootOnTheMove.normalizeAngle(aim.targetHeadingRad - aim.lockHeadingRad);
+    double targetAheadOfLock = Angles.normalize(aim.targetHeadingRad - aim.lockHeadingRad);
     assertEquals(-Math.atan2(0.5 * 0.2, 1.5), targetAheadOfLock, 1e-9);
   }
 
@@ -322,7 +323,7 @@ public class ShootOnTheMoveTest {
   public void holdingTheLockHeadingWhileTurningWithTheTargetIsReady() {
     ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0.5, 1.5, 0);
-    double rate = ShootOnTheMove.normalizeAngle(aim.targetHeadingRad - aim.lockHeadingRad) / 0.2;
+    double rate = Angles.normalize(aim.targetHeadingRad - aim.lockHeadingRad) / 0.2;
     assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, rate));
   }
 
@@ -355,13 +356,6 @@ public class ShootOnTheMoveTest {
     assertEquals(cap, ShootOnTheMove.headingTolerance(0.3), 1e-12);
     assertTrue(ShootOnTheMove.headingTolerance(3.0) < ShootOnTheMove.headingTolerance(2.0));
     assertTrue(ShootOnTheMove.headingTolerance(3.0) < cap);
-  }
-
-  @Test
-  public void normalizeAngleKeepsAnglesBetweenMinusPiAndPi() {
-    assertEquals(0.5, ShootOnTheMove.normalizeAngle(0.5 + 2 * Math.PI), 1e-12);
-    assertEquals(-0.5, ShootOnTheMove.normalizeAngle(-0.5 - 4 * Math.PI), 1e-12);
-    assertEquals(Math.PI - 0.1, ShootOnTheMove.normalizeAngle(-Math.PI - 0.1), 1e-12);
   }
 
   // ---- Backward shot ----

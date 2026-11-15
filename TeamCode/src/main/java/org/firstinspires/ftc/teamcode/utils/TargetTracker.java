@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.utils;
 
 import static org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.*;
 
+import org.firstinspires.ftc.teamcode.field.Angles;
+
 /**
  * Remembers where our up-facing Cell is on the field, from camera sightings.
  *
@@ -111,7 +113,7 @@ public final class TargetTracker {
       double x = pose.xM - pivotXM;
       double y = pose.yM - pivotYM;
       poses[slot] = new Pose(pivotXM + x * cos - y * sin + dxM, pivotYM + x * sin + y * cos + dyM,
-          ShootOnTheMove.normalizeAngle(pose.headingRad + dHeadingRad));
+          Angles.normalize(pose.headingRad + dHeadingRad));
     }
   }
 

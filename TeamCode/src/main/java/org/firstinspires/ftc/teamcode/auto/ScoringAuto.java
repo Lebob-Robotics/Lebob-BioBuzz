@@ -13,6 +13,8 @@ import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Main;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.VolleySettings;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
@@ -250,7 +252,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     }
     double within = step == AutoSequence.Step.ONTO_GARDEN_WALL ? ONTO_WALL_M : FACE_FLOWER_M;
     return Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= within
-        && Math.abs(AutoField.normalize(pose.headingRad - stop[2])) <= FACE_FLOWER_RAD;
+        && Math.abs(Angles.normalize(pose.headingRad - stop[2])) <= FACE_FLOWER_RAD;
   }
 
   /** The Cell to aim at: the plan's for the last shooting step started, the start's up Cell before the first. */
@@ -261,7 +263,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   /** Starts the drive for a step, from where the robot is now. */
   private void startStep(AutoSequence.Step step) {
     org.firstinspires.ftc.teamcode.utils.Pose now = robot.getPose();
-    Pose here = new Pose(now.xM / AutoField.M_PER_IN, now.yM / AutoField.M_PER_IN, now.headingRad);
+    Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean slow = step == AutoSequence.Step.SWEEP_GARDEN || step == AutoSequence.Step.INTAKE_WALL_FLOWER
         || step == AutoSequence.Step.INTAKE_REAR_FLOWER;
     drivetrain.setScale(slow ? SWEEP_POWER_SCALE : 1.0);

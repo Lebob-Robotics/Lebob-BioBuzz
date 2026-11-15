@@ -8,6 +8,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.core.wpi.math.Pose2d;
 import org.psilynx.psikit.core.wpi.math.Rotation2d;
@@ -137,8 +139,8 @@ public class OdometrySubsystem extends SubsystemBase {
     Logger.recordOutput("Odometry/HeadingDegrees", pose.getHeading(AngleUnit.DEGREES));
 
     double[] fieldVelocity = getVelocityMetersPerSec();
-    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", fieldVelocity[0] / 0.0254);
-    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", fieldVelocity[1] / 0.0254);
+    Logger.recordOutput("Odometry/Velocity/XInchesPerSec", fieldVelocity[0] / Units.M_PER_IN);
+    Logger.recordOutput("Odometry/Velocity/YInchesPerSec", fieldVelocity[1] / Units.M_PER_IN);
     Logger.recordOutput("Odometry/Velocity/HeadingDegreesPerSec",
         pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES));
     Logger.recordOutput("Odometry/VelocityField", new double[] { fieldVelocity[0], fieldVelocity[1] });
@@ -207,9 +209,9 @@ public class OdometrySubsystem extends SubsystemBase {
 
   /** {x, y, heading} in the Pinpoint's frame: before the bad reads, and now. */
   static boolean cameBackReset(double[] before, double[] now) {
-    boolean atZero = Math.hypot(now[0], now[1]) < RESET_NEAR_ZERO_M && Math.abs(normalize(now[2])) < RESET_NEAR_ZERO_RAD;
+    boolean atZero = Math.hypot(now[0], now[1]) < RESET_NEAR_ZERO_M && Math.abs(Angles.normalize(now[2])) < RESET_NEAR_ZERO_RAD;
     boolean jumped = Math.hypot(now[0] - before[0], now[1] - before[1]) > RESET_JUMP_M
-        || Math.abs(normalize(now[2] - before[2])) > RESET_JUMP_RAD;
+        || Math.abs(Angles.normalize(now[2] - before[2])) > RESET_JUMP_RAD;
     return atZero && jumped;
   }
 
@@ -219,11 +221,7 @@ public class OdometrySubsystem extends SubsystemBase {
     double cos = Math.cos(offsetHeadingRad);
     double sin = Math.sin(offsetHeadingRad);
     return new Pose2D(DistanceUnit.METER, offsetXM + x * cos - y * sin, offsetYM + x * sin + y * cos,
-        AngleUnit.RADIANS, normalize(device.getHeading(AngleUnit.RADIANS) + offsetHeadingRad));
-  }
-
-  private static double normalize(double rad) {
-    return Math.atan2(Math.sin(rad), Math.cos(rad));
+        AngleUnit.RADIANS, Angles.normalize(device.getHeading(AngleUnit.RADIANS) + offsetHeadingRad));
   }
 
   /** False when the Pinpoint's last update did not read it as READY, so its pose must not be used or written back. */
@@ -262,7 +260,7 @@ public class OdometrySubsystem extends SubsystemBase {
     }
     double x = lastGoodPose.getX(DistanceUnit.METER); // Not a bad read's zeros
     double y = lastGoodPose.getY(DistanceUnit.METER);
-    offsetHeadingRad = normalize(headingRad - lastGoodPose.getHeading(AngleUnit.RADIANS));
+    offsetHeadingRad = Angles.normalize(headingRad - lastGoodPose.getHeading(AngleUnit.RADIANS));
     double cos = Math.cos(offsetHeadingRad);
     double sin = Math.sin(offsetHeadingRad);
     offsetXM = xM - (x * cos - y * sin);

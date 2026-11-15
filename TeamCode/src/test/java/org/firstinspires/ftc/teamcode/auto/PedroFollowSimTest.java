@@ -9,6 +9,8 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
@@ -21,8 +23,8 @@ import org.junit.Test;
  */
 public class PedroFollowSimTest {
   private static final double DT = 0.02;
-  private static final double MAX_FORWARD_MPS = 55 * AutoField.M_PER_IN;
-  private static final double MAX_STRAFE_MPS = 45 * AutoField.M_PER_IN;
+  private static final double MAX_FORWARD_MPS = 55 * Units.M_PER_IN;
+  private static final double MAX_STRAFE_MPS = 45 * Units.M_PER_IN;
   private static final double MAX_TURN_RAD_S = 5.0;
   private static final double LAG_S = 0.12;
 
@@ -63,7 +65,7 @@ public class PedroFollowSimTest {
     omega += (p[2] * MAX_TURN_RAD_S - omega) * a;
     x += (vForward * Math.cos(h) - vLeft * Math.sin(h)) * DT;
     y += (vForward * Math.sin(h) + vLeft * Math.cos(h)) * DT;
-    h = AutoField.normalize(h + omega * DT);
+    h = Angles.normalize(h + omega * DT);
   }
 
   private double runToEnd(double maxS) {
@@ -80,8 +82,8 @@ public class PedroFollowSimTest {
 
   /** One of the auto's turning drives, from where the robot is to end, as ScoringAuto.turningLine. */
   private double turningDrive(double[] end, double maxS) {
-    Pose here = new Pose(x / AutoField.M_PER_IN, y / AutoField.M_PER_IN, h);
-    Pose to = new Pose(end[0] / AutoField.M_PER_IN, end[1] / AutoField.M_PER_IN, end[2]);
+    Pose here = new Pose(x / Units.M_PER_IN, y / Units.M_PER_IN, h);
+    Pose to = new Pose(end[0] / Units.M_PER_IN, end[1] / Units.M_PER_IN, end[2]);
     follower.follow(Paths.line(here, to).linear(here.heading(), to.heading()));
     return runToEnd(maxS);
   }
@@ -96,7 +98,7 @@ public class PedroFollowSimTest {
         assertTrue(alliance + " " + cell + " took " + t + " s", t < 3.0);
         assertEquals(alliance + " " + cell + " x", spot[0], x, 0.05);
         assertEquals(alliance + " " + cell + " y", spot[1], y, 0.05);
-        assertEquals(alliance + " " + cell + " heading", 0, AutoField.normalize(spot[2] - h), Math.toRadians(5));
+        assertEquals(alliance + " " + cell + " heading", 0, Angles.normalize(spot[2] - h), Math.toRadians(5));
       }
     }
   }
@@ -111,7 +113,7 @@ public class PedroFollowSimTest {
         assertTrue(alliance + " took " + t + " s", t < 4.0);
         assertEquals(alliance + " x", end[0], x, 0.05);
         assertEquals(alliance + " y", end[1], y, 0.05);
-        assertEquals(alliance + " heading", 0, AutoField.normalize(end[2] - h), Math.toRadians(5));
+        assertEquals(alliance + " heading", 0, Angles.normalize(end[2] - h), Math.toRadians(5));
       }
     }
   }
@@ -153,8 +155,8 @@ public class PedroFollowSimTest {
   @Test
   public void turnsToFaceTheFlowerOnTheWayIn() {
     place(AutoField.WALL_FLOWER);
-    h = AutoField.normalize(AutoField.WALL_FLOWER[2] + Math.toRadians(25)); // As the last shot left it
-    Pose here = new Pose(x / AutoField.M_PER_IN, y / AutoField.M_PER_IN, h);
+    h = Angles.normalize(AutoField.WALL_FLOWER[2] + Math.toRadians(25)); // As the last shot left it
+    Pose here = new Pose(x / Units.M_PER_IN, y / Units.M_PER_IN, h);
     Pose end = AutoField.pedro(AutoField.WALL_FLOWER_INTAKE, Alliance.RED);
     follower.follow(Paths.line(here, end).linear(here.heading(), end.heading()));
     runToEnd(3.0);
@@ -167,7 +169,7 @@ public class PedroFollowSimTest {
   public void curvesRoundTheHiveToTheRearFlower() {
     for (Cell cell : Cell.values()) {
       place(AutoField.shotSpot(Alliance.RED, cell)); // After shooting the first Flower
-      Pose here = new Pose(x / AutoField.M_PER_IN, y / AutoField.M_PER_IN, h);
+      Pose here = new Pose(x / Units.M_PER_IN, y / Units.M_PER_IN, h);
       Pose end = AutoField.pedro(AutoField.REAR_FLOWER, Alliance.RED);
       follower.follow(Paths.curve(here, AutoField.pedro(AutoField.REAR_CONTROL, Alliance.RED), end)
           .linear(here.heading(), end.heading()));

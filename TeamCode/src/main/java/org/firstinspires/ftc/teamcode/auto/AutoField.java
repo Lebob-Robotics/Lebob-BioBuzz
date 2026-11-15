@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.auto;
 import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
 
@@ -123,7 +125,7 @@ public final class AutoField {
   /** As a Pedro pose (inches). */
   public static Pose pedroParkSpot(Alliance alliance, Cell cell) {
     double[] p = parkSpot(alliance, cell);
-    return new Pose(p[0] / M_PER_IN, p[1] / M_PER_IN, p[2]);
+    return new Pose(p[0] / Units.M_PER_IN, p[1] / Units.M_PER_IN, p[2]);
   }
 
   /** {forward, strafe left} drive powers, for a robot at this heading, that push it toward our wall at {@code power}. */
@@ -172,7 +174,7 @@ public final class AutoField {
   /** As a Pedro pose (inches). */
   public static Pose pedroShotSpot(Alliance alliance, Cell cell) {
     double[] p = shotSpot(alliance, cell);
-    return new Pose(p[0] / M_PER_IN, p[1] / M_PER_IN, p[2]);
+    return new Pose(p[0] / Units.M_PER_IN, p[1] / Units.M_PER_IN, p[2]);
   }
 
   /**
@@ -191,18 +193,12 @@ public final class AutoField {
     if (alliance == Alliance.RED) {
       return red.clone();
     }
-    return new double[] {-red[0], -red[1], normalize(red[2] + Math.PI)};
+    return new double[] {-red[0], -red[1], Angles.normalize(red[2] + Math.PI)};
   }
 
   /** A red {x, y, heading} for this alliance, as a Pedro pose (inches). */
   public static Pose pedro(double[] red, Alliance alliance) {
     double[] p = forAlliance(red, alliance);
-    return new Pose(p[0] / M_PER_IN, p[1] / M_PER_IN, p[2]);
-  }
-
-  public static final double M_PER_IN = 0.0254;
-
-  static double normalize(double rad) {
-    return Math.atan2(Math.sin(rad), Math.cos(rad));
+    return new Pose(p[0] / Units.M_PER_IN, p[1] / Units.M_PER_IN, p[2]);
   }
 }

@@ -10,6 +10,8 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
@@ -633,7 +635,7 @@ public class Robot {
     // A feed under way stops if the shot goes bad before the ball is out: the driver set off or turned back
     // mid-feed, and the ball left 3 degrees of hood or 37 degrees of heading off (5 Nov, 095605)
     boolean shotLost = aim != null && (!aim.shot.valid
-        || Math.abs(ShootOnTheMove.normalizeAngle(aim.lockHeadingRad - pose.headingRad)) > aim.headingToleranceRad
+        || Math.abs(Angles.normalize(aim.lockHeadingRad - pose.headingRad)) > aim.headingToleranceRad
         || !hood.atTarget(feedStopHoodTicks()));
     updateAimState(aiming, aim, ready);
 
@@ -1581,13 +1583,13 @@ public class Robot {
       fieldSkips++;
       return;
     }
-    double x = pose.xM / ShootOnTheMoveConstants.IN_TO_M;
-    double y = pose.yM / ShootOnTheMoveConstants.IN_TO_M;
+    double x = pose.xM / Units.M_PER_IN;
+    double y = pose.yM / Units.M_PER_IN;
     double heading = pose.headingRad;
     String colour = alliance == Alliance.RED ? "red" : "blue";
     boolean aiming = aim != null;
-    double cellX = aimCellX / ShootOnTheMoveConstants.IN_TO_M;
-    double cellY = aimCellY / ShootOnTheMoveConstants.IN_TO_M;
+    double cellX = aimCellX / Units.M_PER_IN;
+    double cellY = aimCellY / Units.M_PER_IN;
     fieldSender.execute(() -> {
       try {
         FieldManager field = PanelsField.INSTANCE.getField();
