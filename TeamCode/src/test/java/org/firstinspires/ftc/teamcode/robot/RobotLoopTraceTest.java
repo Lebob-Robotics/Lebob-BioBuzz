@@ -143,6 +143,7 @@ public class RobotLoopTraceTest {
     scenarios.put("volley-tuning", RobotLoopTraceTest::volleyTuning);
     scenarios.put("auto-then-teleop", RobotLoopTraceTest::autoThenTeleop);
     scenarios.put("shoot-auto", RobotLoopTraceTest::shootAuto);
+    scenarios.put("hold-correcting", RobotLoopTraceTest::holdCorrecting);
 
     File out = new File(moduleDir(), "build/robot-trace");
     out.mkdirs();
@@ -278,6 +279,20 @@ public class RobotLoopTraceTest {
     r.stop();
   }
 
+  /** RB's position hold while the tags still move the pose to where the robot really is: the held spot moves too. */
+  private static void holdCorrecting(Run r) {
+    Robot robot = r.robot();
+    robot.init(true);
+    robot.setAlliance(Alliance.BLUE);
+    robot.setVolleyMode(true);
+    r.init("init", 5, NOTHING);
+    double[] start = nearCell(Alliance.BLUE, 2.0);
+    robot.startAt(start[0], start[1], start[2]);
+    r.sim.truth = new double[] {start[0] + 0.12, start[1] - 0.08, start[2] + Math.toRadians(2.5)};
+    r.run("rb-hold", 120, (g, i) -> g.right_bumper = true);
+    r.run("release", 10, NOTHING);
+    r.stop();
+  }
   /** Shoot Auto: placed square by the driver, seeded, then volleys from a held spot and parks. */
   private static void shootAuto(Run r) {
     Robot robot = r.robot();
