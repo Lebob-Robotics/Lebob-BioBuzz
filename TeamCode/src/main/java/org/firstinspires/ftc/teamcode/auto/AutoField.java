@@ -102,7 +102,12 @@ public final class AutoField {
    * wall.
    */
   public static double[] parkSpot(Alliance alliance, Cell cell) {
-    double[] base = forAlliance(PARK, alliance);
+    return parkSpot(alliance, cell, PARK);
+  }
+
+  /** As above, at this red spot's x instead of {@link #PARK}'s. */
+  public static double[] parkSpot(Alliance alliance, Cell cell, double[] redPark) {
+    double[] base = forAlliance(redPark, alliance);
     double[] aim = autoAimPoint(alliance, cell);
     double ourWall = alliance == Alliance.RED ? -1 : 1;
     double y = base[1];

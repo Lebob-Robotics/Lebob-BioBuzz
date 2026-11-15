@@ -23,7 +23,7 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
 /**
  * The corner autonomous ({@link CornerSequence}), for one alliance: preloads from the rear corner, a wait there, then
- * our wall's Flower, a volley into the AUDIENCE Cell from in front of it, and park. Driven as {@link ScoringAuto} drives: Pedro on the
+ * our wall's Flower, a volley into the AUDIENCE Cell from in front of it, and park, shooting what's left. Driven as {@link ScoringAuto} drives: Pedro on the
  * Robot's pose, each volley shot stopped with the heading lock turning the robot. No gamepad is read (G401).
  */
 public abstract class CornerAuto extends PsiKitIterativeOpMode {
@@ -195,7 +195,14 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
   }
 
   private VisionCorrector.Cell aimCell() {
-    return sequence != null && sequence.step().ordinal() >= CornerSequence.Step.DRIVE_TO_FLOWER.ordinal()
+    if (sequence == null) {
+      return CornerSequence.nearCell(alliance);
+    }
+    int step = sequence.step().ordinal();
+    if (step >= CornerSequence.Step.DRIVE_TO_PARK.ordinal()) {
+      return CornerSequence.parkCell(alliance);
+    }
+    return step >= CornerSequence.Step.DRIVE_TO_FLOWER.ordinal()
         ? CornerSequence.gardenCell(alliance) : CornerSequence.nearCell(alliance);
   }
 
@@ -212,9 +219,10 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
     drivetrain.setScale(intoFlower ? ScoringAuto.SWEEP_POWER_SCALE : 1.0);
     drivetrain.setStrafeBias(0.0);
     drivetrain.setForwardBias(0.0);
-    // Square to our wall everywhere but the AUDIENCE volley and the drive to park, which Pedro turns on the way.
+    // Square to our wall everywhere but the AUDIENCE volley and the park, which Pedro turns on the way.
     // Shooting, the aim's lock turns the robot instead
-    boolean turning = step == CornerSequence.Step.SHOOT_GARDEN_SIDE || step == CornerSequence.Step.DRIVE_TO_PARK;
+    boolean turning = step == CornerSequence.Step.SHOOT_GARDEN_SIDE || step == CornerSequence.Step.DRIVE_TO_PARK
+        || step == CornerSequence.Step.PARKED;
     robot.setAutoHeading(turning ? Double.NaN : wallHeading());
     Pose preload = poseOf(CornerSequence.preloadSpot(alliance));
     Pose flowerStop = pedro(AutoField.WALL_FLOWER, alliance);
@@ -258,11 +266,11 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
       case SHOOT_GARDEN_SIDE: // Back (shooter) to the AUDIENCE Cell, from the spot in front of it
         line(here, AutoField.pedroShotSpot(alliance, CornerSequence.gardenCell(alliance)), true);
         break;
-      case DRIVE_TO_PARK:
-        line(here, pedro(CornerSequence.CORNER_PARK, alliance), true);
+      case DRIVE_TO_PARK: // Turning on the way, back to the park's Cell
+        line(here, poseOf(CornerSequence.parkSpot(alliance)), true);
         break;
       case PARKED:
-        follower.hold(pedro(CornerSequence.CORNER_PARK, alliance));
+        follower.hold(poseOf(CornerSequence.parkSpot(alliance)));
         break;
     }
     Logger.recordOutput("Auto/HeadingTarget", turning ? Double.NaN : wallHeading());

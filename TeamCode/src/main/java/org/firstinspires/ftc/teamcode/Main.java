@@ -17,7 +17,7 @@ public class Main extends PsiKitIterativeOpMode {
    * Serves the live log to AdvantageScope over the network. MUST be false at
    * competition. The log file is written either way.
    */
-  public static final boolean LIVE_LOGGING = true;
+  public static final boolean LIVE_LOGGING = false;
 
   /**
    * Port of the live log server. Not 5800, the PsiKit default: the Panels Limelight proxy takes

@@ -394,6 +394,10 @@ public final class ShootOnTheMoveConstants {
   // inside the band: the ball's 0.26 s to the wheels then overlaps their recovery. Replaying 13 Nov's gaps saved
   // 0.18 s a ball (0.58 s each); the slowest tenth of balls leave ~70 under target against ~35. 0 waits for the band
   public static double VOLLEY_LEAD_BELOW_RPM = 150;
+  // The auto's: its last roller keeps loading between balls, so the next is already at the wheels and the lead's
+  // 0.26 s isn't there. With 150 the 4th preload left 0.17-0.20 s after the 3rd, wheels ~120 under, and missed in
+  // every corner auto (15 Nov 153408, 154350); Volley Tuning's were ~0.34 s apart
+  public static double AUTO_VOLLEY_LEAD_BELOW_RPM = 0;
   // As AIMED_FEED_PULSE_S and AIMED_FEED_PAUSE_S, for a volley
   public static double VOLLEY_FEED_PULSE_S = 0.30;
   public static double VOLLEY_FEED_PAUSE_S = 0.20;

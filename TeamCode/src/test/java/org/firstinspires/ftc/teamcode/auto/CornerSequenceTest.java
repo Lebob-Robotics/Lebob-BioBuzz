@@ -86,7 +86,7 @@ public class CornerSequenceTest {
   }
 
   @Test
-  public void shootsOnlyStoppedAtASpotAndNotParked() {
+  public void shootsOnlyStoppedAtASpotAndParked() {
     assertFalse(seq.shoot(0.1));
     assertFalse("intake off on the way out", seq.intake());
     t = 0.5;
@@ -103,7 +103,8 @@ public class CornerSequenceTest {
     runTo(Step.PARKED, 30);
     t += DT;
     seq.update(t, true, false, false, false);
-    assertFalse(seq.shoot(t));
+    assertTrue("the leftovers, parked", seq.shoot(t));
+    assertTrue(seq.intake());
     assertFalse(seq.armDown());
   }
 
@@ -116,11 +117,15 @@ public class CornerSequenceTest {
   }
 
   @Test
-  public void thePreloadSpotIsOutOfTheCornerFarEnoughToTurn() {
+  public void bothVolleysAreFromTheTunedSpotInFrontOfTheirCellFarEnoughFromTheWallsToTurn() {
     for (Alliance a : Alliance.values()) {
-      double[] corner = AutoField.forAlliance(CornerSequence.CORNER, a);
       double[] spot = CornerSequence.preloadSpot(a);
-      assertEquals(CornerSequence.PRELOAD_OUT_M, Math.hypot(spot[0] - corner[0], spot[1] - corner[1]), 1e-9);
+      double[] tuned = AutoField.shotSpot(a, Cell.SCORING);
+      assertEquals(tuned[0], spot[0], 1e-12);
+      assertEquals(tuned[1], spot[1], 1e-12);
+      assertEquals("faces our wall on the drive out", AutoField.forAlliance(CornerSequence.CORNER, a)[2], spot[2], 1e-12);
+      double[] red = AutoField.forAlliance(AutoField.shotSpot(a, Cell.AUDIENCE), a);
+      assertEquals(-AutoField.VOLLEY_SPOT[0], Math.abs(red[0]), 1e-9);
       double halfDiagonal = AutoField.ROBOT_HALF_M * Math.sqrt(2); // Any turn
       assertTrue(AutoField.FIELD_HALF_M - Math.abs(spot[0]) > halfDiagonal);
       assertTrue(AutoField.FIELD_HALF_M - Math.abs(spot[1]) > halfDiagonal);
@@ -163,6 +168,23 @@ public class CornerSequenceTest {
     assertFalse(seq.indexerPaused(s));
   }
 
+  @Test
+  public void parksBackToScoringWithItsTurnedCornerOffOurWallAndInTheZone() {
+    double[] zone = AutoField.LOADING_ZONE;
+    for (Alliance a : Alliance.values()) {
+      assertEquals(Cell.SCORING, CornerSequence.parkCell(a));
+      double[] red = AutoField.forAlliance(CornerSequence.parkSpot(a), a);
+      assertEquals(CornerSequence.CORNER_PARK[0], red[0], 1e-9);
+      double reach = AutoField.ROBOT_HALF_M * (Math.abs(Math.sin(red[2])) + Math.abs(Math.cos(red[2])));
+      assertEquals(AutoField.PARK_WALL_GAP_M, red[1] - reach + AutoField.FIELD_HALF_M, 1e-6);
+      assertTrue("centre in the zone", red[1] > zone[2] && red[1] < zone[3]);
+      double[] spot = CornerSequence.parkSpot(a);
+      double[] aim = AutoField.autoAimPoint(a, Cell.SCORING);
+      double back = Math.atan2(spot[1] - aim[1], spot[0] - aim[0]);
+      assertEquals("shooter to SCORING", 0, AutoField.normalize(spot[2] - back), 1e-3);
+    }
+  }
+
   private static boolean inFlowerKeepOut(double x, double y) {
     double[] k = AutoField.WALL_FLOWER_KEEP_OUT;
     return x > k[0] && x < k[1] && y < k[2];
@@ -175,7 +197,7 @@ public class CornerSequenceTest {
     double[] b = CornerSequence.FLOWER_BEND;
     double[] f = AutoField.WALL_FLOWER;
     double[] shot = AutoField.shotSpot(Alliance.RED, Cell.AUDIENCE);
-    double[] park = CornerSequence.CORNER_PARK;
+    double[] park = CornerSequence.parkSpot(Alliance.RED);
     for (int i = 0; i <= 100; i++) {
       double s = i / 100.0;
       assertFalse("along the wall", inFlowerKeepOut(a[0] + s * (e[0] - a[0]), a[1] + s * (e[1] - a[1])));

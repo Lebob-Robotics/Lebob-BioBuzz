@@ -8,13 +8,14 @@ import org.firstinspires.ftc.teamcode.utils.VisionCorrector.Cell;
  * metres, as {@link AutoField}). Made to fit around a partner whose auto takes the Garden side (15 Nov):
  *
  * <ol>
- *   <li>Start in the rear corner of our wall, beside the loading zone, intake to our wall. Drive {@link
- *       #PRELOAD_OUT_M} toward the near Cell, turn to it there and shoot the 4 preloads.
+ *   <li>Start in the rear corner of our wall, beside the loading zone, intake to our wall. Drive out to Volley
+ *       Tuning's spot 5 in front of SCORING ({@link AutoField#shotSpot}), turn to it there and shoot the 4 preloads.
  *   <li>Square back up to our wall, back into the corner, and wait there {@link #WAIT_S}.
  *   <li>Drive along our wall, just off it, to our wall's Flower (between the loading zone and the Garden) and take it
  *       with the Pollen arm, as {@link AutoSequence} does.
- *   <li>Shoot into the other Cell, AUDIENCE, from the spot in front of it (Volley Tuning's spot there).
- *   <li>Drive back and park at the loading zone's end nearest the Garden.
+ *   <li>Shoot into the other Cell, AUDIENCE, from spot 5 in front of it.
+ *   <li>Drive back and park at the loading zone's end nearest the Garden, back to {@link #parkCell}, and shoot
+ *       whatever is left.
  * </ol>
  *
  * <p>Whatever it is doing at {@link #PARK_BY_S}, it goes to park; in the Flower it starts backing out
@@ -26,7 +27,7 @@ public final class CornerSequence {
     SHOOT_PRELOAD(true), FACE_WALL(false), BACK_TO_CORNER(false), WAIT_IN_CORNER(false),
     DRIVE_TO_FLOWER(false), LOWER_ARM(false), INTAKE_FLOWER(false), BACK_FROM_FLOWER(false), RAISE_ARM(false),
     SHOOT_GARDEN_SIDE(true),
-    DRIVE_TO_PARK(false), PARKED(false);
+    DRIVE_TO_PARK(false), PARKED(true);
 
     /** A volley is shot here, once the robot has stopped at the step's spot. */
     public final boolean shooting;
@@ -47,8 +48,6 @@ public final class CornerSequence {
   /** Longest to back into the corner. */
   public static double BACK_TO_CORNER_MAX_S = 2.5;
 
-  /** From the corner, this far toward the near Cell to shoot the preloads: there it turns clear of both walls. */
-  public static double PRELOAD_OUT_M = 0.20;
   /**
    * Taking the Flower and on to the AUDIENCE spot, the indexer loads JIGGLE_RUN_S then runs backward
    * JIGGLE_REVERSE_S, and over: the volley retry's pulse, so the stack indexes up (15 Nov: the volley after the
@@ -69,7 +68,7 @@ public final class CornerSequence {
   /**
    * Parked at the loading zone's end nearest the Garden, its centre 0.16 m inside the zone's line (the robot over it
    * by 7 cm), {@link AutoField#PARK_WALL_GAP_M} off our wall, intake to it. 3 cm inside went a little too far
-   * (15 Nov).
+   * (15 Nov). Its x is the park's; {@link #parkSpot} turns it to shoot.
    */
   public static final double[] CORNER_PARK = {AutoField.LOADING_ZONE[1] - AutoField.ROBOT_HALF_M + 0.07,
       -(AutoField.AT_WALL_M - AutoField.PARK_WALL_GAP_M), -Math.PI / 2};
@@ -96,18 +95,28 @@ public final class CornerSequence {
     return Cell.AUDIENCE;
   }
 
+  /** The leftovers' Cell, shot parked: SCORING, the nearer, and the one Volley Tuning's PARK spot is for. */
+  public static Cell parkCell(Alliance alliance) {
+    return Cell.SCORING;
+  }
 
   /**
-   * Where the preloads are shot from, in field coordinates for the alliance: {@link #PRELOAD_OUT_M} from the corner
-   * toward the near Cell's aim point, still facing our wall (the aim turns it there).
+   * Where it parks, for the alliance: {@link #CORNER_PARK}'s x, back (shooter) to {@link #parkCell}, the turned
+   * robot's nearest corner {@link AutoField#PARK_WALL_GAP_M} off our wall.
+   */
+  public static double[] parkSpot(Alliance alliance) {
+    return AutoField.parkSpot(alliance, parkCell(alliance), CORNER_PARK);
+  }
+
+
+  /**
+   * Where the preloads are shot from, in field coordinates for the alliance: Volley Tuning's spot 5 in front of the
+   * preloads' Cell, 86-88% in on 14-15 Nov (0.2 m out of the corner, 1.37 m from the lip, was inaccurate). Still
+   * facing our wall: the drive doesn't turn out of the corner, the aim turns it there.
    */
   public static double[] preloadSpot(Alliance alliance) {
-    double[] corner = AutoField.forAlliance(CORNER, alliance);
-    double[] aim = AutoField.autoAimPoint(alliance, nearCell(alliance));
-    double dx = aim[0] - corner[0];
-    double dy = aim[1] - corner[1];
-    double d = Math.hypot(dx, dy);
-    return new double[] {corner[0] + PRELOAD_OUT_M * dx / d, corner[1] + PRELOAD_OUT_M * dy / d, corner[2]};
+    double[] spot = AutoField.shotSpot(alliance, nearCell(alliance));
+    return new double[] {spot[0], spot[1], AutoField.forAlliance(CORNER, alliance)[2]};
   }
 
   /**
@@ -270,6 +279,7 @@ public final class CornerSequence {
       case BACK_FROM_FLOWER:
       case RAISE_ARM:
       case SHOOT_GARDEN_SIDE: // The whole volley, drive too: the Flower's balls sit in the intake's mouth (14 Nov)
+      case PARKED:
         return true;
       default:
         return false;

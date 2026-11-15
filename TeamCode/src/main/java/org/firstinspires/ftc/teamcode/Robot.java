@@ -667,7 +667,8 @@ public class Robot {
         : !tuningMode && shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
     // Held fire counts as released: the gate cycled through its pulses with the feeder held, so the first ball
     // got the last 0.06 s of a pulse and fell short (6 Nov, 081518)
-    volleyFeedGate.setLeadBelowRpm(ShootOnTheMoveConstants.VOLLEY_LEAD_BELOW_RPM);
+    volleyFeedGate.setLeadBelowRpm(autonomous ? ShootOnTheMoveConstants.AUTO_VOLLEY_LEAD_BELOW_RPM
+        : ShootOnTheMoveConstants.VOLLEY_LEAD_BELOW_RPM);
     volleyFeedGate.setMinFeedSpacingS(ShootOnTheMoveConstants.VOLLEY_MIN_FEED_SPACING_S);
     boolean readyButWheels = aim != null && motionSteady && hoodReady && ShootOnTheMove.readyToFire(aim, true,
         hoodReady, pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed);
