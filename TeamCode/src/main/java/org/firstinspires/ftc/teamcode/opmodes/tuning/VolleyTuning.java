@@ -351,6 +351,34 @@ public class VolleyTuning extends Main {
     return out;
   }
 
+  /**
+   * rowsForSpot for spots 0 to {@code spots} - 1 at once. Loading the settings needs every spot, so each row is split
+   * once rather than once per spot.
+   */
+  public static List<List<String>> rowsBySpot(List<String> lines, int spots) {
+    List<List<String>> out = new ArrayList<>();
+    for (int i = 0; i < spots; i++) {
+      List<String> rows = new ArrayList<>();
+      if (!lines.isEmpty()) { rows.add(lines.get(0)); }
+      out.add(rows);
+    }
+    if (lines.isEmpty()) { return out; }
+    int col = column(lines.get(0), "spot");
+    int mark = column(lines.get(0), "mark");
+    if (col < 0 || mark < 0) { return out; }
+    String[] names = new String[spots];
+    for (int i = 0; i < spots; i++) { names[i] = Integer.toString(i); }
+    for (String line : lines.subList(1, lines.size())) {
+      String[] cells = line.split(",", -1);
+      if (cells.length <= Math.max(col, mark)) { continue; }
+      boolean reset = VolleyCalibration.RESET.equals(cells[mark]);
+      for (int i = 0; i < spots; i++) {
+        if (reset || names[i].equals(cells[col])) { out.get(i).add(line); }
+      }
+    }
+    return out;
+  }
+
   static int startSpot(int configured, List<String> lines) {
     return configured >= 0 && configured < VolleySpotDrive.SPOTS ? configured : lastSpot(lines);
   }

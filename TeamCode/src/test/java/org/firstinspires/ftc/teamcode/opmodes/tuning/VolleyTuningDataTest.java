@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyAutoTuner;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyCalibration;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleySettings;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleySpotDrive;
 
 public class VolleyTuningDataTest {
   @Test public void positionsResumeSeparatelyAndGlobalResetIsPreserved() {
@@ -66,6 +67,30 @@ public class VolleyTuningDataTest {
     assertEquals(2, tuner.current().profile); // 8 bounce volleys: two poor settings dropped after 3 each
     assertEquals(tuner.current().profile, restored.current().profile);
     assertEquals(tuner.current().firstTrim, restored.current().firstTrim, 0);
+  }
+
+  @Test public void rowsBySpotMatchesRowsForSpotOnTheRegionalsCsv() throws java.io.IOException {
+    List<String> lines = new java.util.ArrayList<>();
+    try (java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(
+        getClass().getResourceAsStream("/volley/VolleyTuning_20261115.csv"), "UTF-8"))) {
+      for (String line = in.readLine(); line != null; line = in.readLine()) { lines.add(line); }
+    }
+    assertSameAsRowsForSpot(lines);
+  }
+
+  @Test public void rowsBySpotMatchesRowsForSpotOnOddRows() {
+    assertSameAsRowsForSpot(Arrays.asList());
+    assertSameAsRowsForSpot(Arrays.asList("session,mark", "a,IN"));
+    assertSameAsRowsForSpot(Arrays.asList("session,mark,spot", "a,IN,0", "a,LONG,1", "b,RESET,-1", "b,IN,1",
+        "c", "c,RESET", "c,IN,05", "c,IN, 2", "c,IN,16", "c,IN,17", "d,RESET,3", "d,IN,2,extra"));
+  }
+
+  private static void assertSameAsRowsForSpot(List<String> lines) {
+    List<List<String>> bySpot = VolleyTuning.rowsBySpot(lines, VolleySpotDrive.SPOTS);
+    assertEquals(VolleySpotDrive.SPOTS, bySpot.size());
+    for (int i = 0; i < VolleySpotDrive.SPOTS; i++) {
+      assertEquals("spot " + i, VolleyTuning.rowsForSpot(lines, i), bySpot.get(i));
+    }
   }
 
 }

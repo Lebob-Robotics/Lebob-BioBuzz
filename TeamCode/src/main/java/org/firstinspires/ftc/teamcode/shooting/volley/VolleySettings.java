@@ -50,8 +50,9 @@ public final class VolleySettings {
   static VolleySettings fromLines(List<String> lines) {
     VolleySettings v = new VolleySettings();
     if (lines.isEmpty()) { return v; }
+    List<List<String>> bySpot = VolleyTuning.rowsBySpot(lines, v.spots.length);
     for (int i = 0; i < v.spots.length; i++) {
-      List<String> rows = VolleyTuning.rowsForSpot(lines, i);
+      List<String> rows = bySpot.get(i);
       if (rows.size() < 2) { continue; }
       VolleyAutoTuner tuner = new VolleyAutoTuner();
       tuner.replay(rows);
