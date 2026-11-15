@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.tuning.ShotSearch;
 import org.firstinspires.ftc.teamcode.tuning.ShotTuningSettings;
 import org.firstinspires.ftc.teamcode.tuning.TuningResume;
+import org.firstinspires.ftc.teamcode.tuning.BallDipDetector;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
 
@@ -78,11 +79,6 @@ public class ShotTuning extends TuningOpMode {
   private static final double RESUME_ROUTE_M = 0.3; // Further than this from the resumed spot, it drives the route
   private static final int BACKWARD_SPOTS = 6; // GRID's first six are within the backward shot's reach
 
-  // A feed counts as a ball once the flywheels dip this far within the window. The one-ball gate pulses the feeder
-  // again ~0.8 s after a pulse that delivered nothing; those dipped under 150 rpm (6 Nov 082517)
-  private static final double BALL_DIP_RPM = 200;
-  private static final double BALL_DIP_WINDOW_S = 0.6;
-
   private static final double ORIENT_TIMEOUT_S = 3;
   private static final double ORIENT_DONE_DEG = 1.0;
   private static final double SPOT_SETTLE_S = 1.5; // Aims at the spot while the tags pull the pose in
@@ -127,9 +123,7 @@ public class ShotTuning extends TuningOpMode {
 
   // The feed waiting for its dip: the row as the feed started, and what it was fired with
   private String pendingRow = null;
-  private double pendingStartS;
-  private double pendingStartRpm;
-  private double pendingMinRpm;
+  private final BallDipDetector ballDip = new BallDipDetector();
   private String pendingPass = "";
   private String pendingSearch = "";
   private int pendingSearchId = -1; // -1: not a search ball
@@ -1126,18 +1120,16 @@ public class ShotTuning extends TuningOpMode {
         aim.shot.sidewaysSpeedMps, targetRpm, robot.shooter.getRpm(), launch,
         HoodSubsystem.ticksToAngle(robot.hood.getPosition()), robot.getBatteryVolts(), trim().trimDeg(),
         spot < 0 ? "" : "G" + spot);
-    pendingStartS = nowS;
-    pendingStartRpm = robot.shooter.getRpm();
-    pendingMinRpm = pendingStartRpm;
+    ballDip.start(nowS, robot.shooter.getRpm());
   }
 
   private void checkPending(double nowS) {
     if (pendingRow == null) {
       return;
     }
-    pendingMinRpm = Math.min(pendingMinRpm, robot.shooter.getRpm());
-    double dip = pendingStartRpm - pendingMinRpm;
-    if (dip >= BALL_DIP_RPM) {
+    BallDipDetector.Result outcome = ballDip.update(nowS, robot.shooter.getRpm());
+    if (outcome == BallDipDetector.Result.BALL) {
+      double dip = ballDip.dipRpm();
       shots++;
       lastMark = null;
       lastShotRow = String.format(Locale.US, "%s,%.0f,%s,%s", pendingRow, dip, pendingPass, pendingSearch);
@@ -1148,7 +1140,7 @@ public class ShotTuning extends TuningOpMode {
       append(String.format(Locale.US, "%s,%d,SHOT,%s", session, shots, lastShotRow));
       Logger.recordOutput("Tuning/ShotRow", lastShotRow);
       pendingRow = null;
-    } else if (nowS - pendingStartS > BALL_DIP_WINDOW_S) {
+    } else if (outcome == BallDipDetector.Result.EMPTY) {
       emptyFeeds++;
       pendingRow = null;
     }

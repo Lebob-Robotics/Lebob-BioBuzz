@@ -269,3 +269,10 @@ org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.TICKS_PER_DEG -> org.fir
 org.firstinspires.ftc.teamcode.subsystems.HoodEncoderGuard.REV_COUNTS_PER_TURN -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.REV_COUNTS_PER_TURN
 org.firstinspires.ftc.teamcode.subsystems.HoodEncoderGuard.MOTOR_COUNTS_PER_TURN -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.MOTOR_COUNTS_PER_TURN
 org.firstinspires.ftc.teamcode.subsystems.HoodMotorTargeting.MOTOR_PER_REV -> org.firstinspires.ftc.teamcode.subsystems.hood.HoodGeometry.MOTOR_PER_REV
+# The ball dip test shared in BallDipDetector
+org.firstinspires.ftc.teamcode.opmodes.tuning.ShotTuning.BALL_DIP_RPM -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.DIP_RPM
+org.firstinspires.ftc.teamcode.opmodes.tuning.ShotTuning.BALL_DIP_WINDOW_S -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.WINDOW_S
+org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.BALL_DIP_RPM -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.DIP_RPM
+org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.BALL_DIP_WINDOW_S -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.WINDOW_S
+org.firstinspires.ftc.teamcode.opmodes.tuning.SpecialShotCalibration.BALL_DIP_RPM -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.DIP_RPM
+org.firstinspires.ftc.teamcode.opmodes.tuning.SpecialShotCalibration.BALL_DIP_WINDOW_S -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.WINDOW_S

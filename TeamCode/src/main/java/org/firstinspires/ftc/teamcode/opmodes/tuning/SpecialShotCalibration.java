@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.CellGeometry;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
+import org.firstinspires.ftc.teamcode.tuning.BallDipDetector;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
 
@@ -76,8 +77,6 @@ public class SpecialShotCalibration extends TuningOpMode {
   private static final double HOOD_STEP_DEG = 0.5;
   private static final double MIN_RPM = 1000;
   private static final double HEADING_TRIM_STEP_DEG = 1;
-  private static final double BALL_DIP_RPM = 200; // As Shot Tuning: a feed with no ball doesn't dip this far
-  private static final double BALL_DIP_WINDOW_S = 0.6;
   private static final double ORIENT_TIMEOUT_S = 3;
   private static final double ORIENT_DONE_DEG = 1.0;
   private static final double SPOT_SETTLE_S = 1.5;
@@ -95,9 +94,7 @@ public class SpecialShotCalibration extends TuningOpMode {
   private String fileError = null;
 
   private String pendingRow = null;
-  private double pendingStartS;
-  private double pendingStartRpm;
-  private double pendingMinRpm;
+  private final BallDipDetector ballDip = new BallDipDetector();
 
   private boolean driving = false;
   private List<double[]> route;
@@ -408,25 +405,23 @@ public class SpecialShotCalibration extends TuningOpMode {
         robot.getUpCell() == far ? 1 : 0, robot.isUpCellConfirmed() ? 1 : 0,
         Math.toDegrees(aim.headingErrorRad(pose.headingRad)), rpm, robot.shooter.getRpm(), launchDeg,
         HoodSubsystem.ticksToAngle(robot.hood.getPosition()), robot.getBatteryVolts(), trimDeg);
-    pendingStartS = nowS;
-    pendingStartRpm = robot.shooter.getRpm();
-    pendingMinRpm = pendingStartRpm;
+    ballDip.start(nowS, robot.shooter.getRpm());
   }
 
   private void checkPending(double nowS) {
     if (pendingRow == null) {
       return;
     }
-    pendingMinRpm = Math.min(pendingMinRpm, robot.shooter.getRpm());
-    double dip = pendingStartRpm - pendingMinRpm;
-    if (dip >= BALL_DIP_RPM) {
+    BallDipDetector.Result outcome = ballDip.update(nowS, robot.shooter.getRpm());
+    if (outcome == BallDipDetector.Result.BALL) {
+      double dip = ballDip.dipRpm();
       shots++;
       lastMark = null;
       lastShotRow = String.format(Locale.US, "%s,%.0f", pendingRow, dip);
       append(String.format(Locale.US, "%s,%d,SHOT,%s", session, shots, lastShotRow));
       Logger.recordOutput("Special/ShotRow", lastShotRow);
       pendingRow = null;
-    } else if (nowS - pendingStartS > BALL_DIP_WINDOW_S) {
+    } else if (outcome == BallDipDetector.Result.EMPTY) {
       emptyFeeds++;
       pendingRow = null;
     }

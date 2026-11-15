@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import org.firstinspires.ftc.teamcode.field.FieldRoute;
 import org.firstinspires.ftc.teamcode.tuning.SotmPath;
+import org.firstinspires.ftc.teamcode.tuning.BallDipDetector;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 
 /**
@@ -84,8 +85,6 @@ public class SotmTuning extends TuningOpMode {
   private static final double MAX_HOOD_TRIM_DEG = 10;
   private static final double MAX_RPM_TRIM = 800;
   private static final double RPM_SEARCH_NEAR_STOP_DEG = 2; // The range is searched by RPM this close to a stop
-  private static final double BALL_DIP_RPM = 200; // As Shot Tuning
-  private static final double BALL_DIP_WINDOW_S = 0.6;
   private static final double LOGGED_ACCEL_WINDOW_S = 0.1;
 
   private enum Stage { IDLE, TO_START, READY, RUN, TO_RELOAD, END }
@@ -140,9 +139,7 @@ public class SotmTuning extends TuningOpMode {
 
   // The ball
   private String pendingRow; // Up to and including the feed's state
-  private double pendingStartS;
-  private double pendingStartRpm;
-  private double pendingMinRpm;
+  private final BallDipDetector ballDip = new BallDipDetector();
   private String pendingKey = "";
   private String pendingSearchKey = "";
   private double pendingRangeTrim;
@@ -828,20 +825,18 @@ public class SotmTuning extends TuningOpMode {
             : SotmConstants.SOTM_RPM_PER_TOWARD_MPS,
         backward ? SotmConstants.SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS
             : SotmConstants.SOTM_HEADING_DEG_PER_SIDEWAYS_MPS);
-    pendingStartS = nowS;
-    pendingStartRpm = robot.shooter.getRpm();
-    pendingMinRpm = pendingStartRpm;
+    ballDip.start(nowS, robot.shooter.getRpm());
   }
 
   private void checkPending(double nowS) {
     if (pendingRow == null) {
       return;
     }
-    pendingMinRpm = Math.min(pendingMinRpm, robot.shooter.getRpm());
-    double dip = pendingStartRpm - pendingMinRpm;
-    if (dip >= BALL_DIP_RPM) {
+    BallDipDetector.Result outcome = ballDip.update(nowS, robot.shooter.getRpm());
+    if (outcome == BallDipDetector.Result.BALL) {
+      double dip = ballDip.dipRpm();
       shots++;
-      lastShotRow = pendingRow.replace("%DIP%", String.format(Locale.US, "%.3f", nowS - pendingStartS))
+      lastShotRow = pendingRow.replace("%DIP%", String.format(Locale.US, "%.3f", ballDip.sinceStartS(nowS)))
           + "," + state()
           + String.format(Locale.US, ",%.3f,%.3f,%.2f,%.0f,%.3f,%.3f,%.3f", robot.getAimCellX(), robot.getAimCellY(),
               robot.getBatteryVolts(), dip, AimConstants.FEED_DELAY_S,
@@ -857,12 +852,12 @@ public class SotmTuning extends TuningOpMode {
       lastBallNote = String.format(Locale.US, "fed %s, out %.2f s later at %.2f m/s, heading %.1f deg off",
           Double.isNaN(feedPathS) || pendingKey.isEmpty() ? "standing (RB)"
               : String.format(Locale.US, "%+.2f s from the plan's time", feedPathS - path.fireS),
-          nowS - pendingStartS, Math.hypot(v[0], v[1]),
+          ballDip.sinceStartS(nowS), Math.hypot(v[0], v[1]),
           aim == null ? Double.NaN : Math.toDegrees(aim.headingErrorRad(robot.getPose().headingRad)));
       append(String.format(Locale.US, "%s,%d,SHOT,%s", session, shots, lastShotRow));
       Logger.recordOutput("SotmTuning/ShotRow", lastShotRow);
       pendingRow = null;
-    } else if (nowS - pendingStartS > BALL_DIP_WINDOW_S) {
+    } else if (outcome == BallDipDetector.Result.EMPTY) {
       emptyFeeds++;
       pendingRow = null;
       if (pendingKey.equals(entry == null ? null : entry.key)) {
