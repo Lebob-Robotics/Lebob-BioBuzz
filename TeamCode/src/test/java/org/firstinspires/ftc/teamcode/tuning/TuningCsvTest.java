@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,6 +59,23 @@ public class TuningCsvTest {
     assertTrue(TuningCsv.append("/sdcard/FIRST/ShotTuning_v2.csv", "a", "1"));
     assertEquals(Arrays.asList("a", "1"),
         Files.readAllLines(new File(folder.getRoot(), "ShotTuning_v2.csv").toPath(), StandardCharsets.UTF_8));
+  }
+
+  @Test
+  public void readsEveryLineOrNullWithoutAFile() throws IOException {
+    TuningCsv.directory = folder.getRoot();
+    assertEquals(null, TuningCsv.readLines("/sdcard/FIRST/Tuning.csv"));
+    TuningCsv.append("/sdcard/FIRST/Tuning.csv", "a,b", "1,2");
+    assertEquals(Arrays.asList("a,b", "1,2"), TuningCsv.readLines("/sdcard/FIRST/Tuning.csv"));
+  }
+
+  @Test
+  public void aFieldIsEmptyWhereTheHeaderOrTheRowHasNone() {
+    Map<String, Integer> columns = TuningCsv.columns("session,ball,kind");
+    String[] row = "s1,4".split(",", -1);
+    assertEquals("4", TuningCsv.field(row, columns, "ball"));
+    assertEquals("", TuningCsv.field(row, columns, "kind"));
+    assertEquals("", TuningCsv.field(row, columns, "plan_key"));
   }
 
   @Test

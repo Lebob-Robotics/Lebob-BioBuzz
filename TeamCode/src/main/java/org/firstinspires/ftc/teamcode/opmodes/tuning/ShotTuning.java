@@ -25,9 +25,6 @@ import org.firstinspires.ftc.teamcode.tuning.BallDipDetector;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -239,20 +236,14 @@ public class ShotTuning extends TuningOpMode {
   }
 
   private static TuningResume readLastSession() {
-    File file = TuningCsv.file(CSV_PATH);
-    if (!file.exists()) {
-      return null;
-    }
-    List<String> lines = new ArrayList<>();
-    try (BufferedReader in = new BufferedReader(new FileReader(file))) {
-      for (String line = in.readLine(); line != null; line = in.readLine()) {
-        lines.add(line);
-      }
+    List<String> lines;
+    try {
+      lines = TuningCsv.readLines(CSV_PATH);
     } catch (IOException e) {
       RobotLog.ee("ShotTuning", e, "Can't read %s", CSV_PATH);
       return null;
     }
-    return TuningResume.fromCsv(lines);
+    return lines == null ? null : TuningResume.fromCsv(lines);
   }
 
   /** Carries on the session: its numbers, spot, trims, and the search at its spot replayed from its marks. */

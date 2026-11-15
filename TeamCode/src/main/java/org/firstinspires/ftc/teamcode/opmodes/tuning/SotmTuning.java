@@ -271,24 +271,20 @@ public class SotmTuning extends TuningOpMode {
       if (header == null) {
         return;
       }
-      Map<String, Integer> col = new HashMap<>();
-      String[] names = header.split(",");
-      for (int i = 0; i < names.length; i++) {
-        col.put(names[i], i);
-      }
+      Map<String, Integer> col = TuningCsv.columns(header);
       Map<String, String[]> balls = new LinkedHashMap<>(); // session/ball -> {key, search, kind, trim, head, mark}
       for (String line = in.readLine(); line != null; line = in.readLine()) {
         String[] f = line.split(",", -1);
-        String kind = field(f, col, "kind");
-        String key = field(f, col, "plan_key");
-        String id = field(f, col, "session") + "/" + field(f, col, "ball");
+        String kind = TuningCsv.field(f, col, "kind");
+        String key = TuningCsv.field(f, col, "plan_key");
+        String id = TuningCsv.field(f, col, "session") + "/" + TuningCsv.field(f, col, "ball");
         if (kind.equals("SKIP")) {
           if (!key.isEmpty()) {
             doneInCsv.add(key);
           }
         } else if (kind.equals("SHOT")) {
-          balls.put(id, new String[] {key, field(f, col, "search"), field(f, col, "range_kind"),
-              field(f, col, "range_trim"), field(f, col, "head_trim_deg"), null});
+          balls.put(id, new String[] {key, TuningCsv.field(f, col, "search"), TuningCsv.field(f, col, "range_kind"),
+              TuningCsv.field(f, col, "range_trim"), TuningCsv.field(f, col, "head_trim_deg"), null});
         } else if (!kind.equals("FOUND") && balls.containsKey(id)) {
           // Later marks replace earlier ones. Not seen is no mark: the search leaves it out and the pass is not done
           balls.get(id)[5] = kind.equals("UNSEEN") ? null : kind;
@@ -314,21 +310,12 @@ public class SotmTuning extends TuningOpMode {
     }
   }
 
-  private static String field(String[] f, Map<String, Integer> col, String name) {
-    Integer i = col.get(name);
-    return i == null || i >= f.length ? "" : f[i];
-  }
-
   /** The aim trims Shot Tuning found standing, where each spot's aim search starts. */
   private void readStandingTrims() {
-    File file = TuningCsv.file(STANDING_CSV_PATH);
-    if (!file.exists()) {
-      return;
-    }
-    List<String> lines = new ArrayList<>();
-    try (BufferedReader in = new BufferedReader(new FileReader(file))) {
-      for (String line = in.readLine(); line != null; line = in.readLine()) {
-        lines.add(line);
+    try {
+      List<String> lines = TuningCsv.readLines(STANDING_CSV_PATH);
+      if (lines == null) {
+        return;
       }
       TuningResume r = TuningResume.fromCsv(lines);
       if (r != null) {
