@@ -59,7 +59,7 @@ final class ShooterControl {
       shooterStopLatched = true;
     }
     if (robot.volleyMode) { // Full power back up to speed after each ball of a volley
-      boolean fast = robot.volleyShot && robot.volley.fastRecovery();
+      boolean fast = robot.fireControl.volleyShot && robot.volley.fastRecovery();
 
       robot.shooter.setSpinThresholds(fast ? VolleyConstants.VOLLEY_OPEN_LOOP_BELOW_RPM : Double.NaN,
           fast ? VolleyConstants.VOLLEY_HANDBACK_RPM : Double.NaN);
@@ -67,7 +67,7 @@ final class ShooterControl {
 
     if (eject) {
       robot.shooter.setShooterState(ShooterState.EJECT);
-    } else if (robot.loadingShooter.blocksSpin()) {
+    } else if (robot.fireControl.loadingShooter.blocksSpin()) {
       // Heading/hood still track below; no powered idle while filling.
       robot.shooter.setShooterState(ShooterState.STOP);
     } else if (aiming) {
@@ -228,7 +228,8 @@ final class ShooterControl {
     double followDeg = 0;
     double gain = VolleyConstants.VOLLEY_HOOD_FOLLOW_GAIN;
     if (gain != 0) {
-      double above = robot.rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - robot.shooter.getTargetRpm() + boost;
+      double above = robot.fireControl.rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S)
+          - robot.shooter.getTargetRpm() + boost;
       above = Math.max(boost - VolleyConstants.VOLLEY_READY_BELOW_RPM,
           Math.min(boost + VolleyConstants.VOLLEY_READY_ABOVE_RPM, above));
       followDeg = gain * (ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, above) - boostDeg);
@@ -238,7 +239,7 @@ final class ShooterControl {
 
   /** The trim for the ball about to go (VolleyConfig.trimDeg). */
   private double volleyTrimDeg(boolean backward) {
-    return robot.volley.trimDeg(robot.volleyFeedGate.ballsLeft() == 0, backward);
+    return robot.volley.trimDeg(robot.fireControl.volleyFeedGate.ballsLeft() == 0, backward);
   }
 
   /** A backward volley's trim, as wheel speed: its hood follows the table, and its range comes from the RPM. */

@@ -40,12 +40,13 @@ final class BallPath {
    * Between shot feeds, the upstream stage keeps the second/third balls moving toward the stopped last roller.
    */
   void update(boolean aiming, boolean ready) {
+    FireControl fire = robot.fireControl;
     boolean shooting = aiming || (robot.driver.y && robot.buttonsFree());
     boolean fireRequested = robot.shotRequested();
     boolean shotAllowed = fireRequested && !robot.holdFire;
-    boolean enabledShot = shotAllowed && !robot.loadingShooter.blocksSpin();
+    boolean enabledShot = shotAllowed && !fire.loadingShooter.blocksSpin();
     boolean ejecting = robot.driver.b && robot.buttonsFree();
-    double feederPower = robot.volleyMode && robot.volleyShot && enabledShot ? robot.volleyFeedPower() : 1.0;
+    double feederPower = robot.volleyMode && fire.volleyShot && enabledShot ? robot.volleyFeedPower() : 1.0;
     double loadTrigger = Robot.loadTrigger(robot.driver.left_trigger, robot.autoIntake);
     boolean ltPressed = loadTrigger > Robot.TRIGGER_PRESSED;
     boolean loading = ltPressed && !shotAllowed;
@@ -53,7 +54,7 @@ final class BallPath {
     // like a touch). A tap doesn't count, or tapping LT pushed the packed stack at full power on every press
     double nowS = robot.clock.seconds();
     boolean wheelsSpinning = Math.abs(robot.shooter.getMaxMeasuredRpm()) > WHEELS_STOPPED_RPM;
-    if (loadingLatchesClear(ltPressed && !wasLtPressed, nowS - ltReleasedAtS, ejecting, robot.feedGate.ballLeft(),
+    if (loadingLatchesClear(ltPressed && !wasLtPressed, nowS - ltReleasedAtS, ejecting, fire.feedGate.ballLeft(),
         wheelsSpinning)) {
       wheelContactFull = false;
       stackPacked = false;
@@ -103,35 +104,35 @@ final class BallPath {
     // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
     // the stack at full power against its stopped last roller, or the 4th ball took 2.9 s to come up (12 Nov)
     // The auto feeds at full power: its slowed last roller brought the next ball up too little, 14 Nov 220201
-    double indexerPower = robot.volleyMode && robot.volleyShot && feeding && !robot.autonomous
+    double indexerPower = robot.volleyMode && fire.volleyShot && feeding && !robot.autonomous
         ? robot.volleyIndexerPower() : 1.0;
     IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
-        robot.holdFire || robot.loadingShooter.blocksSpin(), full);
+        robot.holdFire || fire.loadingShooter.blocksSpin(), full);
     indexerCommand = packedLoad(indexerCommand, stackPacked);
     indexerCommand = autoStage(indexerCommand, robot.autonomous);
     indexerCommand = agitated(indexerCommand, robot.autonomous && robot.autoIndexerPaused, robot.autoIndexerReverse);
-    if (!ejecting && (robot.loadingShooter.clearing() || (loading && !robot.loadingShooter.canLoad())
-        || (robot.spinOnlyOnFire && enabledShot && !feeding && robot.feedGate.feedStarts() == 0))) {
+    if (!ejecting && (fire.loadingShooter.clearing() || (loading && !fire.loadingShooter.canLoad())
+        || (robot.spinOnlyOnFire && enabledShot && !feeding && fire.feedGate.feedStarts() == 0))) {
       indexerCommand = IndexerState.STOP;
     }
     // Retry only after a volley has actually started. All release, clearance and shot gates still apply.
-    boolean retryAllowed = robot.volleyShot && enabledShot && !ejecting && robot.feedGate.feedStarts() > 0
+    boolean retryAllowed = fire.volleyShot && enabledShot && !ejecting && fire.feedGate.feedStarts() > 0
         && (indexerCommand == IndexerState.STAGE || indexerCommand == IndexerState.FEED
             || (robot.autonomous && indexerCommand == IndexerState.LOAD));
-    indexerRetry.update(robot.clock.seconds(), retryAllowed, robot.feedGate.ballLeft());
+    indexerRetry.update(robot.clock.seconds(), retryAllowed, fire.feedGate.ballLeft());
     // The retry's pause: in the auto a short reverse, to back a stuck ball off before full power forward
     if (indexerRetry.paused()) { indexerCommand = robot.autonomous ? IndexerState.EJECT : IndexerState.STOP; }
     if (indexerRetry.fullPower()) { indexerPower = 1.0; }
     robot.indexer.setIndexerState(indexerCommand, indexerPower);
     Logger.recordOutput("Indexer/Retry/Paused", indexerRetry.paused());
     Logger.recordOutput("Indexer/Retry/FullPower", indexerRetry.fullPower());
-    if (robot.spinOnlyOnFire && loading && !robot.loadingShooter.canLoad()) {
+    if (robot.spinOnlyOnFire && loading && !fire.loadingShooter.canLoad()) {
       robot.telemetry.addLine("LT: waiting for flywheels to stop");
     }
-    boolean volleyBetweenBalls = robot.volleyShot && robot.volleyFeedGate.ballsLeft() > 0
+    boolean volleyBetweenBalls = fire.volleyShot && fire.volleyFeedGate.ballsLeft() > 0
         && !VolleyConstants.VOLLEY_HOLD_BETWEEN_BALLS;
-    FeederState feederCommand = feederCommand(ejecting, loading || robot.loadingShooter.clearing(), shooting, feeding,
-        fireRequested, robot.feedGate.feederEmpty(), volleyBetweenBalls);
+    FeederState feederCommand = feederCommand(ejecting, loading || fire.loadingShooter.clearing(), shooting, feeding,
+        fireRequested, fire.feedGate.feederEmpty(), volleyBetweenBalls);
     if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
     robot.feeder.setFeederState(feederCommand, feederPower);
   }

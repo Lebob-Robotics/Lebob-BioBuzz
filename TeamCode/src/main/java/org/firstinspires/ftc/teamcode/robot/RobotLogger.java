@@ -92,13 +92,13 @@ final class RobotLogger {
 
   /** The volley this loop: its gate, the dip each ball left, and the settings in use. */
   void logVolley() {
-    Logger.recordOutput("Volley/Shot", robot.volleyShot);
-    Logger.recordOutput("Volley/FeedStarts", robot.volleyFeedGate.feedStarts());
-    Logger.recordOutput("Volley/BallsLeft", robot.volleyFeedGate.ballsLeft());
-    Logger.recordOutput("Volley/LeftAtRpm", robot.volleyFeedGate.peakAtLeaveRpm());
-    Logger.recordOutput("Volley/DipDepthRpm", robot.volleyFeedGate.lastDipDepthRpm());
+    Logger.recordOutput("Volley/Shot", robot.fireControl.volleyShot);
+    Logger.recordOutput("Volley/FeedStarts", robot.fireControl.volleyFeedGate.feedStarts());
+    Logger.recordOutput("Volley/BallsLeft", robot.fireControl.volleyFeedGate.ballsLeft());
+    Logger.recordOutput("Volley/LeftAtRpm", robot.fireControl.volleyFeedGate.peakAtLeaveRpm());
+    Logger.recordOutput("Volley/DipDepthRpm", robot.fireControl.volleyFeedGate.lastDipDepthRpm());
     Logger.recordOutput("Volley/DoubleBall",
-        robot.volleyFeedGate.lastDipDepthRpm() > VolleyConstants.VOLLEY_DOUBLE_DIP_RPM);
+        robot.fireControl.volleyFeedGate.lastDipDepthRpm() > VolleyConstants.VOLLEY_DOUBLE_DIP_RPM);
     Logger.recordOutput("Volley/HoodDeg", robot.shooterControl.volleyHoodDeg);
     Logger.recordOutput("Volley/BoostRpm", robot.volleyBoostRpm());
     Logger.recordOutput("Volley/FeedPower", robot.volleyFeedPower());

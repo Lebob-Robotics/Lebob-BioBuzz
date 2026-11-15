@@ -12,6 +12,7 @@ import org.firstinspires.ftc.teamcode.opmodes.Main;
 import org.firstinspires.ftc.teamcode.robot.Robot.AimState;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.AimConstants;
+import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.vision.VisionResult;
@@ -228,8 +229,8 @@ final class RobotTelemetry {
       }
       telemetry.addData("Aim", state + (robot.rpmTrim != 0 ? String.format("  (trim %+.0f)", robot.rpmTrim) : ""));
     }
-    if (robot.volleyMode && robot.volleyShot) {
-      telemetry.addData("Volley", "balls out %d", robot.volleyFeedGate.ballsLeft());
+    if (robot.volleyMode && robot.fireControl.volleyShot) {
+      telemetry.addData("Volley", "balls out %d", robot.fireControl.volleyFeedGate.ballsLeft());
     }
     if (!robot.poseFusion.poseValid) {
       telemetry.addLine("! Pose not placed: point the cameras at the tags");
@@ -254,9 +255,10 @@ final class RobotTelemetry {
         + (robot.poseFusion.headingValid ? ", heading set" : ", heading from start"));
     telemetry.addData("Aim", robot.aimSelector.aimState);
     if (robot.volleyMode) {
-      telemetry.addData("Volley", robot.volleyShot ? String.format("balls out %d  (fed %d)  feed %.2f  boost %+.0f",
-          robot.volleyFeedGate.ballsLeft(), robot.volleyFeedGate.feedStarts(), robot.volleyFeedPower(),
-          robot.volleyBoostRpm())
+      OneBallFeedGate gate = robot.fireControl.volleyFeedGate;
+      telemetry.addData("Volley", robot.fireControl.volleyShot
+          ? String.format("balls out %d  (fed %d)  feed %.2f  boost %+.0f",
+              gate.ballsLeft(), gate.feedStarts(), robot.volleyFeedPower(), robot.volleyBoostRpm())
           : "RB for a standing volley (RT shoots on the move; none without the Cell)");
     }
     if (aim == null) {

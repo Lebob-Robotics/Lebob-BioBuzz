@@ -10,7 +10,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
@@ -23,19 +22,11 @@ import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
-import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.field.PoseHandoff;
-import org.firstinspires.ftc.teamcode.shooting.feed.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.shooting.feed.RpmTrend;
-import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
-import org.firstinspires.ftc.teamcode.shooting.Shot;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.FireConstants;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionConstants;
-import org.firstinspires.ftc.teamcode.shooting.ShooterTuning;
 import org.firstinspires.ftc.teamcode.vision.TagObservation;
 import org.firstinspires.ftc.teamcode.vision.TargetTracker;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
@@ -87,6 +78,7 @@ public class Robot {
   final ShooterControl shooterControl = new ShooterControl(this);
   final AimSelector aimSelector = new AimSelector(this);
   final PoseFusion poseFusion = new PoseFusion(this);
+  final FireControl fireControl = new FireControl(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -106,7 +98,6 @@ public class Robot {
   public static final double TRIGGER_PRESSED = 0.5;
   boolean holdFire;
   boolean spinOnlyOnFire;
-  final LoadingShooterInterlock loadingShooter = new LoadingShooterInterlock();
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
@@ -144,32 +135,18 @@ public class Robot {
   private boolean scriptedVolley = false; // As RB held in Lebot Teleop, from a script (autonomous)
   private Aim lastAim = null;
   private boolean forceAim = false; // Aims as RB does, without firing
-  private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private final LoopWatchdog watchdog = new LoopWatchdog();
-  // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
-  private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate(
-      FireConstants.AIMED_READY_S, FireConstants.AIMED_FEED_STOP_UNREADY_S,
-      FireConstants.AIMED_FEED_PULSE_S, FireConstants.AIMED_FEED_PAUSE_S,
-      FireConstants.MIN_BALL_GAP_S);
   // Volley mode (Lebot Teleop, Volley Tuning): RB's hooded aimed shot, held still, fires as a burst, each ball at
   // the matched wheel speed (VolleyConstants). RT stays the one-at-a-time shoot on the move. Off,
   // RB is a plain held shot as RT's
   boolean volleyMode = false;
   boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
-  final OneBallFeedGate volleyFeedGate
- = new OneBallFeedGate(0.0,
-      FireConstants.AIMED_FEED_STOP_UNREADY_S, VolleyConstants.VOLLEY_FEED_PULSE_S,
-      VolleyConstants.VOLLEY_FEED_PAUSE_S,
-      VolleyConstants.VOLLEY_MIN_GAP_S, true);
-  OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
-  boolean volleyShot = false; // This loop's shot is a volley
   // Volley Tuning's settings in place of the constants
   final VolleyConfig volley = new VolleyConfig();
 
   // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
   private boolean buttonsReserved = false;
-  final RpmTrend rpmTrend = new RpmTrend(FireConstants.RPM_TREND_WINDOW_S);
   private boolean handsOffPose = false;
   private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
   private boolean swapBatteryRumbled = false;
@@ -459,83 +436,20 @@ public class Robot {
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
     // that had just moved 3 degrees (the robot stopped) was judged against the old one, and the ball missed (5 Nov, 095605)
     times.shooter = System.nanoTime();
-    volleyShot = shooterControl.volleyAim(aim);
-    feedGate = volleyShot ? volleyFeedGate : aimedFeedGate;
-    loadingShooter.update(clock.seconds(), spinOnlyOnFire, shotRequested() && !holdFire,
-        shooter.getMaxMeasuredRpm());
-    Logger.recordOutput("Shooter/Loading/State", loadingShooter.state());
-    Logger.recordOutput("Shooter/Loading/SpinBlocked", loadingShooter.blocksSpin());
-    Logger.recordOutput("Shooter/Loading/CanLoad", loadingShooter.canLoad());
+    fireControl.selectGate(aim);
     shooterControl.update(aiming, aim);
     times.shooterSet = System.nanoTime();
-    rpmTrend.update(clock.seconds(), shooter.getRpm());
-    double predictedRpmError = rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm();
-    Logger.recordOutput("Shooter/PredictedRpmError", predictedRpmError);
-    boolean flywheelsReady = shooter.atSpeed(FireConstants.RPM_TOLERANCE)
-        && shooter.meanRpmWithin(FireConstants.RPM_MEAN_BELOW_TARGET,
-            FireConstants.RPM_MEAN_ABOVE_TARGET)
-        && predictedRpmError <= FireConstants.RPM_PREDICTED_ABOVE_TARGET;
-    if (volleyShot) {
-      // Every ball at the same speed, so their flights match and none catches the one ahead
-      flywheelsReady = shooter.atSpeed(FireConstants.RPM_TOLERANCE)
-          && shooter.meanRpmWithin(VolleyConstants.VOLLEY_READY_BELOW_RPM, volleyReadyAboveRpm(aim))
-          && predictedRpmError >= -VolleyConstants.VOLLEY_READY_BELOW_RPM
-          && predictedRpmError <= volleyReadyAboveRpm(aim);
-    }
-    // A volley's hood stays put between balls, so after the first it needn't wait to settle
-    boolean hoodReady = volleyShot && volleyFeedGate.ballsLeft() > 0
-        ? hood.atTarget(volleyHoodToleranceTicks()) : hood.atTargetSteady(hoodToleranceTicks());
-    boolean motionSteady = driveControl.updateMotionSteady(aiming, velocity);
-    boolean ready = aim != null && motionSteady && ShootOnTheMove.readyToFire(aim, flywheelsReady, hoodReady,
-        pose.headingRad, velocity[2], driveControl.turningRateRadPerSec, closeMovingGateBypassed);
-    // What READY waits on, one by one: the shot and heading alone, then the wheels and the hood
-    Logger.recordOutput("SOTM/Gate/AimReady", aim != null && ShootOnTheMove.readyToFire(aim, true, true,
-        pose.headingRad, velocity[2], driveControl.turningRateRadPerSec, closeMovingGateBypassed));
-    Logger.recordOutput("SOTM/Gate/CloseMoving", aim != null && ShootOnTheMove.tooCloseToShootMoving(aim.shot));
-    Logger.recordOutput("SOTM/Gate/CloseMovingBypassed", closeMovingGateBypassed);
-    Logger.recordOutput("SOTM/Gate/Flywheels", flywheelsReady);
-    Logger.recordOutput("SOTM/Gate/Hood", hoodReady);
-    // A feed under way stops if the shot goes bad before the ball is out: the driver set off or turned back
-    // mid-feed, and the ball left 3 degrees of hood or 37 degrees of heading off (5 Nov, 095605)
-    boolean shotLost = aim != null && (!aim.shot.valid
-        || Math.abs(Angles.normalize(aim.lockHeadingRad - pose.headingRad)) > aim.headingToleranceRad
-        || !hood.atTarget(feedStopHoodTicks()));
+    boolean ready = fireControl.checkReady(aiming, aim, pose, velocity);
     aimSelector.updateAimState(aiming, aim, ready);
 
     times.drive = System.nanoTime();
     driveControl.update(aiming, aim, lockRateRadPerSec, pose, velocity);
     times.driveSet = System.nanoTime();
-    // Without the Cell in view there is nothing to aim at, so RT shoots at full flywheel speed and the
-    // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
-    // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
-    // time they dip would pull the next ball back out.
-    // Never in the Scoring Auto: with no Cell there is nothing to aim at, and a blind shot is a wasted ball
-    boolean manualReady = manualFeedGate.update(shootAll && aim == null && !tuningMode && !autonomous && !shooter.isStalled()
-        && !holdFire && !loadingShooter.blocksSpin(),
-        shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE));
-    // One ball also without the Cell in view, at full speed, so a press never empties the robot
-    boolean oneBallReady = aim != null ? ready
-        : !tuningMode && shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
-    // Held fire counts as released: the gate cycled through its pulses with the feeder held, so the first ball
-    // got the last 0.06 s of a pulse and fell short (6 Nov, 081518)
-    volleyFeedGate.setLeadBelowRpm(autonomous ? VolleyConstants.AUTO_VOLLEY_LEAD_BELOW_RPM
-        : VolleyConstants.VOLLEY_LEAD_BELOW_RPM);
-    volleyFeedGate.setMinFeedSpacingS(VolleyConstants.VOLLEY_MIN_FEED_SPACING_S);
-    boolean readyButWheels = aim != null && motionSteady && hoodReady && ShootOnTheMove.readyToFire(aim, true,
-        hoodReady, pose.headingRad, velocity[2], driveControl.turningRateRadPerSec, closeMovingGateBypassed);
-    boolean aimedFeed = feedGate.update(clock.seconds(), ((shootAll && aim != null) || oneBall) && !holdFire && !loadingShooter.blocksSpin(),
-        oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall, shotLost,
-        readyButWheels && !shooter.isStalled());
-    if (volleyMode) { // The other gate starts afresh when the shot switches between volley and one ball
-      (volleyShot ? aimedFeedGate : volleyFeedGate).update(clock.seconds(), false, false, shooter.getRpm(),
-          shooter.getTargetRpm());
-    }
-    Logger.recordOutput("Feeder/Gate", feedGate.stateName());
-    Logger.recordOutput("Feeder/BallLeft", feedGate.ballLeft());
+    fireControl.updateFeed(shootAll, oneBall, aim, pose, velocity);
     times.feed = System.nanoTime();
-    ballPath.update(aiming, aimedFeed || manualReady);
+    ballPath.update(aiming, fireControl.aimedFeed || fireControl.manualReady);
     times.feedSet = System.nanoTime();
-    if (aimedFeed) {
+    if (fireControl.aimedFeed) {
       driveControl.commitFeed();
     }
     lastPose = pose;
@@ -632,19 +546,7 @@ public class Robot {
     boolean requested = fireTrigger > TRIGGER_PRESSED || driver.right_bumper
         || scriptedOneBall || scriptedVolley || (driver.y && buttonsFree());
     return requested && !(tuningMode && fireTrigger <= TRIGGER_PRESSED
-        && feedGate != null && feedGate.ballsLeft() > 0);
-  }
-
-  private static int feedStopHoodTicks() {
-    return (int) Math.round(FireConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
-  }
-
-  private static int volleyHoodToleranceTicks() {
-    return (int) Math.round(VolleyConstants.VOLLEY_HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
-  }
-
-  private static int hoodToleranceTicks() {
-    return (int) Math.round(FireConstants.HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
+        && fireControl.feedGate != null && fireControl.feedGate.ballsLeft() > 0);
   }
 
   /** Shown on the Panels Telemetry tab this loop, above the robot's own lines. */
@@ -790,16 +692,16 @@ public class Robot {
   public boolean isUpCellConfirmed() { return visionCorrector.upCellConfirmed(alliance); }
 
   /** True on the loop an aimed feed starts a ball. */
-  public boolean feedStartedThisLoop() { return feedGate.feedStarted(); }
+  public boolean feedStartedThisLoop() { return fireControl.feedGate.feedStarted(); }
 
   /** True on the loop the wheels showed a ball leaving (aimed or volley). */
-  public boolean ballLeftThisLoop() { return feedGate.ballLeft(); }
+  public boolean ballLeftThisLoop() { return fireControl.feedGate.ballLeft(); }
 
   /** The Pinpoint's last read was good: false while it calibrates after the reset INIT asks for. */
   public boolean isOdometryReady() { return odometry.isReadGood(); }
 
   /** True once a feed pulse and its pause passed with no ball out, until one leaves. */
-  public boolean isFeederEmpty() { return feedGate.feederEmpty(); }
+  public boolean isFeederEmpty() { return fireControl.feedGate.feederEmpty(); }
 
   /** The stack read full this loop (a loading ball touched the wheels): the auto moves on from a Flower. */
   public boolean isStackFull() { return ballPath.stackFull(); }
@@ -954,13 +856,13 @@ public class Robot {
   public void setVolleyFastRecovery(Boolean on) { volley.setFastRecovery(on); }
 
   /** This loop's shot is a volley: volley mode, RB or RT, an aimed shot (backward too), not a tuning tool's. */
-  public boolean isVolleyShot() { return volleyShot; }
+  public boolean isVolleyShot() { return fireControl.volleyShot; }
 
   /** About the wheel speed the last volley ball left at; NaN if none. */
-  public double getVolleyLeftAtRpm() { return volleyFeedGate.peakAtLeaveRpm(); }
+  public double getVolleyLeftAtRpm() { return fireControl.volleyFeedGate.peakAtLeaveRpm(); }
 
   /** How far the wheels have dropped since the last volley ball left; NaN if none. */
-  public double getVolleyDipDepthRpm() { return volleyFeedGate.lastDipDepthRpm(); }
+  public double getVolleyDipDepthRpm() { return fireControl.volleyFeedGate.lastDipDepthRpm(); }
 
   public double volleyFeedPower() { return volley.feedPower(); }
 
@@ -970,12 +872,6 @@ public class Robot {
 
   boolean buttonsFree() {
     return !tuningMode && !buttonsReserved;
-  }
-
-  /** Top of a volley's matched band: tighter for a backward burst, which goes long when fed fast. */
-  private static double volleyReadyAboveRpm(Aim aim) {
-    return aim != null && aim.backward ? VolleyConstants.VOLLEY_BACKWARD_READY_ABOVE_RPM
-        : VolleyConstants.VOLLEY_READY_ABOVE_RPM;
   }
 
   public static double volleyTrimDeg(double trim, boolean volleyTrimsBackward, boolean backward, boolean first) {
