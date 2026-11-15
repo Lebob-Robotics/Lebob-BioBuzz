@@ -41,8 +41,19 @@ public class RobotLoopTraceTest {
   /** One run of a scenario: what each loop recorded. */
   static final class Run {
     final String name;
-    RobotSim sim = new RobotSim();
+    RobotSim sim;
+    /** The OpMode whose hooks the loops call, if any. */
+    Object opMode;
     boolean powerTelemetry;
+    /** Each INIT loop, running loop and STOP: the Robot's own calls, unless an OpMode's hooks replace them. */
+    Runnable initCode = () -> sim.robot.initLoop();
+    Runnable loopCode = () -> {
+      if (powerTelemetry) {
+        sim.robot.addPowerTelemetry();
+      }
+      sim.robot.periodic();
+    };
+    Runnable stopCode = () -> sim.robot.stop();
     final StringBuilder text = new StringBuilder();
     final List<String> hashes = new ArrayList<>();
     final Map<String, Integer> counts = new HashMap<>();
@@ -50,8 +61,9 @@ public class RobotLoopTraceTest {
     private String phase = "construct";
     private int loop;
 
-    Run(String name) {
+    Run(String name, boolean simBuildsRobot) {
       this.name = name;
+      sim = new RobotSim(simBuildsRobot);
     }
 
     Robot robot() {
@@ -63,7 +75,7 @@ public class RobotLoopTraceTest {
       for (int i = 0; i < loops; i++) {
         sim.release();
         buttons.accept(sim.gamepad, i);
-        sim.initLoop();
+        sim.frame(initCode);
         record();
       }
     }
@@ -73,7 +85,7 @@ public class RobotLoopTraceTest {
       for (int i = 0; i < loops; i++) {
         sim.release();
         buttons.accept(sim.gamepad, i);
-        sim.loop(powerTelemetry);
+        sim.frame(loopCode);
         record();
       }
     }
@@ -81,7 +93,7 @@ public class RobotLoopTraceTest {
     void stop() {
       phase = "stop";
       sim.events.clear();
-      sim.robot.stop();
+      stopCode.run();
       record();
     }
 
@@ -91,6 +103,12 @@ public class RobotLoopTraceTest {
       sim = new RobotSim();
       sim.truth = truth;
       powerTelemetry = false;
+    }
+
+    /** A file the run wrote, such as a tuning CSV, checked whole. */
+    void recordFile(String label, String content) {
+      text.append("== file ").append(label).append('\n').append(content);
+      hashes.add(name + " file " + label + " " + sha(content));
     }
 
     private void record() {
@@ -144,14 +162,24 @@ public class RobotLoopTraceTest {
     scenarios.put("auto-then-teleop", RobotLoopTraceTest::autoThenTeleop);
     scenarios.put("shoot-auto", RobotLoopTraceTest::shootAuto);
     scenarios.put("hold-correcting", RobotLoopTraceTest::holdCorrecting);
+    checkTrace("robot/loop-trace.txt", true, scenarios, "SOTM/State=READY", "Feeder/BallLeft=true",
+        "Volley/Shot=true", "SOTM/Backward=true", "Robot/PositionHold=true", "Vision/Correction/Accepted=true");
+  }
 
+  /**
+   * Runs each scenario twice, which must come out the same, and checks every loop against the golden file under
+   * src/test/resources, or rewrites it with WRITE_ROBOT_TRACE=1. Without {@code simBuildsRobot} each scenario's
+   * OpMode builds the Robot. Each of {@code mustReach} (key=value) has to be logged in some loop.
+   */
+  static void checkTrace(String golden, boolean simBuildsRobot, Map<String, Consumer<Run>> scenarios,
+      String... mustReach) throws IOException {
     File out = new File(moduleDir(), "build/robot-trace");
     out.mkdirs();
     List<String> now = new ArrayList<>();
     Map<String, Integer> coverage = new HashMap<>();
     for (Map.Entry<String, Consumer<Run>> scenario : scenarios.entrySet()) {
-      Run first = run(scenario.getKey(), scenario.getValue());
-      Run second = run(scenario.getKey(), scenario.getValue());
+      Run first = run(scenario.getKey(), simBuildsRobot, scenario.getValue());
+      Run second = run(scenario.getKey(), simBuildsRobot, scenario.getValue());
       File text = new File(out, scenario.getKey() + ".txt");
       Files.write(text.toPath(), first.text.toString().getBytes(StandardCharsets.UTF_8));
       if (!first.hashes.equals(second.hashes)) {
@@ -164,12 +192,11 @@ public class RobotLoopTraceTest {
       first.counts.forEach((k, v) -> coverage.merge(k, v, Integer::sum));
       System.out.println(scenario.getKey() + ": " + first.hashes.size() + " loops, " + first.counts);
     }
-    for (String reached : new String[] {"SOTM/State=READY", "Feeder/BallLeft=true", "Volley/Shot=true",
-        "SOTM/Backward=true", "Robot/PositionHold=true", "Vision/Correction/Accepted=true"}) {
+    for (String reached : mustReach) {
       assertTrue("the simulation never reached " + reached + ": " + coverage, coverage.getOrDefault(reached, 0) > 0);
     }
 
-    File file = new File(moduleDir(), "src/test/resources/robot/loop-trace.txt");
+    File file = new File(moduleDir(), "src/test/resources/" + golden);
     if ("1".equals(System.getenv("WRITE_ROBOT_TRACE"))) {
       file.getParentFile().mkdirs();
       Files.write(file.toPath(), now, StandardCharsets.UTF_8);
@@ -194,10 +221,10 @@ public class RobotLoopTraceTest {
     }
   }
 
-  private static Run run(String name, Consumer<Run> script) {
+  private static Run run(String name, boolean simBuildsRobot, Consumer<Run> script) {
     RobotSim.startLogger();
     try {
-      Run run = new Run(name);
+      Run run = new Run(name, simBuildsRobot);
       script.accept(run);
       return run;
     } finally {
@@ -207,7 +234,7 @@ public class RobotLoopTraceTest {
   }
 
   /** A pose this far from our audience Cell's aim point, toward the field centre, turned partly away from it. */
-  private static double[] nearCell(Alliance alliance, double distanceM) {
+  static double[] nearCell(Alliance alliance, double distanceM) {
     double[] cell = VisionCorrector.upCellAimPoint(alliance, Cell.AUDIENCE);
     double away = Math.hypot(cell[0], cell[1]);
     double x = cell[0] - distanceM * cell[0] / away;
@@ -541,7 +568,7 @@ public class RobotLoopTraceTest {
     return "the end (" + x.length + " vs " + y.length + " lines)";
   }
 
-  private static String sha(String text) {
+  static String sha(String text) {
     try {
       byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
       StringBuilder hex = new StringBuilder();
@@ -554,7 +581,7 @@ public class RobotLoopTraceTest {
     }
   }
 
-  private static File moduleDir() {
+  static File moduleDir() {
     return new File("src/test").isDirectory() ? new File(".") : new File("TeamCode");
   }
 }

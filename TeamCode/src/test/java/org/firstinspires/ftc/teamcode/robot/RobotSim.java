@@ -75,7 +75,9 @@ final class RobotSim {
   final SimHardwareMap hardwareMap = new SimHardwareMap();
   final SimGamepad gamepad = new SimGamepad();
   final SimPinpoint pinpoint;
-  final Robot robot;
+  /** Built here, or by an OpMode from {@link #hardwareMap} and handed over with {@link #attach}. */
+  Robot robot;
+  final Telemetry telemetry;
   private final MotorConfigurationType motorType = new MotorConfigurationType();
 
   /** Where the robot really is, {x, y, heading} on the field; null keeps the cameras blind. Odometry drifts from it. */
@@ -97,6 +99,10 @@ final class RobotSim {
   private double omega;
 
   RobotSim() {
+    this(true);
+  }
+
+  RobotSim(boolean buildRobot) {
     simNanos = 1_000_000_000L;
     motorType.setTicksPerRev(28);
     motorType.setGearing(1);
@@ -116,14 +122,23 @@ final class RobotSim {
     pinpoint = new SimPinpoint(device(I2cDeviceSynchSimple.class, "pinpointBus", false));
     hardwareMap.devices.put(HardwareNames.PINPOINT, pinpoint);
 
-    Telemetry telemetry = telemetry();
+    telemetry = recordingTelemetry();
     // Replay mode leaves out the cameras and the loop watchdog's thread; inputs and outputs still log as live
     Logger.setReplay(true);
-    robot = new Robot(hardwareMap, telemetry, gamepad);
-    int swapped = swapClocks(robot, Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+    if (buildRobot) {
+      attach(new Robot(hardwareMap, telemetry, gamepad), null);
+    }
+  }
+
+  /** Runs this Robot, swapping its clocks and the OpMode's (if any) for simulated ones. */
+  void attach(Robot built, Object opMode) {
+    robot = built;
+    Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+    int swapped = swapClocks(robot, seen, 0);
     if (swapped < 5) {
       throw new IllegalStateException("only " + swapped + " clocks swapped");
     }
+    swapClocks(opMode, seen, 0);
   }
 
   static void startLogger() {
@@ -167,27 +182,13 @@ final class RobotSim {
     return swapped;
   }
 
-  /** One INIT loop. */
-  void initLoop() {
+  /** One loop: the clock, the camera frames and the models around this loop's code (the Robot's, or an OpMode's). */
+  void frame(Runnable loopCode) {
     simNanos += DT_NANOS;
     Logger.periodicBeforeUser();
     events.clear();
     feedCameras();
-    robot.initLoop();
-    events.addAll(AndroidLogLines.drain());
-    step();
-  }
-
-  /** One running loop, as Lebot Teleop runs it when {@code powerTelemetry}. */
-  void loop(boolean powerTelemetry) {
-    simNanos += DT_NANOS;
-    Logger.periodicBeforeUser();
-    events.clear();
-    feedCameras();
-    if (powerTelemetry) {
-      robot.addPowerTelemetry();
-    }
-    robot.periodic();
+    loopCode.run();
     events.addAll(AndroidLogLines.drain());
     step();
   }
@@ -491,7 +492,7 @@ final class RobotSim {
     });
   }
 
-  private Telemetry telemetry() {
+  private Telemetry recordingTelemetry() {
     return (Telemetry) Proxy.newProxyInstance(Telemetry.class.getClassLoader(), new Class<?>[] {Telemetry.class},
         (proxy, m, a) -> {
           String n = m.getName();
