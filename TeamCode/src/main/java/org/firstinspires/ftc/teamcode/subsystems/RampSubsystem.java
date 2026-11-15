@@ -15,7 +15,7 @@ import org.psilynx.psikit.core.Logger;
 public class RampSubsystem extends SubsystemBase {
   public static final String SERVO_NAME = "RampServo";
   /** The pulse the Hub sends for each, found with Ramp Servo Check (14 Nov, arm refitted on the spline). */
-  public static double STOWED_US = 1430;
+  public static double STOWED_US = 1490; // 1430 on 14 Nov; 60 us (~8 degrees) further back, 15 Nov
   public static double DEPLOYED_US = 490; // Just past the REV servo's rated 500-2500 us
   /**
    * The pulse that setPosition's 0 and 1 send. Wider than the SDK's default 600-2400, which can't reach deployed, and

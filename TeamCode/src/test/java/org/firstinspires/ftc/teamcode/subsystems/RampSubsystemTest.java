@@ -10,7 +10,7 @@ public class RampSubsystemTest {
   }
 
   @Test public void eachPositionSendsThePulseFoundOnTheRobot() {
-    assertEquals(1430, sentUs(RampSubsystem.positionFor(false)), 0.5);
+    assertEquals(1490, sentUs(RampSubsystem.positionFor(false)), 0.5);
     assertEquals(490, sentUs(RampSubsystem.positionFor(true)), 0.5);
   }
 }
