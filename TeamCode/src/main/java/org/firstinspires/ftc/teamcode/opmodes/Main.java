@@ -32,16 +32,16 @@ public class Main extends PsiKitIterativeOpMode {
 
   /**
    * Logs each motor's current. Adds a non-bulk hub read per motor every
-   * FtcLogTuning.motorCurrentReadPeriodSec: all 8 motors in one loop, about 20 ms. Off for loop speed
-   * (4 Nov). The shooter's stall guard still reads its own two.
+   * FtcLogTuning.motorCurrentReadPeriodSec: all 8 motors in one loop, about 20 ms. Off for loop speed.
+   * The shooter's stall guard still reads its own two.
    */
   public static final boolean LOG_MOTOR_CURRENT = false;
 
   /**
    * How often PsiKit re-reads the values the bulk read doesn't cover: each motor's power and target
    * position, and each servo's settings. Each is its own hub call, about 2-3 ms, so reading them every
-   * loop made the motor logging 62 ms of a 138 ms loop (4 Nov). Our code doesn't read them back, so they
-   * are only for the log.
+   * loop made the motor logging a large part of the loop. Our code doesn't read them back, so they are
+   * only for the log.
    */
   public static final double NON_BULK_READ_PERIOD_S = 2.0;
 

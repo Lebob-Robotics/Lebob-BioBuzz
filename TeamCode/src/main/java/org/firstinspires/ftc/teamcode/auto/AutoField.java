@@ -27,8 +27,7 @@ public final class AutoField {
   /**
    * Where the robot is put at the start: intake against our wall right next to the Garden, its side 2 cm from the
    * Pollen line along the audience wall (balls 3 in. against it), camera side (back) toward the Hive. G304:
-   * touching the perimeter wall, not in the LOADING ZONE, not touching a FLOWER. Until 14 Nov 213317 it was put in
-   * the loading zone (illegal), and the camera's late correction made the preloads shoot 0.6 m short of the spot.
+   * touching the perimeter wall, not in the LOADING ZONE, not touching a FLOWER.
    */
   public static final double[] START = {FIELD_HALF_M - 0.076 - 0.02 - ROBOT_HALF_M, -AT_WALL_M, -Math.PI / 2};
   /** Heading of the Garden sweep: front (intake) toward our wall, driving along the audience wall to the corner. */
@@ -44,7 +43,7 @@ public final class AutoField {
   public static final double[] GARDEN_OUT = {AT_WALL_M, -AT_WALL_M + 0.02, GARDEN_HEADING};
   /**
    * The sweep drives for this far past {@link #GARDEN_OUT}, into our wall, and ends once the wall stops it: aimed
-   * 2 cm short, odometry's drift left it short of the corner's last Pollen (14 Nov 214945).
+   * 2 cm short, odometry's drift left it short of the corner's last Pollen.
    */
   public static double GARDEN_PUSH_M = 0.10;
 
@@ -54,7 +53,7 @@ public final class AutoField {
   }
   /**
    * How far short of a Flower's intake point the drive to it stops, for the Pollen arm to come down clear of the
-   * Flower. 0.25 m was too close (14 Nov run).
+   * Flower.
    */
   public static final double FLOWER_STANDOFF_M = 0.45;
   /**
@@ -67,8 +66,8 @@ public final class AutoField {
   public static final double[] REAR_FLOWER_INTAKE = {-1.55, -0.61, Math.PI};
   public static final double[] REAR_FLOWER = {REAR_FLOWER_INTAKE[0] + FLOWER_STANDOFF_M, -0.61, Math.PI};
   /**
-   * Bends the drive from the Garden to a shooting spot up between the Hive and our wall's Flower: straight, 14 Nov it
-   * passed the Flower 1.45 m out from the middle and hit it. Curved, it passes 1.21 m out or more.
+   * Bends the drive from the Garden to a shooting spot up between the Hive and our wall's Flower: straight, it hit
+   * the Flower. Curved, it passes 1.21 m out or more.
    */
   public static final double[] GARDEN_EXIT_CONTROL = {1.40, -0.95, 0};
   /**
@@ -93,7 +92,7 @@ public final class AutoField {
   /** In the middle of the loading zone, camera side toward the Hive as at the start, so the TeleOp's placed heading holds. */
   public static final double[] PARK = {-0.915, -1.52, -Math.PI / 2};
   /**
-   * Parked this far off our wall, never touching it (15 Nov: not allowed to touch the wall on PARK). The centre stays
+   * Parked this far off our wall, never touching it (not allowed to touch the wall on PARK). The centre stays
    * in the loading zone (PARK needs the robot partly in it): at most 0.33 + 0.10 m from the wall, the zone 0.61 m deep.
    */
   public static final double PARK_WALL_GAP_M = 0.10;
@@ -142,8 +141,7 @@ public final class AutoField {
   /**
    * Where the auto shoots from, for red's SCORING Cell ({x, y}, metres): Volley Tuning's spot 4 (FieldRoute.GRID[4],
    * "Spot 5/10" on the Driver Station), 0.92 m from the aim point and 37 degrees off straight out, away from the
-   * middle. Its volleys there went 46 of 52 in, 0.74 m from the lip, no double balls (14 Nov 224053). The old spot,
-   * 1.0 m and 20 degrees off, now and then lost a ball outward.
+   * middle. The old spot, 1.0 m and 20 degrees off, now and then lost a ball outward.
    */
   public static final double[] VOLLEY_SPOT = {-1.00, -1.05};
 
@@ -161,7 +159,7 @@ public final class AutoField {
 
   /**
    * The auto aims this far from the Cell's aim point toward the field's middle. 0: Volley Tuning aims at the aim
-   * point itself (with the same HOODED_HEADING_TRIM_DEG). 0.03 made up for outward misses from the old spot.
+   * point itself (with the same HOODED_HEADING_TRIM_DEG).
    */
   public static double AIM_INWARD_M = 0.0;
 

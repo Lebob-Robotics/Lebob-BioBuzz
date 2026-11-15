@@ -38,7 +38,7 @@ public abstract class BaseAuto<S extends Enum<S>, P extends AutoPlan<S>> extends
   /** Pedro's powers are scaled by this during the Garden sweep and into a Flower, so the intake takes the Pollen in. */
   public static double SWEEP_POWER_SCALE = 0.5;
   /** Turning to the Pollen in place (Garden, Flower) is done this close to the spot and to its heading. */
-  public static double FACE_FLOWER_M = 0.10; // 14 Nov Pedro's hold stalled 6 cm off the Flower stop for 2 s
+  public static double FACE_FLOWER_M = 0.10; // Pedro's hold can stall 6 cm off the Flower stop
   public static double FACE_FLOWER_RAD = Math.toRadians(8);
   /** Driving into a Flower, the robot is in it once this slow, after FLOWER_STALL_AFTER_S of the drive in. */
   public static double FLOWER_STALLED_MPS = 0.05;
@@ -126,7 +126,7 @@ public abstract class BaseAuto<S extends Enum<S>, P extends AutoPlan<S>> extends
     robot.setAutonomous(true);
     // Volleys as Lebot Teleop's RT shoots them: the indexer stages the stack between balls, its last roller slowed
     // while one feeds, and pulses a stuck ball free. Off, each ball was a one-ball shot and the last of every volley
-    // stayed in (14 Nov 214945)
+    // stayed in
     robot.setVolleyMode(true);
     if (indexerPauseRunsBackward()) {
       robot.setAutoIndexerReverse(true);
@@ -169,7 +169,7 @@ public abstract class BaseAuto<S extends Enum<S>, P extends AutoPlan<S>> extends
     robot.startAt(start[0], start[1], start[2]);
     localizer.set(start[0], start[1], start[2], 0, 0, 0);
     robot.setAutoDriver(this::pedroPowers);
-    robot.setDriveBrake(true); // Pedro's constants are measured on BRAKE (13 Nov)
+    robot.setDriveBrake(true); // Pedro's constants are measured on BRAKE
     plan = newPlan();
     plan.takeNewStep();
     startStep(plan.step());
@@ -179,8 +179,8 @@ public abstract class BaseAuto<S extends Enum<S>, P extends AutoPlan<S>> extends
 
   /** Called by the Robot each loop with the corrected pose, before it drives. */
   private double[] pedroPowers(FieldPose pose, double[] velocity) {
-    // Still while the Pinpoint finishes the reset from INIT: 13 Nov it calibrated for 0.2 s after START both runs,
-    // and the IMU calibrates only standing still
+    // Still while the Pinpoint finishes the reset from INIT: it can still be calibrating after START, and the IMU
+    // calibrates only standing still
     if (!odometryReady) {
       odometryReady = robot.isOdometryReady();
       Logger.recordOutput("Auto/WaitingForOdometry", !odometryReady);

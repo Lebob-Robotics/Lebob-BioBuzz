@@ -23,7 +23,7 @@ public abstract class ScoringAuto extends BaseAuto<AutoSequence.Step, AutoSequen
   public static double ONTO_WALL_M = 0.02;
   /**
    * Strafe power added toward the audience wall (the robot's left, both alliances) while sliding onto it and sweeping
-   * along it. 14 Nov Pedro alone stalled 5.8 cm off at 0.14 strafe, and swept 2.5-3 cm off.
+   * along it. Pedro alone stalled short of the wall, and swept a few cm off it.
    */
   public static double WALL_PUSH = 0.25;
   /** Sliding onto the wall, the robot counts as against it once this slow, after WALL_SETTLE_S of the slide. */
@@ -94,7 +94,7 @@ public abstract class ScoringAuto extends BaseAuto<AutoSequence.Step, AutoSequen
   protected boolean stepArrived(AutoSequence.Step step, boolean facingStep, double inStepS, double robotSpeedMps) {
     if ((step == AutoSequence.Step.INTAKE_WALL_FLOWER || step == AutoSequence.Step.INTAKE_REAR_FLOWER)
         && inStepS >= FLOWER_STALL_AFTER_S && robotSpeedMps <= FLOWER_STALLED_MPS) {
-      return true; // Pushed up against the Flower short of the intake point: in it (14 Nov 212840 stopped 12 cm short)
+      return true; // Pushed up against the Flower short of the intake point: in it
     }
     if (step == AutoSequence.Step.SWEEP_GARDEN && inStepS >= FLOWER_STALL_AFTER_S
         && robotSpeedMps <= WALL_STOPPED_MPS) {

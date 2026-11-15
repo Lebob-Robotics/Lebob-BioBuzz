@@ -5,7 +5,7 @@ import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
  * The corner autonomous's steps and when each ends, without hardware, and where it goes (red field coordinates,
- * metres, as {@link AutoField}). Made to fit around a partner whose auto takes the Garden side (15 Nov):
+ * metres, as {@link AutoField}). Made to fit around a partner whose auto takes the Garden side:
  *
  * <ol>
  *   <li>Start in the rear corner of our wall, beside the loading zone, intake to our wall. Drive out to Volley
@@ -37,7 +37,7 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
     }
   }
 
-  /** Back in the corner, this long before leaving for the Flower (15 Nov). */
+  /** Back in the corner, this long before leaving for the Flower. */
   public static double WAIT_S = 5.0;
   /** Leaves the corner by this time however late it got back, for the Flower and the second volley to fit. */
   public static double LEAVE_BY_S = 17.0;
@@ -50,12 +50,12 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
 
   /**
    * Taking the Flower and on to the AUDIENCE spot, the indexer loads JIGGLE_RUN_S then runs backward
-   * JIGGLE_REVERSE_S, and over: the volley retry's pulse, so the stack indexes up (15 Nov: the volley after the
-   * Flower fed 2 s and shot none). 0 reverse is off.
+   * JIGGLE_REVERSE_S, and over: the volley retry's pulse, so the stack indexes up (without it the volley after the
+   * Flower shot none). 0 reverse is off.
    */
   public static double JIGGLE_RUN_S = 0.4;
   public static double JIGGLE_REVERSE_S = 0.15;
-  /** The drive along our wall keeps this far off it: 5 cm was too close (15 Nov). */
+  /** The drive along our wall keeps this far off it. */
   public static double EDGE_GAP_M = 0.10;
 
   /** The rear corner of our wall, touching it and the rear wall, intake to our wall: the start. */
@@ -67,8 +67,8 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
   public static final double[] FLOWER_BEND = {0.0, AutoField.WALL_FLOWER[1], 0};
   /**
    * Parked at the loading zone's end nearest the Garden, its centre 0.16 m inside the zone's line (the robot over it
-   * by 7 cm), {@link AutoField#PARK_WALL_GAP_M} off our wall, intake to it. 3 cm inside went a little too far
-   * (15 Nov). Its x is the park's; {@link #parkSpot} turns it to shoot.
+   * by 7 cm), {@link AutoField#PARK_WALL_GAP_M} off our wall, intake to it. Its x is the park's; {@link #parkSpot}
+   * turns it to shoot.
    */
   public static final double[] CORNER_PARK = {AutoField.LOADING_ZONE[1] - AutoField.ROBOT_HALF_M + 0.07,
       -(AutoField.AT_WALL_M - AutoField.PARK_WALL_GAP_M), -Math.PI / 2};
@@ -80,12 +80,12 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
     tracker = new StepTracker(startS);
   }
 
-  /** The preloads' Cell: SCORING, both alliances (15 Nov). */
+  /** The preloads' Cell: SCORING, both alliances. */
   public static Cell nearCell(Alliance alliance) {
     return Cell.SCORING;
   }
 
-  /** The second volley's Cell, after the Flower: AUDIENCE, both alliances (15 Nov). */
+  /** The second volley's Cell, after the Flower: AUDIENCE, both alliances. */
   public static Cell gardenCell(Alliance alliance) {
     return Cell.AUDIENCE;
   }
@@ -106,8 +106,7 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
 
   /**
    * Where the preloads are shot from, in field coordinates for the alliance: Volley Tuning's spot 5 in front of the
-   * preloads' Cell, 86-88% in on 14-15 Nov (0.2 m out of the corner, 1.37 m from the lip, was inaccurate). Still
-   * facing our wall: the drive doesn't turn out of the corner, the aim turns it there.
+   * preloads' Cell. Still facing our wall: the drive doesn't turn out of the corner, the aim turns it there.
    */
   public static double[] preloadSpot(Alliance alliance) {
     double[] spot = AutoField.shotSpot(alliance, nearCell(alliance));
@@ -237,13 +236,13 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
   @Override
   public boolean intake() {
     switch (step) {
-      case SHOOT_PRELOAD: // Once stopped only, for the 4th ball in the intake (14 Nov 220630)
+      case SHOOT_PRELOAD: // Once stopped only, for the 4th ball in the intake
         return tracker.arrived();
       case LOWER_ARM:
       case INTAKE_FLOWER:
       case BACK_FROM_FLOWER:
       case RAISE_ARM:
-      case SHOOT_GARDEN_SIDE: // The whole volley, drive too: the Flower's balls sit in the intake's mouth (14 Nov)
+      case SHOOT_GARDEN_SIDE: // The whole volley, drive too: the Flower's balls sit in the intake's mouth
       case PARKED:
         return true;
       default:

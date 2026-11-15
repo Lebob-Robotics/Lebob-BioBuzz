@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.auto;
 import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
- * The autonomous's steps and when each ends, without hardware. The plan (14 Nov):
+ * The autonomous's steps and when each ends, without hardware. The plan:
  *
  * <ol>
  *   <li>Drive to the Hive and shoot the 4 preloads into the up Cell, which tips it.
@@ -44,7 +44,7 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
     }
   }
 
-  /** The rear Flower after the first Flower's volley: off, straight to park instead (14 Nov). */
+  /** The rear Flower after the first Flower's volley: off, straight to park instead. */
   public static boolean SECOND_FLOWER = false;
   /**
    * Done shooting after the first Flower later than this, the second Flower doesn't fit before PARK_BY_S: its drive
@@ -58,35 +58,35 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
   public static double PARK_BY_S = 26.0;
   public static int BALLS_PER_VOLLEY = 4;
   /**
-   * The feeder found no ball for this long: the robot is empty. 0.6 s gave up after one empty pulse, 14 Nov 220630:
-   * the Flower volley quit after 1.1 s of feeding with its balls still coming up. 2 s lets the indexer's retry pulse in.
+   * The feeder found no ball for this long: the robot is empty. Shorter gave up after one empty pulse with the balls
+   * still coming up; 2 s lets the indexer's retry pulse in.
    */
   public static double EMPTY_S = 2.0;
   /**
-   * Longest at a shooting spot for the volley to finish. 3 s cut the preloads off after 2 balls on 14 Nov 212840:
-   * the first left 2 s after stopping, and the 2 left in blocked the Garden's intake.
+   * Longest at a shooting spot for the volley to finish. The first ball can leave 2 s after stopping, and balls
+   * left in block the Garden's intake.
    */
   public static double VOLLEY_WAIT_S = 4.0;
-  /** 0.6 m along the wall at half power: 0.43 m took 1.9 s on 14 Nov. */
+  /** 0.6 m along the wall at half power: 0.43 m took 1.9 s. */
   public static double GARDEN_SWEEP_MAX_S = 3.5;
   /** Longest to turn to the Pollen before the sweep; then it sweeps anyway, turning on the way. */
   public static double FACE_GARDEN_MAX_S = 1.5;
   /** Longest to slide onto the audience wall; then it sweeps anyway, closing on the wall on the way. */
   public static double ONTO_WALL_MAX_S = 1.5;
-  /** Longest in a Flower; 14 Nov the drive in took 1.2 s, then it sat 2.9 s in it, empty. */
+  /** Longest in a Flower; the drive in took 1.2 s. */
   public static double FLOWER_INTAKE_S = 3.0;
   /** In the Flower, once the drive in is done, this long for the last balls to come in. */
   public static double FLOWER_DWELL_S = 1.0;
   /**
    * In a Flower, once driven in, the robot wiggles, turning this far either side of facing it, for the intake to
-   * take every ball. 12 degrees was too much (14 Nov). Guesses: tune on the field.
+   * take every ball. Guesses: tune on the field.
    */
   public static double WIGGLE_RAD = Math.toRadians(7);
   /** One wiggle, left and right and back: two in the dwell. */
   public static double WIGGLE_PERIOD_S = 0.5;
   /**
    * Taking the Garden and the Flowers, the indexer agitates: it loads AGITATE_RUN_S, stops AGITATE_STOP_S, and over,
-   * so balls jammed in the intake's mouth settle in (15 Nov). Guesses: tune on the field. 0 stop is off.
+   * so balls jammed in the intake's mouth settle in. Guesses: tune on the field. 0 stop is off.
    */
   public static double AGITATE_RUN_S = 0.4;
   public static double AGITATE_STOP_S = 0.2;
@@ -95,7 +95,7 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
   /** Longest to face a Flower from the stop short of it; then the arm is lowered anyway as the robot drives in. */
   public static double FACE_FLOWER_MAX_S = 2.0;
   /** Longest to back out of a Flower. */
-  public static double BACK_OUT_MAX_S = 2.0; // 0.28 m took 0.8 s on 14 Nov
+  public static double BACK_OUT_MAX_S = 2.0; // 0.28 m took 0.8 s
   /** A Flower is left this long before PARK_BY_S: backing out and raising the arm. */
   public static double FLOWER_EXIT_S = 2.0;
 
@@ -268,12 +268,12 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
   public boolean intake() {
     switch (step) {
       case SHOOT_PRELOAD: // Once stopped only, for the 4th ball in the intake: on the way, with the wheels spinning,
-        return tracker.arrived(); // the full stack pushed a ball through the held feeder (14 Nov 220630)
+        return tracker.arrived(); // the full stack pushed a ball through the held feeder
       case PARKED: // Once there, pushing any ball left in the intake up (against our wall: nothing to pick up)
         return tracker.arrived();
-      case SHOOT_GARDEN: // The whole volley, drive and shots. 14 Nov 214244 the Garden's balls sat in its mouth,
-      case SHOOT_WALL_FLOWER: // switched off as the drive began, and the volley shot none; 214945, off once
-        return true; // stopped, every volley left its last balls in
+      case SHOOT_GARDEN: // The whole volley, drive and shots. Off for the drive, the Garden's balls sat in the
+      case SHOOT_WALL_FLOWER: // intake's mouth and none were shot; off once stopped, every volley left its last
+        return true; // balls in
       case FACE_GARDEN:
       case ONTO_GARDEN_WALL:
       case SWEEP_GARDEN:

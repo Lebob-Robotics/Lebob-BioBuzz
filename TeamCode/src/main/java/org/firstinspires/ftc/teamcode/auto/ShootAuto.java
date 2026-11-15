@@ -37,18 +37,18 @@ public class ShootAuto extends LebotOpMode {
   public static double VISION_WAIT_S = 1.0; // Holds the first ball this long for the tags to correct the start pose
   public static double DRIVE_M = 0.6; // How far forward before shooting; 0 shoots from the start
   public static double DRIVE_POWER = 0.8;
-  // Drives no longer than this: 0.6 m takes under a second. With the odometry faulted (FAULT_BAD_READ,
-  // 13 Nov 191050 and 191103) the pose never moved, and the old 3 s let it drive blind
+  // Drives no longer than this: 0.6 m takes under a second. With the odometry faulted (FAULT_BAD_READ) the pose
+  // never moves, and a longer limit lets it drive blind
   public static double DRIVE_TIMEOUT_S = 1.5;
-  // A bigger pose step in one loop is vision placing the robot, not driving. 0.12 also dropped real steps: loops take
-  // 0.10-0.21 s while driving at ~1.3 m/s, so it drove 0.86-1.48 m for 0.6 (13 Nov). The one real jump was 2.0 m
+  // A bigger pose step in one loop is vision placing the robot, not driving. Smaller dropped real steps: loops take
+  // 0.10-0.21 s while driving at ~1.3 m/s
   public static double DRIVE_MAX_STEP_M = 0.4;
   // Power off this far early at the speed it is going, v^2 / (2 * this): it coasted ~0.25 m after the cut
   public static double DRIVE_BRAKE_MPS2 = 2.0;
   public static double SETTLE_S = 0.3; // Stopped this long before aiming, so the pose and the steady gate settle
   public static double SEARCH_TURN = 0.25; // Turn power while looking for the Hive
   // Turns in steps, still in between: turning on at 0.25 reached 1 rad/s, past the 0.6 rad/s the cameras are used
-  // up to, so it saw nothing once it started searching (13 Nov, 193125)
+  // up to, so it saw nothing once it started searching
   public static double SEARCH_TURN_S = 0.3;
   public static double SEARCH_PAUSE_S = 0.6;
   public static int BALLS = 4;
@@ -65,19 +65,19 @@ public class ShootAuto extends LebotOpMode {
   public static boolean PARK_WITH_PEDRO = true;
   public static double PARK_WAYPOINT_M = 0.12; // Close enough to a turning point to head for the next
   // Drives to a planned speed, not a stick: full stick reached 1.6 m/s along the lane and nothing slowed it in time,
-  // so it ran 0.45 m past the zone, swung back past it again and parked 0.19 m off (13 Nov 200130 and 215133).
-  // Planned speed = what still stops at the goal braking at PARK_BRAKE_MPS2 (full reverse stopped it at about 3.4)
-  public static double PARK_MAX_SPEED_MPS = 1.6; // Full stick's top speed (13 Nov logs)
+  // so it overshot the zone. Planned speed = what still stops at the goal braking at PARK_BRAKE_MPS2 (full reverse
+  // stopped it at about 3.4)
+  public static double PARK_MAX_SPEED_MPS = 1.6; // Full stick's top speed
   public static double PARK_BRAKE_MPS2 = 2.0;
   public static double PARK_CORNER_MPS = 0.6; // Through the turning points
   // Extra stick per m/s off the planned speed: brakes when too fast, damps sideways slide, and pushes when stuck
-  // (stick 0.2 didn't move the turned robot and it sat 0.15 m short for 5 s, 13 Nov 193927)
+  // (stick 0.2 didn't move the turned robot)
   public static double PARK_VEL_GAIN = 1.0;
   public static double PARK_TIMEOUT_S = 7.0;
   public static double PARK_DONE_M = 0.06;
-  // And this slow: 220620 was "there" at 0.43 m/s along the wall, and the push carried it 0.08 m on, over the zone's edge
+  // And this slow: "there" while still moving along the wall, the push carried it on over the zone's edge
   public static double PARK_DONE_MPS = 0.15;
-  public static double PARK_PUSH_POWER = 0.5; // Then into the wall this hard for PARK_PUSH_S (0.2 and 0.35 didn't move it, 13 Nov)
+  public static double PARK_PUSH_POWER = 0.5; // Then into the wall this hard for PARK_PUSH_S
   public static double PARK_PUSH_S = 0.8;
 
   private enum Phase { DRIVE, SETTLE, SHOOT, PARK, PUSH, DONE }
@@ -148,8 +148,8 @@ public class ShootAuto extends LebotOpMode {
     FieldPose pose = robot.getPose();
     switch (phase) {
       case DRIVE: {
-        // Summed loop by loop, leaving out the jump when the tags first place the robot (13 Nov 191356: from
-        // (0, 0) to (-1.46, 1.38) on one loop, which counted as the whole drive)
+        // Summed loop by loop, leaving out the jump when the tags first place the robot, which would count as the
+        // whole drive
         if (pose != null) {
           drivenM += drivenStep(lastX, lastY, pose.xM, pose.yM);
           lastX = pose.xM;
@@ -182,7 +182,7 @@ public class ShootAuto extends LebotOpMode {
       case SHOOT: {
         boolean hiveKnown = robot.getLastAim() != null;
         // Turns to the Hive straight away from the start pose; fires once the tags have placed it, or after a wait.
-        // The wait held the turn too, so every volley started a second late (13 Nov, 5 red runs)
+        // The wait held the turn too, so every volley started a second late
         robot.setScriptedVolley(hiveKnown);
         robot.setHoldFire(!robot.isPoseValid() && inPhaseS < VISION_WAIT_S);
         boolean searchTurning = inPhaseS % (SEARCH_PAUSE_S + SEARCH_TURN_S) >= SEARCH_PAUSE_S;
