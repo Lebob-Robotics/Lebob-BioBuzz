@@ -18,7 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.PoseHistory;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.field.CellGeometry;
+import org.firstinspires.ftc.teamcode.field.FieldGeometry;
 
 /** Ported from Sean's vision tests on feature/sotm, using this branch's camera mounts. */
 public class VisionCorrectorTest {
@@ -27,8 +28,8 @@ public class VisionCorrectorTest {
   private static final long T0 = 1_000_000_000L;
   private static final long MS = 1_000_000L;
 
-  private static final CameraMount LEFT = ShootOnTheMoveConstants.LEFT_CAMERA;
-  private static final CameraMount RIGHT = ShootOnTheMoveConstants.RIGHT_CAMERA;
+  private static final CameraMount LEFT = CameraMounts.LEFT_CAMERA;
+  private static final CameraMount RIGHT = CameraMounts.RIGHT_CAMERA;
 
   // Robot used for most tests: between the Hives
   private static final FieldPose TRUE_POSE = new FieldPose(0.1, -0.9, -Math.PI / 2);
@@ -40,33 +41,33 @@ public class VisionCorrectorTest {
 
   @Before
   public void setUp() {
-    savedConfirmFrames = ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES;
-    savedVisionHeading = ShootOnTheMoveConstants.VISION_HEADING;
+    savedConfirmFrames = VisionConstants.TIP_CONFIRM_FRAMES;
+    savedVisionHeading = VisionConstants.VISION_HEADING;
     savedConstants = new double[] {
-        ShootOnTheMoveConstants.MIN_DECISION_MARGIN, ShootOnTheMoveConstants.MAX_TAG_RANGE_M,
-        ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS, ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S,
-        ShootOnTheMoveConstants.MAX_FRAME_AGE_S, ShootOnTheMoveConstants.MAX_SPREAD_M,
-        ShootOnTheMoveConstants.MAX_JUMP_M, ShootOnTheMoveConstants.CORRECTION_GAIN,
-        ShootOnTheMoveConstants.Z_TOL_M, ShootOnTheMoveConstants.FIELD_HALF_SIZE_M,
-        ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M};
+        VisionConstants.MIN_DECISION_MARGIN, VisionConstants.MAX_TAG_RANGE_M,
+        VisionConstants.MAX_SPEED_FOR_VISION_MPS, VisionConstants.MAX_OMEGA_FOR_VISION_RAD_S,
+        VisionConstants.MAX_FRAME_AGE_S, VisionConstants.MAX_SPREAD_M,
+        VisionConstants.MAX_JUMP_M, VisionConstants.CORRECTION_GAIN,
+        VisionConstants.Z_TOL_M, FieldGeometry.FIELD_HALF_SIZE_M,
+        VisionConstants.FIX_WALL_MARGIN_M};
     corrector = new VisionCorrector();
   }
 
   @After
   public void restoreConstants() {
-    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = savedConfirmFrames;
-    ShootOnTheMoveConstants.VISION_HEADING = savedVisionHeading;
-    ShootOnTheMoveConstants.MIN_DECISION_MARGIN = savedConstants[0];
-    ShootOnTheMoveConstants.MAX_TAG_RANGE_M = savedConstants[1];
-    ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS = savedConstants[2];
-    ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S = savedConstants[3];
-    ShootOnTheMoveConstants.MAX_FRAME_AGE_S = savedConstants[4];
-    ShootOnTheMoveConstants.MAX_SPREAD_M = savedConstants[5];
-    ShootOnTheMoveConstants.MAX_JUMP_M = savedConstants[6];
-    ShootOnTheMoveConstants.CORRECTION_GAIN = savedConstants[7];
-    ShootOnTheMoveConstants.Z_TOL_M = savedConstants[8];
-    ShootOnTheMoveConstants.FIELD_HALF_SIZE_M = savedConstants[9];
-    ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M = savedConstants[10];
+    VisionConstants.TIP_CONFIRM_FRAMES = savedConfirmFrames;
+    VisionConstants.VISION_HEADING = savedVisionHeading;
+    VisionConstants.MIN_DECISION_MARGIN = savedConstants[0];
+    VisionConstants.MAX_TAG_RANGE_M = savedConstants[1];
+    VisionConstants.MAX_SPEED_FOR_VISION_MPS = savedConstants[2];
+    VisionConstants.MAX_OMEGA_FOR_VISION_RAD_S = savedConstants[3];
+    VisionConstants.MAX_FRAME_AGE_S = savedConstants[4];
+    VisionConstants.MAX_SPREAD_M = savedConstants[5];
+    VisionConstants.MAX_JUMP_M = savedConstants[6];
+    VisionConstants.CORRECTION_GAIN = savedConstants[7];
+    VisionConstants.Z_TOL_M = savedConstants[8];
+    FieldGeometry.FIELD_HALF_SIZE_M = savedConstants[9];
+    VisionConstants.FIX_WALL_MARGIN_M = savedConstants[10];
   }
 
   // ---- Helpers ------------------------------------------------------------
@@ -118,7 +119,7 @@ public class VisionCorrectorTest {
 
   /** Odometry sat still at the given pose from T0 to T0 + 100 ms. */
   private static PoseHistory stillHistory(FieldPose odometry) {
-    PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+    PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
     history.add(T0, odometry);
     history.add(T0 + 100 * MS, odometry);
     return history;
@@ -139,7 +140,7 @@ public class VisionCorrectorTest {
   // ---- Field and camera maths ---------------------------------------------
 
   @Test public void upCellAimPointIsOutsideTheTagLineCentre() {
-    double outM = ShootOnTheMoveConstants.CLUSTER_UP_X_M + ShootOnTheMoveConstants.CELL_REF_UP_TOWARD_IN * 0.0254;
+    double outM = CellGeometry.CLUSTER_UP_X_M + CellGeometry.CELL_REF_UP_TOWARD_IN * 0.0254;
     double[] redScoring = VisionCorrector.upCellAimPoint(Alliance.RED, Cell.SCORING);
     assertEquals(-outM, redScoring[0], TOLERANCE);
     assertEquals(-12.75 * 0.0254, redScoring[1], TOLERANCE);
@@ -283,7 +284,7 @@ public class VisionCorrectorTest {
   @Test
   public void aTagAtTheDownHeightMeansTheOtherCellIsUp() {
     // Blue starts with SCORING up. A BLUE SCORING tag (42) at the down height means AUDIENCE is up
-    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = 1;
+    VisionConstants.TIP_CONFIRM_FRAMES = 1;
     VisionResult result = run(list(observe(42, Cell.AUDIENCE, TRUE_POSE)), TRUE_POSE, true);
     assertTrue(result.blueFlipped);
     assertEquals(Cell.AUDIENCE, corrector.upCell(Alliance.BLUE));
@@ -292,7 +293,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void aConfirmedTipKeepsRunningWithoutFlippingBack() {
-    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = 1;
+    VisionConstants.TIP_CONFIRM_FRAMES = 1;
     run(list(observe(31, Cell.SCORING, TRUE_POSE)), TRUE_POSE, true);
     assertEquals(Cell.SCORING, corrector.upCell(Alliance.RED));
     VisionResult result = run(list(observe(31, Cell.SCORING, TRUE_POSE)), TRUE_POSE, true);
@@ -312,7 +313,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void aBadHeightCastsNoTipVote() {
-    ShootOnTheMoveConstants.TIP_CONFIRM_FRAMES = 1;
+    VisionConstants.TIP_CONFIRM_FRAMES = 1;
     run(list(observe(LEFT, TRUE_POSE, 31, Cell.SCORING, 0.5, T0 + 50 * MS)), TRUE_POSE, true);
     assertEquals(Cell.AUDIENCE, corrector.upCell(Alliance.RED));
   }
@@ -354,7 +355,7 @@ public class VisionCorrectorTest {
     TagObservation good = observe(31, Cell.AUDIENCE, TRUE_POSE);
     assertTagRejected(new TagObservation(31, good.camera, 0, 3.5, 0, 100, good.frameTimeNanos),
         TagReject.TOO_FAR);
-    ShootOnTheMoveConstants.MAX_TAG_RANGE_M = 0.1;
+    VisionConstants.MAX_TAG_RANGE_M = 0.1;
     assertTagRejected(good, TagReject.TOO_FAR);
   }
 
@@ -371,7 +372,7 @@ public class VisionCorrectorTest {
   public void rejectsWhenMovingTooFastOrTurningTooFast() {
     List<TagObservation> observations = list(observe(31, Cell.AUDIENCE, TRUE_POSE));
     PoseHistory history = stillHistory(TRUE_POSE);
-    double limit = ShootOnTheMoveConstants.MAX_SPEED_FOR_VISION_MPS;
+    double limit = VisionConstants.MAX_SPEED_FOR_VISION_MPS;
     VisionResult fast = corrector.process(observations, history, TRUE_POSE, limit, limit, 0, true, T0 + 100 * MS);
     assertEquals(Reason.TOO_FAST, fast.reason);
     assertFalse(fast.accepted);
@@ -407,7 +408,7 @@ public class VisionCorrectorTest {
     assertEquals(TagReject.NO_HISTORY, result.firstTagReject);
     assertFalse(result.accepted);
     VisionResult noHistory = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)),
-        new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE), TRUE_POSE, 0, 0, 0, true, T0 + 100 * MS);
+        new PoseHistory(VisionConstants.POSE_HISTORY_SIZE), TRUE_POSE, 0, 0, 0, true, T0 + 100 * MS);
     assertEquals(TagReject.NO_HISTORY, noHistory.firstTagReject);
   }
 
@@ -417,7 +418,7 @@ public class VisionCorrectorTest {
   public void takesTheMedianOfOddAndEvenCounts() {
     // Each tag is seen from a robot a little off the true pose, so its correction equals that offset.
     // Three tags: the median of {0, 0.02, 0.08} is 0.02. Tags from different poses would also turn the heading
-    ShootOnTheMoveConstants.VISION_HEADING = false;
+    VisionConstants.VISION_HEADING = false;
     VisionResult odd = run(list(
         observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.00, 0.0)),
         observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.02, 0.01)),
@@ -450,7 +451,7 @@ public class VisionCorrectorTest {
     assertEquals(0.30, result.spreadM, MM_TOLERANCE);
     assertNull(result.newPose);
 
-    ShootOnTheMoveConstants.MAX_SPREAD_M = 0.35; // A looser limit lets the same data through, at the median
+    VisionConstants.MAX_SPREAD_M = 0.35; // A looser limit lets the same data through, at the median
     VisionResult loose = run(list(
         observe(31, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
         observe(32, Cell.AUDIENCE, offsetBy(TRUE_POSE, 0.0, 0.0)),
@@ -464,7 +465,7 @@ public class VisionCorrectorTest {
     // Odometry went from x = 0 to x = 1 (heading -pi/2 to -pi/2 + 0.2) over one second
     FieldPose start = new FieldPose(0.0, -0.9, -Math.PI / 2);
     FieldPose end = new FieldPose(1.0, -0.9, -Math.PI / 2 + 0.2);
-    PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+    PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
     history.add(T0, start);
     history.add(T0 + 1000 * MS, end);
     // At the frame (0.5 s) odometry said (0.5, -0.9, -pi/2 + 0.1). The real robot was 0.10 m ahead in x
@@ -537,7 +538,7 @@ public class VisionCorrectorTest {
   @Test
   public void aBigJumpThatKeepsRepeatingReplacesATrustedPosition() {
     FieldPose odometry = offsetBy(TRUE_POSE, 1.8, 0.8);
-    for (int frame = 1; frame < ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {
+    for (int frame = 1; frame < VisionConstants.POSE_OVERRIDE_FRAMES; frame++) {
       assertEquals(Reason.JUMP, run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true).reason);
     }
     VisionResult result = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true);
@@ -550,7 +551,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void bigJumpsThatDisagreeNeverReplaceATrustedPosition() {
-    for (int frame = 0; frame < 3 * ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {
+    for (int frame = 0; frame < 3 * VisionConstants.POSE_OVERRIDE_FRAMES; frame++) {
       FieldPose odometry = offsetBy(TRUE_POSE, frame % 2 == 0 ? 0.8 : -0.8, 0);
       assertEquals(Reason.JUMP, run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true).reason);
     }
@@ -580,7 +581,7 @@ public class VisionCorrectorTest {
     assertEquals(-0.1, result.appliedDxM(), MM_TOLERANCE);
     assertEquals(0.05, result.appliedDyM(), MM_TOLERANCE);
 
-    ShootOnTheMoveConstants.CORRECTION_GAIN = 0.25;
+    VisionConstants.CORRECTION_GAIN = 0.25;
     VisionResult quarter = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true);
     assertEquals(odometry.xM - 0.05, quarter.newPose.xM, MM_TOLERANCE);
   }
@@ -629,14 +630,14 @@ public class VisionCorrectorTest {
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
     assertTrue(result.accepted);
     assertEquals(Math.toRadians(-5), result.dHeadingRad, 1e-6);
-    assertEquals(ShootOnTheMoveConstants.HEADING_GAIN, result.headingGain, TOLERANCE);
-    assertEquals(odometry.headingRad + ShootOnTheMoveConstants.HEADING_GAIN * Math.toRadians(-5),
+    assertEquals(VisionConstants.HEADING_GAIN, result.headingGain, TOLERANCE);
+    assertEquals(odometry.headingRad + VisionConstants.HEADING_GAIN * Math.toRadians(-5),
         result.newPose.headingRad, 1e-6);
   }
 
   @Test
   public void tagsThatOnlyDisagreeThroughTheHeadingFixItInFull() {
-    ShootOnTheMoveConstants.MAX_SPREAD_M = 0.03; // Tight enough that a 15 degree heading error spreads them
+    VisionConstants.MAX_SPREAD_M = 0.03; // Tight enough that a 15 degree heading error spreads them
     FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(15));
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
     assertTrue(result.accepted);
@@ -678,7 +679,7 @@ public class VisionCorrectorTest {
   public void aBigHeadingFixThatKeepsRepeatingReplacesATrustedHeading() {
     // Logged 4 Nov: a bad Pinpoint read left the trusted heading 172 degrees out, and the tags kept saying so
     FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(172));
-    for (int frame = 1; frame < ShootOnTheMoveConstants.HEADING_OVERRIDE_FRAMES; frame++) {
+    for (int frame = 1; frame < VisionConstants.HEADING_OVERRIDE_FRAMES; frame++) {
       assertEquals(0, runHeading(fourRedTags(TRUE_POSE), odometry, true).headingGain, TOLERANCE);
     }
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
@@ -691,7 +692,7 @@ public class VisionCorrectorTest {
   public void bigHeadingFixesThatDisagreeNeverReplaceATrustedHeading() {
     FieldPose plus = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(90));
     FieldPose minus = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad - Math.toRadians(90));
-    for (int frame = 0; frame < 3 * ShootOnTheMoveConstants.HEADING_OVERRIDE_FRAMES; frame++) {
+    for (int frame = 0; frame < 3 * VisionConstants.HEADING_OVERRIDE_FRAMES; frame++) {
       FieldPose odometry = frame % 2 == 0 ? plus : minus;
       assertEquals(0, runHeading(fourRedTags(TRUE_POSE), odometry, true).headingGain, TOLERANCE);
     }
@@ -707,7 +708,7 @@ public class VisionCorrectorTest {
     assertFalse(pair.accepted);
     VisionResult four = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0, 0, 0,
         false, false, T0 + 100 * MS);
-    assertTrue(four.headingPairs >= ShootOnTheMoveConstants.MIN_FIRST_HEADING_PAIRS);
+    assertTrue(four.headingPairs >= VisionConstants.MIN_FIRST_HEADING_PAIRS);
     assertTrue(four.accepted);
     assertEquals(TRUE_POSE.headingRad, four.newPose.headingRad, 1e-6);
   }
@@ -728,8 +729,8 @@ public class VisionCorrectorTest {
     // Logged 4 Nov: placed facing the driver (180 degrees off), and the tags put it past the field edge
     FieldPose truth = new FieldPose(-1.75, -0.5, Math.PI);
     FieldPose odometry = new FieldPose(0, 0, 0);
-    ShootOnTheMoveConstants.FIELD_HALF_SIZE_M = 1.83;
-    ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M = 0.15;
+    FieldGeometry.FIELD_HALF_SIZE_M = 1.83;
+    VisionConstants.FIX_WALL_MARGIN_M = 0.15;
     VisionResult result = corrector.process(fourRedTags(truth), stillHistory(odometry), odometry, 0, 0, 0,
         false, false, T0 + 100 * MS);
     assertEquals(Reason.HEADING_ONLY, result.reason);
@@ -745,7 +746,7 @@ public class VisionCorrectorTest {
 
   private VisionResult initialPair(FieldPose truth, FieldPose odometry, long elapsedMs, double speed, int a, int b) {
     long frame = T0 + elapsedMs * MS;
-    PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+    PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
     history.add(frame - MS, odometry); history.add(frame + MS, odometry);
     return corrector.process(list(observe(LEFT, truth, a, Cell.AUDIENCE, Double.NaN, frame),
         observe(RIGHT, truth, b, Cell.AUDIENCE, Double.NaN, frame)),
@@ -817,7 +818,7 @@ public class VisionCorrectorTest {
       long now = (long) row[0], frame = (long) row[1];
       FieldPose atFrame = new FieldPose(row[2], row[3], row[4]);
       FieldPose odometry = new FieldPose(row[5], row[6], row[7]);
-      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
       history.add(frame - MS, atFrame); history.add(frame + MS, atFrame);
       result = corrector.process(list(new TagObservation(36, RIGHT, row[11], row[12], row[13], row[14], frame),
           new TagObservation(39, RIGHT, row[15], row[16], row[17], row[18], frame)),
@@ -844,7 +845,7 @@ public class VisionCorrectorTest {
       long now = (long) row[0], frame = (long) row[1];
       FieldPose atFrame = new FieldPose(row[2], row[3], row[4]);
       FieldPose odometry = new FieldPose(row[5], row[6], row[7]);
-      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
       history.add(frame - MS, atFrame); history.add(frame + MS, atFrame);
       result = corrector.process(list(new TagObservation(35, LEFT, row[11], row[12], row[13], row[14], frame),
           new TagObservation(36, LEFT, row[15], row[16], row[17], row[18], frame)),
@@ -873,7 +874,7 @@ public class VisionCorrectorTest {
   }
 
   @Test public void temporalBootstrapHonorsDisabledVisionHeading() {
-    ShootOnTheMoveConstants.VISION_HEADING = false;
+    VisionConstants.VISION_HEADING = false;
     for (int i = 0; i < 8; i++) {
       assertFalse(initialPair(TRUE_POSE, new FieldPose(0, 0, 0), 100 + i * 500).accepted);
     }
@@ -883,7 +884,7 @@ public class VisionCorrectorTest {
     FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 8; i++) {
       long frame = T0 + (100 + i * 500) * MS;
-      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
       history.add(frame - MS, odometry); history.add(frame + MS, odometry);
       TagObservation a = observe(LEFT, TRUE_POSE, 35, Cell.AUDIENCE, Double.NaN, frame);
       TagObservation b = observe(LEFT, TRUE_POSE, 36, Cell.AUDIENCE, Double.NaN, frame);

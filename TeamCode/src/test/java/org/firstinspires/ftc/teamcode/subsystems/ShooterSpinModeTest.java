@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import static org.junit.Assert.assertEquals;
 
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.SpinMode;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.junit.Test;
 
 public class ShooterSpinModeTest {
@@ -38,8 +38,8 @@ public class ShooterSpinModeTest {
   @Test
   public void volleyRecoveryLeavesABallsDipToSpeedControlAndHandsBackEarly() {
     // 12 Nov, 211957: at 200/100 every 300-500 RPM dip went full power, overshot ~600 and rang for 0.8 s
-    double open = ShootOnTheMoveConstants.VOLLEY_OPEN_LOOP_BELOW_RPM;
-    double back = ShootOnTheMoveConstants.VOLLEY_HANDBACK_RPM;
+    double open = VolleyConstants.VOLLEY_OPEN_LOOP_BELOW_RPM;
+    double back = VolleyConstants.VOLLEY_HANDBACK_RPM;
     assertEquals(SpinMode.SPEED, ShooterSubsystem.nextSpinMode(SpinMode.SPEED, -500, open, back));
     SpinMode mode = ShooterSubsystem.nextSpinMode(SpinMode.SPEED, -900, open, back); // Two balls' dip
     assertEquals(SpinMode.SPIN_UP, mode);

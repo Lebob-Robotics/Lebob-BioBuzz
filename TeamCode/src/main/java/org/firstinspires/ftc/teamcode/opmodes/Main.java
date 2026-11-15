@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.field.PoseHandoff;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.FtcLogTuning;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
@@ -57,9 +57,8 @@ public class Main extends PsiKitIterativeOpMode {
    * OpMode inits, and Panels remembers that across OpModes. Panels then stays
    * off until the "Enable/Disable Panels" OpMode is run (or this is true and
    * Panels was never disabled). To remove it for good, delete the
-   * com.bylazar:fullpanels dependency and the @Configurable imports in
-   * ShootOnTheMoveConstants, ShooterSubsystem, HoodSubsystem and
-   * MecanumDriveSubsystem.
+   * com.bylazar:fullpanels dependency and every @Configurable annotation
+   * and its import.
    */
   public static final boolean PANELS_ENABLED = false;
 
@@ -126,10 +125,10 @@ public class Main extends PsiKitIterativeOpMode {
 
   /**
    * False for a variant that sets the volley's settings itself; true reads Volley Tuning's results. Off while
-   * VOLLEY_USE_TUNING_CSV is, so RB runs the ShootOnTheMoveConstants volley.
+   * VOLLEY_USE_TUNING_CSV is, so RB runs the VolleyConstants volley.
    */
   protected boolean usesTunedVolley() {
-    return ShootOnTheMoveConstants.VOLLEY_USE_TUNING_CSV;
+    return VolleyConstants.VOLLEY_USE_TUNING_CSV;
   }
 
   /** The robot, for a variant of this TeleOp; null before INIT or if it threw. */
@@ -185,7 +184,7 @@ public class Main extends PsiKitIterativeOpMode {
     if (volley != null) {
       applyVolleySettings();
     } else if ((usesTunedVolley() || getClass() == Main.class) && robot.isTelemetryDetail()) {
-      telemetry.addData(ShootOnTheMoveConstants.VOLLEY_ON_RT ? "Volley (RB still, RT moving)" : "Volley (RB)",
+      telemetry.addData(VolleyConstants.VOLLEY_ON_RT ? "Volley (RB still, RT moving)" : "Volley (RB)",
           "constants (full feed, matched speed each ball)");
     }
     robot.periodic();

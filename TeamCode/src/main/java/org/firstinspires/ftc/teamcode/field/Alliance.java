@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.field;
 
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 
 public enum Alliance {
   RED, BLUE;
@@ -13,7 +12,7 @@ public enum Alliance {
   /** The field heading this alliance's driver calls "forward", standing at their wall. */
   public double forwardHeadingRad() {
     return this == RED
-        ? ShootOnTheMoveConstants.ALLIANCE_FORWARD_RED_RAD
-        : ShootOnTheMoveConstants.ALLIANCE_FORWARD_BLUE_RAD;
+        ? FieldGeometry.ALLIANCE_FORWARD_RED_RAD
+        : FieldGeometry.ALLIANCE_FORWARD_BLUE_RAD;
   }
 }

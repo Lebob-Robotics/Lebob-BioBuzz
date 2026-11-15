@@ -10,7 +10,6 @@ import java.util.TreeMap;
 import org.junit.Test;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.PoseHistory;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 
 /** Replays complete home-camera detection sequences, rather than selected favorable tag pairs. */
 public class HomeVisionAcquisitionTest {
@@ -36,14 +35,14 @@ public class HomeVisionAcquisitionTest {
       for (String[] row : batch.getValue()) {
         last = row;
         long frame = Long.parseLong(row[1]);
-        CameraMount camera = row[2].equals("Left") ? ShootOnTheMoveConstants.LEFT_CAMERA
-            : ShootOnTheMoveConstants.RIGHT_CAMERA;
+        CameraMount camera = row[2].equals("Left") ? CameraMounts.LEFT_CAMERA
+            : CameraMounts.RIGHT_CAMERA;
         tags.add(new TagObservation(Integer.parseInt(row[3]), camera, n(row, 4), n(row, 5),
             n(row, 6), n(row, 7), frame));
         recorded.put(frame - 1, new FieldPose(n(row, 8), n(row, 9), n(row, 10)));
         recorded.put(frame + 1, new FieldPose(n(row, 8), n(row, 9), n(row, 10)));
       }
-      PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+      PoseHistory history = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
       for (Map.Entry<Long, FieldPose> p : recorded.entrySet()) { history.add(p.getKey(), p.getValue()); }
       VisionResult result = corrector.process(tags, history, new FieldPose(n(last, 11), n(last, 12), n(last, 13)),
           n(last, 14), n(last, 15), n(last, 16), false, false, batch.getKey());

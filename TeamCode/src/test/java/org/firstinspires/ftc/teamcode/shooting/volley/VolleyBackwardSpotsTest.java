@@ -8,7 +8,7 @@ import static org.junit.Assert.assertTrue;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.ShotPickConstants;
 import org.junit.Test;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 
@@ -34,8 +34,8 @@ public class VolleyBackwardSpotsTest {
       FieldPose pose = new FieldPose(p[0], p[1], 0);
       Aim aim = ShootOnTheMove.aimBackward(pose, 0, 0, AX, AY);
       assertTrue("spot " + VolleySpotDrive.name(s) + ": " + aim.shot.reason, aim.shot.valid);
-      assertTrue(ShootOnTheMove.inFrontOfCell(pose, AX, AY, ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
-      assertTrue(aim.shot.distanceToLipM <= ShootOnTheMoveConstants.BACKWARD_WEDGE_MAX_LIP_M);
+      assertTrue(ShootOnTheMove.inFrontOfCell(pose, AX, AY, ShotPickConstants.BACKWARD_ONLY_WEDGE_DEG));
+      assertTrue(aim.shot.distanceToLipM <= ShotPickConstants.BACKWARD_WEDGE_MAX_LIP_M);
     }
   }
 
@@ -61,10 +61,10 @@ public class VolleyBackwardSpotsTest {
   }
 
   @Test public void trimsOnlyApplyToTheShotTheyWereTunedOn() {
-    double first = ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG;
-    double later = ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG;
-    double backFirst = ShootOnTheMoveConstants.VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG;
-    double backLater = ShootOnTheMoveConstants.VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG;
+    double first = VolleyConstants.VOLLEY_FIRST_BALL_TRIM_DEG;
+    double later = VolleyConstants.VOLLEY_LATER_BALL_TRIM_DEG;
+    double backFirst = VolleyConstants.VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG;
+    double backLater = VolleyConstants.VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG;
     // Hooded trims: the hooded volley uses them, the backward one its own constants
     assertEquals(1.5, Robot.volleyTrimDeg(1.5, false, false, true), 0);
     assertEquals(backFirst, Robot.volleyTrimDeg(1.5, false, true, true), 0);
@@ -75,7 +75,7 @@ public class VolleyBackwardSpotsTest {
     assertEquals(later, Robot.volleyTrimDeg(-2, true, false, false), 0);
     // None set
     assertEquals(backFirst, Robot.volleyTrimDeg(Double.NaN, true, true, true), 0);
-    assertEquals(185, -ShootOnTheMoveConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * backFirst, 1e-9); // B3's first balls
+    assertEquals(185, -VolleyConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * backFirst, 1e-9); // B3's first balls
     assertEquals(later, Robot.volleyTrimDeg(Double.NaN, false, false, false), 0);
   }
 }

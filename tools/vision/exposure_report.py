@@ -19,7 +19,7 @@ import sys
 
 # Margins at home at 5 ms / gain 60, 1-1.5 m: about 140 (VisionSubsystem's COMP note, 15 Nov)
 HOME_NEAR_MARGIN = 140
-MIN_DECISION_MARGIN = 20  # ShootOnTheMoveConstants.MIN_DECISION_MARGIN: below it the pose correction drops the tag
+MIN_DECISION_MARGIN = 20  # VisionConstants.MIN_DECISION_MARGIN: below it the pose correction drops the tag
 RANGE_BINS_M = [(0, 1.5), (1.5, 2.5), (2.5, 3.5), (3.5, 99)]
 SPEED_BINS = [(0, 0.3, "still <0.3 m/s"), (0.3, 1.0, "moving 0.3-1 m/s"), (1.0, 99, "fast >1 m/s")]
 SETTLE_S = 0.5  # Ignore frames this soon after an exposure change

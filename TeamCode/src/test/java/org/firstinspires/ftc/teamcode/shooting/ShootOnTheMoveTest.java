@@ -11,6 +11,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
+import org.firstinspires.ftc.teamcode.field.CellGeometry;
 
 public class ShootOnTheMoveTest {
   private static final double TOLERANCE = 1e-9;
@@ -22,22 +23,22 @@ public class ShootOnTheMoveTest {
 
   @Before
   public void zeroShooterOffsetAndDelay() {
-    savedHoodTopStopDeg = ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG;
-    ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = 51; // The table's whole range, whatever the robot's stop is now
-    savedShooterForwardM = ShootOnTheMoveConstants.SHOOTER_FORWARD_M;
-    savedShooterLeftM = ShootOnTheMoveConstants.SHOOTER_LEFT_M;
-    savedFeedDelayS = ShootOnTheMoveConstants.FEED_DELAY_S;
-    ShootOnTheMoveConstants.SHOOTER_FORWARD_M = 0;
-    ShootOnTheMoveConstants.SHOOTER_LEFT_M = 0;
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0;
+    savedHoodTopStopDeg = ShooterGeometry.HOOD_TOP_STOP_DEG;
+    ShooterGeometry.HOOD_TOP_STOP_DEG = 51; // The table's whole range, whatever the robot's stop is now
+    savedShooterForwardM = ShooterGeometry.SHOOTER_FORWARD_M;
+    savedShooterLeftM = ShooterGeometry.SHOOTER_LEFT_M;
+    savedFeedDelayS = AimConstants.FEED_DELAY_S;
+    ShooterGeometry.SHOOTER_FORWARD_M = 0;
+    ShooterGeometry.SHOOTER_LEFT_M = 0;
+    AimConstants.FEED_DELAY_S = 0;
   }
 
   @After
   public void restoreConstants() {
-    ShootOnTheMoveConstants.SHOOTER_FORWARD_M = savedShooterForwardM;
-    ShootOnTheMoveConstants.SHOOTER_LEFT_M = savedShooterLeftM;
-    ShootOnTheMoveConstants.FEED_DELAY_S = savedFeedDelayS;
-    ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = savedHoodTopStopDeg;
+    ShooterGeometry.SHOOTER_FORWARD_M = savedShooterForwardM;
+    ShooterGeometry.SHOOTER_LEFT_M = savedShooterLeftM;
+    AimConstants.FEED_DELAY_S = savedFeedDelayS;
+    ShooterGeometry.HOOD_TOP_STOP_DEG = savedHoodTopStopDeg;
   }
 
   @Test
@@ -68,7 +69,7 @@ public class ShootOnTheMoveTest {
     Shot near = ShootOnTheMove.calculate(0.4, 0, 0);
     assertTrue(far.valid);
     assertTrue(near.hoodDeg > far.hoodDeg + 2); // Nearer is steeper
-    ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = far.hoodDeg; // Now the far shot is inside the stop's margin
+    ShooterGeometry.HOOD_TOP_STOP_DEG = far.hoodDeg; // Now the far shot is inside the stop's margin
     Shot blocked = ShootOnTheMove.calculate(1.0, 0, 0);
     assertFalse(blocked.valid);
     assertEquals(Shot.Reason.HOOD_OUT_OF_RANGE, blocked.reason);
@@ -104,7 +105,7 @@ public class ShootOnTheMoveTest {
     for (int dist = 0; dist + 1 < ShotTable.DIST_M.length; dist++) {
       double nearHood = ShotTable.HOOD_DEG[dist][still];
       double farHood = ShotTable.HOOD_DEG[dist + 1][still];
-      boolean blendable = Math.abs(nearHood - farHood) <= ShootOnTheMoveConstants.MAX_HOOD_DIFFERENCE_TO_BLEND_DEG;
+      boolean blendable = Math.abs(nearHood - farHood) <= AimConstants.MAX_HOOD_DIFFERENCE_TO_BLEND_DEG;
       if (!blendable) { // Also false when either is NaN
         continue;
       }
@@ -162,7 +163,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void withoutAShotTheTurnStaysAtItsLimitInsteadOfDroppingToZero() {
-    double max = Math.toRadians(ShootOnTheMoveConstants.MAX_TURNING_DEG);
+    double max = Math.toRadians(AimConstants.MAX_TURNING_DEG);
     assertEquals(-max, ShootOnTheMove.calculate(1.0, 0, 10).turningRad, 1e-9); // Moving left: turn clockwise
     Shot tooClose = ShootOnTheMove.calculate(0.05, 0, 0.5);
     assertEquals(Shot.Reason.OUT_OF_RANGE, tooClose.reason);
@@ -173,7 +174,7 @@ public class ShootOnTheMoveTest {
   @Test
   public void notReadyWhileTheSidewaysTurnIsSwinging() {
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
-    double swing = (aim.headingToleranceRad + Math.toRadians(1)) / ShootOnTheMoveConstants.FEED_DELAY_MAX_S;
+    double swing = (aim.headingToleranceRad + Math.toRadians(1)) / AimConstants.FEED_DELAY_MAX_S;
     assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, 0, 0));
     assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, 0, swing));
     assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, swing, swing)); // Turning with it
@@ -191,21 +192,21 @@ public class ShootOnTheMoveTest {
   @Test
   public void distanceIsMeasuredToTheNearLip() {
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
-    assertEquals(1.5 - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M, aim.shot.distanceToLipM, TOLERANCE);
+    assertEquals(1.5 - CellGeometry.CLUSTER_TO_NEAR_LIP_M, aim.shot.distanceToLipM, TOLERANCE);
   }
 
   @Test
   public void shooterOffsetMovesWhereTheBallLeavesFrom() {
-    ShootOnTheMoveConstants.SHOOTER_FORWARD_M = 0.1; // Robot faces -x, so this is 0.1 m further from a Cell at +x
+    ShooterGeometry.SHOOTER_FORWARD_M = 0.1; // Robot faces -x, so this is 0.1 m further from a Cell at +x
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, Math.PI), 0, 0, 1.5, 0);
-    assertEquals(1.6 - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M, aim.shot.distanceToLipM, TOLERANCE);
+    assertEquals(1.6 - CellGeometry.CLUSTER_TO_NEAR_LIP_M, aim.shot.distanceToLipM, TOLERANCE);
   }
 
   @Test
   public void feedDelayMovesTheRobotForward() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0.5, 0, 1.5, 0);
-    assertEquals(1.4 - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M, aim.shot.distanceToLipM, TOLERANCE);
+    assertEquals(1.4 - CellGeometry.CLUSTER_TO_NEAR_LIP_M, aim.shot.distanceToLipM, TOLERANCE);
   }
 
   @Test
@@ -226,7 +227,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void holdsTheShotForNowAndItsRateToTheRelease() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0.4, 0, 2.0, 0);
     // The robot at release, 0.2 s on, standing at where it is then with the same velocity
     Aim atRelease = ShootOnTheMove.aim(new FieldPose(0.08, 0, 0), 0.4, 0, 2.0, 0);
@@ -257,7 +258,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void noMovingShotCloseToTheLip() {
-    double cellX = ShootOnTheMoveConstants.MIN_MOVING_SHOT_LIP_M - 0.1 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    double cellX = FireConstants.MIN_MOVING_SHOT_LIP_M - 0.1 + CellGeometry.CLUSTER_TO_NEAR_LIP_M;
     Aim standing = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, cellX, 0);
     Aim strafing = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0.5, cellX, 0);
     assertTrue(standing.shot.valid && strafing.shot.valid);
@@ -270,24 +271,24 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void notReadyWhileTheHoodTargetSwingsFast() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0.6, 0, 1.6, 0); // Driving straight at it
     assertTrue(aim.shot.valid);
     assertTrue(Math.abs(aim.hoodRateDegPerSec) > 0);
-    double saved = ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC;
+    double saved = FireConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC;
     try {
-      ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = Math.abs(aim.hoodRateDegPerSec) + 1;
+      FireConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = Math.abs(aim.hoodRateDegPerSec) + 1;
       assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, aim.lockRateRadPerSec));
-      ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = Math.abs(aim.hoodRateDegPerSec) - 1;
+      FireConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = Math.abs(aim.hoodRateDegPerSec) - 1;
       assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, aim.lockRateRadPerSec));
     } finally {
-      ShootOnTheMoveConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = saved;
+      FireConstants.MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC = saved;
     }
   }
 
   @Test
   public void notReadyWhileSwingingThroughTheTarget() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
     // On the heading now, but turning 75 deg/s carries it 15 degrees past by the time the ball leaves
     assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.targetHeadingRad, Math.toRadians(-75)));
@@ -296,7 +297,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void notReadyWhenOnlyTurningFastLinesUpTheExit() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
     double rate = Math.toRadians(50);
     double heading = aim.targetHeadingRad - rate * 0.2; // 10 degrees short, arriving as the ball leaves
@@ -305,14 +306,14 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void standingStillTheLockHeadingIsTheTarget() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
     assertEquals(aim.targetHeadingRad, aim.lockHeadingRad, TOLERANCE);
   }
 
   @Test
   public void strafingTheLockHeadingTrailsTheTargetByTheFeedDelay() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     // Moving +y past a Cell at +x: by the time the ball leaves the Cell is further clockwise
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0.5, 1.5, 0);
     assertTrue(aim.shot.valid);
@@ -322,7 +323,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void holdingTheLockHeadingWhileTurningWithTheTargetIsReady() {
-    ShootOnTheMoveConstants.FEED_DELAY_S = 0.2;
+    AimConstants.FEED_DELAY_S = 0.2;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0.5, 1.5, 0);
     double rate = Angles.normalize(aim.targetHeadingRad - aim.lockHeadingRad) / 0.2;
     assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, rate));
@@ -339,7 +340,7 @@ public class ShootOnTheMoveTest {
   @Test
   public void notReadyWhenTheLatestExitWouldMiss() {
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
-    double driftRate = (aim.headingToleranceRad + Math.toRadians(1)) / ShootOnTheMoveConstants.FEED_DELAY_MAX_S;
+    double driftRate = (aim.headingToleranceRad + Math.toRadians(1)) / AimConstants.FEED_DELAY_MAX_S;
     assertFalse(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, driftRate));
     assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, driftRate / 2));
   }
@@ -353,7 +354,7 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void headingToleranceShrinksWithDistanceAndIsCapped() {
-    double cap = Math.toRadians(ShootOnTheMoveConstants.MAX_HEADING_TOLERANCE_DEG);
+    double cap = Math.toRadians(FireConstants.MAX_HEADING_TOLERANCE_DEG);
     assertEquals(cap, ShootOnTheMove.headingTolerance(0.3), 1e-12);
     assertTrue(ShootOnTheMove.headingTolerance(3.0) < ShootOnTheMove.headingTolerance(2.0));
     assertTrue(ShootOnTheMove.headingTolerance(3.0) < cap);
@@ -379,16 +380,16 @@ public class ShootOnTheMoveTest {
   }
 
   @Test public void backwardJustInsideTheTableUsesItsFirstPoint() {
-    Shot shot = ShootOnTheMove.calculateBackward(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M, 0, 0);
+    Shot shot = ShootOnTheMove.calculateBackward(BackwardShotConstants.BACKWARD_MIN_DIST_M, 0, 0);
     assertTrue(shot.valid);
-    assertEquals(ShootOnTheMoveConstants.BACKWARD_RPM[0], shot.targetRpm, 1e-6);
-    assertEquals(ShootOnTheMoveConstants.BACKWARD_HOOD_DEG[0], shot.hoodDeg, 1e-6);
-    assertEquals(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M, shot.distanceToLipM, 1e-9);
+    assertEquals(BackwardShotConstants.BACKWARD_RPM[0], shot.targetRpm, 1e-6);
+    assertEquals(BackwardShotConstants.BACKWARD_HOOD_DEG[0], shot.hoodDeg, 1e-6);
+    assertEquals(BackwardShotConstants.BACKWARD_MIN_DIST_M, shot.distanceToLipM, 1e-9);
   }
 
   @Test public void backwardRefusesOutsideTheCalibratedDistances() {
     assertEquals(Shot.Reason.OUT_OF_RANGE,
-        ShootOnTheMove.calculateBackward(ShootOnTheMoveConstants.BACKWARD_MIN_DIST_M - 0.01, 0, 0).reason);
+        ShootOnTheMove.calculateBackward(BackwardShotConstants.BACKWARD_MIN_DIST_M - 0.01, 0, 0).reason);
     assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(2.4, 0, 0).reason);
     assertEquals(Shot.Reason.OUT_OF_RANGE, ShootOnTheMove.calculateBackward(Double.NaN, 0, 0).reason);
   }
@@ -400,7 +401,7 @@ public class ShootOnTheMoveTest {
   }
 
   @Test public void backwardInRangePointsTheRobotsFrontAtTheCell() {
-    double clusterX = 1.8 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    double clusterX = 1.8 + CellGeometry.CLUSTER_TO_NEAR_LIP_M;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, clusterX, 0, true);
     assertTrue(aim.backward);
     assertTrue(aim.shot.valid);
@@ -409,19 +410,19 @@ public class ShootOnTheMoveTest {
   }
 
   @Test public void beyondTheBackwardTableUsesTheHoodedShotOutOfTheBack() {
-    double clusterX = 2.6 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    double clusterX = 2.6 + CellGeometry.CLUSTER_TO_NEAR_LIP_M;
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, clusterX, 0, true);
     assertFalse(aim.backward);
     assertEquals(Math.PI, Math.abs(aim.targetHeadingRad), 1e-9);
   }
 
   @Test public void withoutBackwardAllowedItIsAlwaysTheHoodedShot() {
-    double clusterX = 1.8 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    double clusterX = 1.8 + CellGeometry.CLUSTER_TO_NEAR_LIP_M;
     assertFalse(ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, clusterX, 0).backward);
   }
 
   private static boolean backwardQuicker(double lipM, double headingRad, double towardMps, boolean hoodAndWheelsAtBackward) {
-    double clusterX = lipM + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    double clusterX = lipM + CellGeometry.CLUSTER_TO_NEAR_LIP_M;
     FieldPose pose = new FieldPose(0, 0, headingRad);
     Aim hooded = ShootOnTheMove.aimHooded(pose, towardMps, 0, clusterX, 0);
     Aim backward = ShootOnTheMove.aimBackward(pose, towardMps, 0, clusterX, 0);
@@ -451,12 +452,12 @@ public class ShootOnTheMoveTest {
 
   @Test
   public void aBackwardShotBlockedBySpeedCountsLater() {
-    double clusterX = 0.7 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    double clusterX = 0.7 + CellGeometry.CLUSTER_TO_NEAR_LIP_M;
     FieldPose sideways = new FieldPose(0, 0, Math.PI / 2);
     Aim fast = ShootOnTheMove.aimBackward(sideways, 1.0, 0, clusterX, 0);
     Aim slow = ShootOnTheMove.aimBackward(sideways, 0, 0, clusterX, 0);
     assertFalse(fast.shot.valid);
-    assertEquals(ShootOnTheMoveConstants.SHOT_PICK_BLOCKED_S,
+    assertEquals(ShotPickConstants.SHOT_PICK_BLOCKED_S,
         ShootOnTheMove.secondsToReady(fast, Math.PI / 2, Double.NaN, Double.NaN)
             - ShootOnTheMove.secondsToReady(slow, Math.PI / 2, Double.NaN, Double.NaN), 1e-9);
     // Side on and driving at it: both need 90 degrees, so the hooded shot, which it can take moving, wins
@@ -469,7 +470,7 @@ public class ShootOnTheMoveTest {
     Aim aim = ShootOnTheMove.aimBackward(new FieldPose(0, 0, 0), 1.0, 0, 1.5, 0);
     assertTrue(aim.backward);
     assertFalse(aim.shot.valid);
-    assertEquals(ShootOnTheMoveConstants.BACKWARD_DIRECTION_RAD, aim.targetHeadingRad, 1e-6);
+    assertEquals(ShooterGeometry.BACKWARD_DIRECTION_RAD, aim.targetHeadingRad, 1e-6);
   }
 
   @Test

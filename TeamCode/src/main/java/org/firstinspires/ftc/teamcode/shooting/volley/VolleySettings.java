@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.robot.Robot;
  * count: an unconfirmed estimate can come from an old feed (spot 0's is 12 Nov's 0.6 feeder). A shot near a confirmed
  * spot uses that spot's; anywhere else the confirmed spot nearest its distance to the Cell, a guess: the trims are
  * launch-angle offsets on the shot table, so the table still does the distance and angle, and what is left mostly
- * follows the distance. With no CSV the ShootOnTheMoveConstants VOLLEY_* values apply, set from the same data.
+ * follows the distance. With no CSV the VolleyConstants values apply, set from the same data.
  */
 public final class VolleySettings {
   static final double NEAR_SPOT_M = 0.5;

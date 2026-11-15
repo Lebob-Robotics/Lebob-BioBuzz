@@ -10,7 +10,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.hardware.HubMotors;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.AimConstants;
+import org.firstinspires.ftc.teamcode.shooting.ShooterGeometry;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -112,7 +113,7 @@ public class HoodSubsystem extends SubsystemBase {
   /** REV errors smaller than this (ticks) are on target: 45 ticks is 0.2 degrees. */
   public static int DEADBAND_TICKS = 45;
   /** Targets are kept this far inside both stops. */
-  public static double STOP_MARGIN_DEG = ShootOnTheMoveConstants.HOOD_STOP_MARGIN_DEG;
+  public static double STOP_MARGIN_DEG = AimConstants.HOOD_STOP_MARGIN_DEG;
   /** Motor speeds below this (ticks/s) count as at rest; the hub reports speed in 20 tick/s steps. */
   public static double AT_REST_TICKS_PER_SEC = 30;
   /** Motor error the guard treats as "trying to move" for its stall check. */
@@ -124,7 +125,7 @@ public class HoodSubsystem extends SubsystemBase {
   /** Launch angle at the lower hard stop, where the encoder is zeroed. */
   public static double ZERO_ANGLE_DEG = 99.0;
   /** Launch angle at the top of the hood's travel; sets the upper soft limit. */
-  public static double MIN_ANGLE_DEG = ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG;
+  public static double MIN_ANGLE_DEG = ShooterGeometry.HOOD_TOP_STOP_DEG;
   /** Encoder ticks per degree of launch angle: 8192 ticks/rev through the 10:1. */
   public static double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
 

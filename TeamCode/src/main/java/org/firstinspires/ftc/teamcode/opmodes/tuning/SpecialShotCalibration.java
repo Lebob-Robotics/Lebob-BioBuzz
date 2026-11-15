@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.util.RobotLog;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.field.CellGeometry;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
@@ -280,7 +280,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   /** {x, y} where the robot centre stands for the far Cell: on the Hive's line, LIP_GAP_M out from the near lip. */
   static double[] spotFor(Alliance alliance, Cell far) {
     double[] farPoint = VisionCorrector.upCellAimPoint(alliance, far);
-    double outM = Math.abs(farPoint[0]) + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M + LIP_GAP_M;
+    double outM = Math.abs(farPoint[0]) + CellGeometry.CLUSTER_TO_NEAR_LIP_M + LIP_GAP_M;
     return new double[] {farPoint[0] > 0 ? -outM : outM, farPoint[1]};
   }
 

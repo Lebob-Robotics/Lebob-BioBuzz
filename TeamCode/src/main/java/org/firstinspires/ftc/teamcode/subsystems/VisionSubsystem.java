@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.vision.CameraMount;
 import org.firstinspires.ftc.teamcode.vision.CellSighting;
 import org.firstinspires.ftc.teamcode.vision.ClusterFromTags;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.vision.CameraMounts;
 import org.firstinspires.ftc.teamcode.vision.TagObservation;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.VisionProcessor;
@@ -665,7 +665,7 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   private static CameraMount mountOf(Side side) {
-    return side == Side.LEFT ? ShootOnTheMoveConstants.LEFT_CAMERA : ShootOnTheMoveConstants.RIGHT_CAMERA;
+    return side == Side.LEFT ? CameraMounts.LEFT_CAMERA : CameraMounts.RIGHT_CAMERA;
   }
 
   /** Below this the stream is still (re)starting: see {@link #frameTimesTrusted}. Normal running is 5-25 fps. */

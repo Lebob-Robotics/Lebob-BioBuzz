@@ -5,7 +5,7 @@ import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.subsystems.VisionInputs;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.vision.CameraMount;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.vision.CameraMounts;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import org.firstinspires.ftc.teamcode.opmodes.Main;
@@ -73,7 +73,7 @@ public class VisionCalibration extends PsiKitIterativeOpMode {
     for (VisionSubsystem.Side side : VisionSubsystem.Side.values()) {
       VisionInputs in = vision.getInputs(side);
       CameraMount mount = side == VisionSubsystem.Side.LEFT
-          ? ShootOnTheMoveConstants.LEFT_CAMERA : ShootOnTheMoveConstants.RIGHT_CAMERA;
+          ? CameraMounts.LEFT_CAMERA : CameraMounts.RIGHT_CAMERA;
       double[] horizontalM = new double[in.tagIds.length];
       double[] slantM = new double[in.tagIds.length];
       for (int i = 0; i < in.tagIds.length; i++) {

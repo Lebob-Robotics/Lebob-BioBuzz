@@ -1,6 +1,12 @@
 package org.firstinspires.ftc.teamcode.shooting;
 
-import static org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants.*;
+import static org.firstinspires.ftc.teamcode.shooting.ShooterGeometry.*;
+import static org.firstinspires.ftc.teamcode.field.CellGeometry.*;
+import static org.firstinspires.ftc.teamcode.shooting.AimConstants.*;
+import static org.firstinspires.ftc.teamcode.shooting.FireConstants.*;
+import static org.firstinspires.ftc.teamcode.shooting.ShotPickConstants.*;
+import static org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants.*;
+import static org.firstinspires.ftc.teamcode.shooting.SotmConstants.*;
 
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.FieldPose;

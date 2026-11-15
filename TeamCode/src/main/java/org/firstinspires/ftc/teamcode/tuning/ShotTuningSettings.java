@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.tuning;
 
 import com.bylazar.configurables.annotations.Configurable;
+import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
 
 /** Shot Tuning's search and moving-pass settings, editable live from Panels. */
 @Configurable
@@ -45,7 +46,7 @@ public final class ShotTuningSettings {
   // ---- Moving passes (Start): drive through the spot and fire one ball as it passes
   public static double PASS_HALF_LENGTH_M = 0.35; // Start and end this far either side of the spot
   public static double PASS_STICK_HOODED = 0.5;
-  // Backward shots are only taken up to ShootOnTheMoveConstants.BACKWARD_MAX_SPEED_MPS
+  // Backward shots are only taken up to BackwardShotConstants.BACKWARD_MAX_SPEED_MPS
   public static double PASS_STICK_BACKWARD = 0.25;
   public static double PASS_FIRE_LEAD_M = 0.10; // Asks for the ball this far before the spot
   public static double PASS_READY_S = 1.0; // Lines up standing at the start first

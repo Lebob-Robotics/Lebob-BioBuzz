@@ -2,15 +2,16 @@ package org.firstinspires.ftc.teamcode.robot;
 
 import static org.junit.Assert.assertEquals;
 
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.AimConstants;
+import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
 import org.junit.Test;
 
 public class AimTrimTest {
   @Test
   public void teleOpAimsWithTheStandingTrimsTheToolsFound() {
     // 7 Nov: both tuning tools fired with +2.0 hooded and +1.5 backward; TeleOp fired with none
-    assertEquals(ShootOnTheMoveConstants.HOODED_HEADING_TRIM_DEG, Robot.aimTrimDeg(false, 0, false), 1e-9);
-    assertEquals(ShootOnTheMoveConstants.BACKWARD_HEADING_TRIM_DEG, Robot.aimTrimDeg(false, 0, true), 1e-9);
+    assertEquals(AimConstants.HOODED_HEADING_TRIM_DEG, Robot.aimTrimDeg(false, 0, false), 1e-9);
+    assertEquals(BackwardShotConstants.BACKWARD_HEADING_TRIM_DEG, Robot.aimTrimDeg(false, 0, true), 1e-9);
   }
 
   @Test

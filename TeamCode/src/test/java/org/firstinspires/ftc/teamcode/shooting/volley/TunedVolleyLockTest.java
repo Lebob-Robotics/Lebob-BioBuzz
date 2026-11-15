@@ -4,7 +4,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 import org.firstinspires.ftc.teamcode.auto.AutoField;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.AimConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.junit.Test;
 import org.firstinspires.ftc.teamcode.field.Cell;
@@ -17,18 +17,18 @@ import org.firstinspires.ftc.teamcode.field.Alliance;
  */
 public class TunedVolleyLockTest {
   @Test public void volleysFeedAsTheTunedProfile() {
-    assertEquals(1.0, ShootOnTheMoveConstants.VOLLEY_FEED_POWER, 0);
-    assertEquals(1.0, ShootOnTheMoveConstants.VOLLEY_INDEXER_SCALE, 0);
-    assertEquals(0, ShootOnTheMoveConstants.VOLLEY_BOOST_RPM, 0);
+    assertEquals(1.0, VolleyConstants.VOLLEY_FEED_POWER, 0);
+    assertEquals(1.0, VolleyConstants.VOLLEY_INDEXER_SCALE, 0);
+    assertEquals(0, VolleyConstants.VOLLEY_BOOST_RPM, 0);
     // Without the CSV: the medians of the eight forward spots confirmed by 15 Nov 1140
-    assertEquals(-0.75, ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG, 0);
-    assertEquals(-0.75, ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG, 0);
-    assertEquals(0, ShootOnTheMoveConstants.HOODED_RPM_OFFSET, 0);
-    assertEquals("profile 0 fed 0.30 s apart or more", 0.30, ShootOnTheMoveConstants.VOLLEY_MIN_FEED_SPACING_S, 0);
+    assertEquals(-0.75, VolleyConstants.VOLLEY_FIRST_BALL_TRIM_DEG, 0);
+    assertEquals(-0.75, VolleyConstants.VOLLEY_LATER_BALL_TRIM_DEG, 0);
+    assertEquals(0, AimConstants.HOODED_RPM_OFFSET, 0);
+    assertEquals("profile 0 fed 0.30 s apart or more", 0.30, VolleyConstants.VOLLEY_MIN_FEED_SPACING_S, 0);
   }
 
   @Test public void theAutoAimsAsVolleyTuningDid() {
-    assertEquals(2.0, ShootOnTheMoveConstants.HOODED_HEADING_TRIM_DEG, 0); // Volley Tuning adds 0 to it
+    assertEquals(2.0, AimConstants.HOODED_HEADING_TRIM_DEG, 0); // Volley Tuning adds 0 to it
     assertEquals(0, AutoField.AIM_INWARD_M, 0);
   }
 

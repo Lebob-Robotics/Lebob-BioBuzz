@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.field.FieldGeometry;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import org.firstinspires.ftc.teamcode.opmodes.Main;
@@ -360,7 +360,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
    * side wall on the driver's right. Red (f = +y): {+1.53, -1.53}; blue (f = -y): {-1.53, +1.53}.
    */
   static double[] parkPoint(double f) {
-    return cornerPoint(f, PARK_OFF_WALL_M, ShootOnTheMoveConstants.FIELD_HALF_SIZE_M + PARK_LEFT_M);
+    return cornerPoint(f, PARK_OFF_WALL_M, FieldGeometry.FIELD_HALF_SIZE_M + PARK_LEFT_M);
   }
 
   /**
@@ -369,16 +369,16 @@ public class ShootAuto extends PsiKitIterativeOpMode {
    */
   static double[][] parkRoute(double f, double x, double y) {
     double[] park = parkPoint(f);
-    double[] laneAtZone = cornerPoint(f, PARK_LANE_OFF_WALL_M, ShootOnTheMoveConstants.FIELD_HALF_SIZE_M + PARK_LEFT_M);
+    double[] laneAtZone = cornerPoint(f, PARK_LANE_OFF_WALL_M, FieldGeometry.FIELD_HALF_SIZE_M + PARK_LEFT_M);
     // Our position along the wall (driver's right) and off it, in the same terms as cornerPoint
     double fx = Math.cos(f);
     double fy = Math.sin(f);
-    double offWall = ShootOnTheMoveConstants.FIELD_HALF_SIZE_M + (x * fx + y * fy);
+    double offWall = FieldGeometry.FIELD_HALF_SIZE_M + (x * fx + y * fy);
     double right = x * fy - y * fx;
     if (offWall <= PARK_LANE_OFF_WALL_M + PARK_WAYPOINT_M) {
       return new double[][] {laneAtZone, park};
     }
-    double[] laneHere = cornerPoint(f, PARK_LANE_OFF_WALL_M, ShootOnTheMoveConstants.FIELD_HALF_SIZE_M - right);
+    double[] laneHere = cornerPoint(f, PARK_LANE_OFF_WALL_M, FieldGeometry.FIELD_HALF_SIZE_M - right);
     return new double[][] {laneHere, laneAtZone, park};
   }
 
@@ -386,8 +386,8 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   static double[] cornerPoint(double f, double offWallM, double offSideM) {
     double fx = Math.cos(f);
     double fy = Math.sin(f);
-    double back = ShootOnTheMoveConstants.FIELD_HALF_SIZE_M - offWallM;
-    double right = ShootOnTheMoveConstants.FIELD_HALF_SIZE_M - offSideM;
+    double back = FieldGeometry.FIELD_HALF_SIZE_M - offWallM;
+    double right = FieldGeometry.FIELD_HALF_SIZE_M - offSideM;
     // Right of forward is forward turned clockwise: (fy, -fx)
     return new double[] {right * fy - back * fx, -right * fx - back * fy};
   }

@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.tuning.BallMark;
 import org.firstinspires.ftc.teamcode.tuning.MarkKeys;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyCalibration;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyCalibration.Ball;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyTrial;
@@ -286,7 +286,7 @@ public class VolleyTuning extends Main {
       }
       if (trial.balls() > 0 && Double.isFinite(robot.getVolleyDipDepthRpm())) {
         cal.dip(trial.balls() - 1, robot.getVolleyLeftAtRpm(), robot.getVolleyDipDepthRpm(),
-            ShootOnTheMoveConstants.VOLLEY_DOUBLE_DIP_RPM);
+            VolleyConstants.VOLLEY_DOUBLE_DIP_RPM);
       }
     }
     finishTrial();
@@ -445,7 +445,7 @@ public class VolleyTuning extends Main {
   public static String resultRow(String session, VolleyCalibration cal, Ball ball, VolleyAutoTuner.Settings settings,
       int spot, double[] point, double trialSeconds, String reason) {
     return cal.row(session, ball, settings.boostRpm, settings.fastRecovery,
-        ShootOnTheMoveConstants.VOLLEY_DOUBLE_DIP_RPM, ball.batteryVolts)
+        VolleyConstants.VOLLEY_DOUBLE_DIP_RPM, ball.batteryVolts)
         + String.format(Locale.US, ",%d,%.3f,%.3f,%b,%.3f,%s,%.2f,%d,%.3f", spot, point[0], point[1],
             ball.detected, ball.elapsedS, reason, settings.indexerScale, settings.profile, trialSeconds) + String.format(Locale.US, ",%.2f", settings.headingTrim);
   }

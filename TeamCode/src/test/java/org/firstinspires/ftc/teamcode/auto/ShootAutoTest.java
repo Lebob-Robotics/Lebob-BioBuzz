@@ -4,19 +4,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.field.FieldGeometry;
 import org.junit.Test;
 
 public class ShootAutoTest {
   @Test
   public void parksWhollyInTheManualsLoadingZone() {
     double half = 0.23; // Robot centre to bumper
-    double[] red = ShootAuto.parkPoint(ShootOnTheMoveConstants.ALLIANCE_FORWARD_RED_RAD);
+    double[] red = ShootAuto.parkPoint(FieldGeometry.ALLIANCE_FORWARD_RED_RAD);
     assertEquals(-0.915, red[0], 1e-9); // Tile A5: x -1.22 to -0.61
     assertEquals(-1.52, red[1], 1e-9);
     assertTrue(red[0] - half >= -1.22 && red[0] + half <= -0.61);
-    assertTrue(red[1] - half >= -ShootOnTheMoveConstants.FIELD_HALF_SIZE_M && red[1] + half <= -1.22);
-    double[] blue = ShootAuto.parkPoint(ShootOnTheMoveConstants.ALLIANCE_FORWARD_BLUE_RAD);
+    assertTrue(red[1] - half >= -FieldGeometry.FIELD_HALF_SIZE_M && red[1] + half <= -1.22);
+    double[] blue = ShootAuto.parkPoint(FieldGeometry.ALLIANCE_FORWARD_BLUE_RAD);
     assertEquals(0.915, blue[0], 1e-9); // Red's turned half a turn
     assertEquals(1.52, blue[1], 1e-9);
   }
@@ -24,7 +24,7 @@ public class ShootAutoTest {
   @Test
   public void parkRouteKeepsClearOfTheHiveAndTheWallFlower() {
     // 13 Nov 193927: blue shot from about (-1.45, 0.95)
-    double[][] route = ShootAuto.parkRoute(ShootOnTheMoveConstants.ALLIANCE_FORWARD_BLUE_RAD, -1.45, 0.95);
+    double[][] route = ShootAuto.parkRoute(FieldGeometry.ALLIANCE_FORWARD_BLUE_RAD, -1.45, 0.95);
     assertEquals(3, route.length);
     double[] from = {-1.45, 0.95};
     for (double[] to : route) {
@@ -44,7 +44,7 @@ public class ShootAutoTest {
 
   @Test
   public void startsInTheCornerOnTheDriversRight() {
-    double[] blue = ShootAuto.cornerPoint(ShootOnTheMoveConstants.ALLIANCE_FORWARD_BLUE_RAD, 0.23, 0.23);
+    double[] blue = ShootAuto.cornerPoint(FieldGeometry.ALLIANCE_FORWARD_BLUE_RAD, 0.23, 0.23);
     assertEquals(-1.60, blue[0], 1e-9); // 13 Nov 191356: the tags placed a blue start near (-1.46, 1.38)
     assertEquals(1.60, blue[1], 1e-9);
   }
@@ -69,7 +69,7 @@ public class ShootAutoTest {
   public void parkStopsInTheZoneInsteadOfRunningPastIt() {
     // 13 Nov 215133: red, shot from (1.56, -0.74); full stick ran to x -1.354, 0.44 m past the zone's middle.
     // Robot model from that log: 1.6 m/s top speed, 0.3 s lag, 3.4 m/s^2 grip, 0.1 s loop, velocity a loop old
-    double f = ShootOnTheMoveConstants.ALLIANCE_FORWARD_RED_RAD;
+    double f = FieldGeometry.ALLIANCE_FORWARD_RED_RAD;
     double[][] route = ShootAuto.parkRoute(f, 1.56, -0.74);
     double x = 1.56, y = -0.74, vx = 0, vy = 0, seenVx = 0, seenVy = 0, minX = x;
     int leg = 0;

@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.tuning.AimTrimSearch;
 import org.firstinspires.ftc.teamcode.tuning.BallMark;
 import org.firstinspires.ftc.teamcode.tuning.ShotSearch;
@@ -105,7 +104,7 @@ public final class VolleyAutoTuner {
     int ins = 0, bounces = 0;
     for (VolleyCalibration.Ball b : balls) {
       unseen |= b.mark == null || VolleyCalibration.UNSEEN.equals(b.mark);
-      if ("IN".equals(b.mark) && !b.doubleBall(ShootOnTheMoveConstants.VOLLEY_DOUBLE_DIP_RPM)) { ins++; }
+      if ("IN".equals(b.mark) && !b.doubleBall(VolleyConstants.VOLLEY_DOUBLE_DIP_RPM)) { ins++; }
       if (b.mark != null && !VolleyCalibration.UNSEEN.equals(b.mark) && !VolleyCalibration.HIT.equals(b.mark)
           && BallMark.parse(b.mark).bounced) { bounces++; }
     }

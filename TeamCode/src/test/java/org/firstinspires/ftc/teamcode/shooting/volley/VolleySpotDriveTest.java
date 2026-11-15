@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.ShotPickConstants;
 
 public class VolleySpotDriveTest {
   @Test public void pointsMirrorLikeShotTuning() {
@@ -36,13 +36,13 @@ public class VolleySpotDriveTest {
       double[] p = VolleySpotDrive.point(s, -0.44, -0.32);
       assertTrue(ShootOnTheMove.inFrontOfCell(
           new FieldPose(p[0], p[1], 0), -0.44, -0.32,
-          ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
+          ShotPickConstants.BACKWARD_ONLY_WEDGE_DEG));
     }
     for (int s : VolleySpotDrive.VOLLEY_ORDER) {
       double[] p = VolleySpotDrive.point(s, -0.44, -0.32);
       assertFalse("spot " + s, ShootOnTheMove.inFrontOfCell(
           new FieldPose(p[0], p[1], 0), -0.44, -0.32,
-          ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
+          ShotPickConstants.BACKWARD_ONLY_WEDGE_DEG));
     }
   }
 

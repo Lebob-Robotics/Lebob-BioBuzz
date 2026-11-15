@@ -9,7 +9,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 public final class PinpointSettings {
   private PinpointSettings() {}
 
-  // CAD, to the middle of the four wheels, the centre ShootOnTheMoveConstants uses. The old (0, -105) made
+  // CAD, to the middle of the four wheels, the centre ShooterGeometry uses. The old (0, -105) made
   // spinning in place read as 0.07 m/s forward and 0.10 m/s left per rad/s (fits 0.85-0.99 over four runs),
   // which worked back to offsets of about (-65, 0): the hooded shot's lead swung with every turn (5 Nov, 084206)
   public static final double X_OFFSET_MM = -71.5;

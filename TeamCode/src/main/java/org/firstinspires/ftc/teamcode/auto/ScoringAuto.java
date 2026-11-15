@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import org.firstinspires.ftc.teamcode.field.Cell;
@@ -107,7 +107,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     robot.setAlliance(alliance);
     robot.setHandsOffPose(true);
     robot.init();
-    if (ShootOnTheMoveConstants.VOLLEY_USE_TUNING_CSV) {
+    if (VolleyConstants.VOLLEY_USE_TUNING_CSV) {
       volley = VolleySettings.loadTuned(); // Reads a file only: INIT moves nothing
     }
     follower = new Follower(localizer, drivetrain, Constants.algorithm());

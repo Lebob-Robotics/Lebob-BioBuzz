@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.vision;
 
-import static org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants.*;
+import static org.firstinspires.ftc.teamcode.field.CellGeometry.*;
+import static org.firstinspires.ftc.teamcode.field.FieldGeometry.*;
+import static org.firstinspires.ftc.teamcode.vision.VisionConstants.*;
 
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
@@ -358,7 +360,7 @@ public final class VisionCorrector {
       }
     }
 
-    double limitM = FIELD_HALF_SIZE_M - ROBOT_HALF_SIZE_M; // Where vision says the robot is now must be on the field
+    double limitM = FIELD_HALF_SIZE_M - FIX_WALL_MARGIN_M; // Where vision says the robot is now must be on the field
     Reason reason = Reason.ACCEPTED;
     if (spread > MAX_SPREAD_M) {
       reason = Reason.SPREAD;

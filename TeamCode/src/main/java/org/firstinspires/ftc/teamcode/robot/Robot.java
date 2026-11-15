@@ -47,7 +47,13 @@ import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.shooting.feed.IndexerRetry;
 import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.AimConstants;
+import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
+import org.firstinspires.ftc.teamcode.shooting.FireConstants;
+import org.firstinspires.ftc.teamcode.shooting.ShotPickConstants;
+import org.firstinspires.ftc.teamcode.shooting.SotmConstants;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
+import org.firstinspires.ftc.teamcode.vision.VisionConstants;
 import org.firstinspires.ftc.teamcode.shooting.ShooterTuning;
 import org.firstinspires.ftc.teamcode.vision.TagObservation;
 import org.firstinspires.ftc.teamcode.vision.TargetTracker;
@@ -145,10 +151,10 @@ public class Robot {
 
   private Alliance alliance = Alliance.BLUE;
   private boolean driverOnFarSide = false;
-  private final TargetTracker tracker = new TargetTracker(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+  private final TargetTracker tracker = new TargetTracker(VisionConstants.POSE_HISTORY_SIZE);
   // Vision pose correction. The history holds each loop's odometry pose with the time of that loop's
   // camera capture, so a frame can be matched to where the robot was. It is separate from the tracker's.
-  private final PoseHistory poseHistory = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
+  private final PoseHistory poseHistory = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
   private final VisionCorrector visionCorrector = new VisionCorrector();
   private long lastHistoryNanos = Long.MIN_VALUE;
   private boolean poseValid = false; // True once a tag fix has placed the robot on the field
@@ -161,7 +167,7 @@ public class Robot {
   private int positionFixes; // Tag fixes applied to the position so far
 
   private AimState aimState = AimState.OFF;
-  private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
+  private double aimRpm = DriverConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private final HoodStepControl hoodSteps = new HoodStepControl();
   private double hoodLiftTrimDeg = 0;
   private double rpmTrim = 0; // Driver's, for the rest of the match
@@ -213,11 +219,11 @@ public class Robot {
   private final LoopWatchdog watchdog = new LoopWatchdog();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
   private final OneBallFeedGate aimedFeedGate = new OneBallFeedGate(
-      ShootOnTheMoveConstants.AIMED_READY_S, ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S,
-      ShootOnTheMoveConstants.AIMED_FEED_PULSE_S, ShootOnTheMoveConstants.AIMED_FEED_PAUSE_S,
-      ShootOnTheMoveConstants.MIN_BALL_GAP_S);
+      FireConstants.AIMED_READY_S, FireConstants.AIMED_FEED_STOP_UNREADY_S,
+      FireConstants.AIMED_FEED_PULSE_S, FireConstants.AIMED_FEED_PAUSE_S,
+      FireConstants.MIN_BALL_GAP_S);
   // Volley mode (Lebot Teleop, Volley Tuning): RB's hooded aimed shot, held still, fires as a burst, each ball at
-  // the matched wheel speed (ShootOnTheMoveConstants VOLLEY_*). RT stays the one-at-a-time shoot on the move. Off,
+  // the matched wheel speed (VolleyConstants). RT stays the one-at-a-time shoot on the move. Off,
   // RB is a plain held shot as RT's
   private boolean volleyMode = false;
   private boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
@@ -225,9 +231,9 @@ public class Robot {
   private boolean backwardOnly = false;
   private double volleyHeadingTrimDeg = Double.NaN;
   private final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
-      ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S, ShootOnTheMoveConstants.VOLLEY_FEED_PULSE_S,
-      ShootOnTheMoveConstants.VOLLEY_FEED_PAUSE_S,
-      ShootOnTheMoveConstants.VOLLEY_MIN_GAP_S, true);
+      FireConstants.AIMED_FEED_STOP_UNREADY_S, VolleyConstants.VOLLEY_FEED_PULSE_S,
+      VolleyConstants.VOLLEY_FEED_PAUSE_S,
+      VolleyConstants.VOLLEY_MIN_GAP_S, true);
   private OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
   private boolean volleyShot = false; // This loop's shot is a volley
   // Volley Tuning's settings in place of the constants; NaN (null) for the constant
@@ -252,7 +258,7 @@ public class Robot {
   private double backwardBlockedSinceS = Double.NaN;
   // Rate the aimed shot's sideways turn changes, smoothed, for the fire check and the heading lock
   private double turningRateRadPerSec = 0.0;
-  private final RpmTrend rpmTrend = new RpmTrend(ShootOnTheMoveConstants.RPM_TREND_WINDOW_S);
+  private final RpmTrend rpmTrend = new RpmTrend(FireConstants.RPM_TREND_WINDOW_S);
   private double lastTurningRad = Double.NaN;
   private double lastTurningS = Double.NaN;
   private boolean lastTurningBackward = false;
@@ -407,7 +413,7 @@ public class Robot {
     }
     if (swapBattery(initMaxVolts)) {
       telemetry.addLine(String.format("!! SWAP BATTERY: %.1f V at rest, want %.1f or more",
-          initMaxVolts, ShootOnTheMoveConstants.SWAP_BATTERY_V));
+          initMaxVolts, DriverConstants.SWAP_BATTERY_V));
       if (!swapBatteryRumbled) {
         physicalDriver.rumble(600);
         swapBatteryRumbled = true;
@@ -569,7 +575,7 @@ public class Robot {
     double fireTrigger = fireTrigger();
     boolean holdShot = driver.right_bumper && !tuningMode;
     volleyRequested = volleyRequested(driver.right_bumper || scriptedVolley, fireTrigger, forceAim,
-        tuningMode, ShootOnTheMoveConstants.VOLLEY_ON_RT);
+        tuningMode, VolleyConstants.VOLLEY_ON_RT);
     boolean shootAll = fireTrigger > TRIGGER_PRESSED || holdShot || scriptedVolley;
     boolean oneBallHeld = driver.right_bumper || scriptedOneBall;
     boolean oneBall = tuningMode && oneBallHeld && fireTrigger <= TRIGGER_PRESSED; // RT wins
@@ -610,17 +616,17 @@ public class Robot {
     updateShooterAndHood(aiming, aim);
     long tShooterSet = System.nanoTime();
     rpmTrend.update(clock.seconds(), shooter.getRpm());
-    double predictedRpmError = rpmTrend.predicted(ShootOnTheMoveConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm();
+    double predictedRpmError = rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm();
     Logger.recordOutput("Shooter/PredictedRpmError", predictedRpmError);
-    boolean flywheelsReady = shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE)
-        && shooter.meanRpmWithin(ShootOnTheMoveConstants.RPM_MEAN_BELOW_TARGET,
-            ShootOnTheMoveConstants.RPM_MEAN_ABOVE_TARGET)
-        && predictedRpmError <= ShootOnTheMoveConstants.RPM_PREDICTED_ABOVE_TARGET;
+    boolean flywheelsReady = shooter.atSpeed(FireConstants.RPM_TOLERANCE)
+        && shooter.meanRpmWithin(FireConstants.RPM_MEAN_BELOW_TARGET,
+            FireConstants.RPM_MEAN_ABOVE_TARGET)
+        && predictedRpmError <= FireConstants.RPM_PREDICTED_ABOVE_TARGET;
     if (volleyShot) {
       // Every ball at the same speed, so their flights match and none catches the one ahead
-      flywheelsReady = shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE)
-          && shooter.meanRpmWithin(ShootOnTheMoveConstants.VOLLEY_READY_BELOW_RPM, volleyReadyAboveRpm(aim))
-          && predictedRpmError >= -ShootOnTheMoveConstants.VOLLEY_READY_BELOW_RPM
+      flywheelsReady = shooter.atSpeed(FireConstants.RPM_TOLERANCE)
+          && shooter.meanRpmWithin(VolleyConstants.VOLLEY_READY_BELOW_RPM, volleyReadyAboveRpm(aim))
+          && predictedRpmError >= -VolleyConstants.VOLLEY_READY_BELOW_RPM
           && predictedRpmError <= volleyReadyAboveRpm(aim);
     }
     // A volley's hood stays put between balls, so after the first it needn't wait to settle
@@ -663,9 +669,9 @@ public class Robot {
         : !tuningMode && shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
     // Held fire counts as released: the gate cycled through its pulses with the feeder held, so the first ball
     // got the last 0.06 s of a pulse and fell short (6 Nov, 081518)
-    volleyFeedGate.setLeadBelowRpm(autonomous ? ShootOnTheMoveConstants.AUTO_VOLLEY_LEAD_BELOW_RPM
-        : ShootOnTheMoveConstants.VOLLEY_LEAD_BELOW_RPM);
-    volleyFeedGate.setMinFeedSpacingS(ShootOnTheMoveConstants.VOLLEY_MIN_FEED_SPACING_S);
+    volleyFeedGate.setLeadBelowRpm(autonomous ? VolleyConstants.AUTO_VOLLEY_LEAD_BELOW_RPM
+        : VolleyConstants.VOLLEY_LEAD_BELOW_RPM);
+    volleyFeedGate.setMinFeedSpacingS(VolleyConstants.VOLLEY_MIN_FEED_SPACING_S);
     boolean readyButWheels = aim != null && motionSteady && hoodReady && ShootOnTheMove.readyToFire(aim, true,
         hoodReady, pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed);
     boolean aimedFeed = feedGate.update(clock.seconds(), ((shootAll && aim != null) || oneBall) && !holdFire && !loadingShooter.blocksSpin(),
@@ -681,7 +687,7 @@ public class Robot {
     updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
     long tFeedSet = System.nanoTime();
     if (aimedFeed) {
-      feedCommitUntilS = clock.seconds() + ShootOnTheMoveConstants.FEED_COMMIT_S;
+      feedCommitUntilS = clock.seconds() + FireConstants.FEED_COMMIT_S;
     }
     lastPose = pose;
     lastVelocity = velocity;
@@ -777,7 +783,7 @@ public class Robot {
 
   /** The Cell on the robot's side of the Hive, changing only once the robot is FRONT_CELL_SWITCH_M past the middle. */
   static Cell frontCell(Cell current, double xM) {
-    double margin = ShootOnTheMoveConstants.FRONT_CELL_SWITCH_M;
+    double margin = AimConstants.FRONT_CELL_SWITCH_M;
     if (current == null) {
       return xM >= 0 ? Cell.AUDIENCE : Cell.SCORING;
     }
@@ -792,7 +798,7 @@ public class Robot {
 
   /** The Cell aimed at: the one in front ({@link #frontCell}), or the tags' up Cell with AIM_AT_FRONT_CELL off. */
   private Cell aimCell() {
-    return ShootOnTheMoveConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
+    return AimConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
   }
 
   /**
@@ -810,11 +816,11 @@ public class Robot {
     // Loop clock, not the frame's capture time: that only moves when a camera frame arrives
     double velocityNowS = clock.seconds();
     aimVelocity = ShootOnTheMove.smoothAimVelocity(aimVelocity, velocity, velocityNowS - aimVelocityS,
-        ShootOnTheMoveConstants.AIM_VELOCITY_SMOOTHING_S);
+        AimConstants.AIM_VELOCITY_SMOOTHING_S);
     aimVelocityS = velocityNowS;
     Logger.recordOutput("SOTM/AimVelocity", aimVelocity);
     // Spinning fast, the frame's pose is too uncertain and moved the Cell 0.17 m during one shot (5 Nov)
-    boolean steady = Math.abs(velocity[2]) <= ShootOnTheMoveConstants.MAX_OMEGA_FOR_VISION_RAD_S;
+    boolean steady = Math.abs(velocity[2]) <= VisionConstants.MAX_OMEGA_FOR_VISION_RAD_S;
     for (CellSighting sighting : vision.takeNewCellSightings()) {
       Alliance other = alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;
       if (allianceFromTags && other.ownsCluster(sighting.clusterName) && !tracker.knowsCell(nowNanos)
@@ -834,8 +840,8 @@ public class Robot {
     if (!aiming || frontCell == null) { // Held for the whole shot
       frontCell = frontCell(frontCell, pose.xM);
     }
-    aimingAtFieldCell = ShootOnTheMoveConstants.AIM_AT_FIELD_CELL
-        && (poseValid && (ShootOnTheMoveConstants.AIM_AT_FRONT_CELL || visionCorrector.upCellConfirmed(alliance))
+    aimingAtFieldCell = AimConstants.AIM_AT_FIELD_CELL
+        && (poseValid && (AimConstants.AIM_AT_FRONT_CELL || visionCorrector.upCellConfirmed(alliance))
             || poseSeeded);
     double cellX;
     double cellY;
@@ -873,20 +879,20 @@ public class Robot {
           Math.toRadians(TUNING_HEADING_TOLERANCE_DEG));
     }
     boolean pickBackward;
-    boolean frontOfCell = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON && wedgeForcesBackward(
-        ShootOnTheMove.inFrontOfCell(pose, cellX, cellY, ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG),
+    boolean frontOfCell = BackwardShotConstants.BACKWARD_SHOTS_ON && wedgeForcesBackward(
+        ShootOnTheMove.inFrontOfCell(pose, cellX, cellY, ShotPickConstants.BACKWARD_ONLY_WEDGE_DEG),
         backward.shot.distanceToLipM);
-    if (!ShootOnTheMoveConstants.BACKWARD_SHOTS_ON || backward.shot.reason == Shot.Reason.OUT_OF_RANGE) {
+    if (!BackwardShotConstants.BACKWARD_SHOTS_ON || backward.shot.reason == Shot.Reason.OUT_OF_RANGE) {
       pickBackward = false;
     } else if (frontOfCell || backwardOnly) {
       pickBackward = true;
-    } else if (ShootOnTheMoveConstants.SHOT_PICK_QUICKEST) {
+    } else if (ShotPickConstants.SHOT_PICK_QUICKEST) {
       // Whichever is ready soonest from the heading, hood and wheels now (8 Nov): no backward arc
       pickBackward = ShootOnTheMove.backwardQuicker(hooded, backward, pose.headingRad,
           HoodSubsystem.ticksToAngle(hood.getPosition()), shooter.getRpm());
     } else {
       pickBackward = hooded.shot.reason == Shot.Reason.OUT_OF_RANGE
-          || backward.shot.distanceToLipM <= ShootOnTheMoveConstants.BACKWARD_PICK_MAX_DIST_M;
+          || backward.shot.distanceToLipM <= ShotPickConstants.BACKWARD_PICK_MAX_DIST_M;
     }
     Logger.recordOutput("SOTM/PickBackward", pickBackward);
     if (!aiming) {
@@ -915,7 +921,7 @@ public class Robot {
         backwardBlockedSinceS = Double.NaN;
       } else if (Double.isNaN(backwardBlockedSinceS)) {
         backwardBlockedSinceS = nowS;
-      } else if (!frontOfCell && nowS - backwardBlockedSinceS >= ShootOnTheMoveConstants.BACKWARD_GIVE_UP_S
+      } else if (!frontOfCell && nowS - backwardBlockedSinceS >= ShotPickConstants.BACKWARD_GIVE_UP_S
           && hooded.shot.valid) {
         aimBackwardLatched = false; // For the rest of this press, so it doesn't turn back and forth
       }
@@ -971,10 +977,10 @@ public class Robot {
       return;
     }
     if (aiming && justPressed(driver.dpad_up, wasDpadUp)) {
-      rpmTrim += ShootOnTheMoveConstants.RPM_TRIM_STEP;
+      rpmTrim += DriverConstants.RPM_TRIM_STEP;
     }
     if (aiming && justPressed(driver.dpad_down, wasDpadDown)) {
-      rpmTrim -= ShootOnTheMoveConstants.RPM_TRIM_STEP;
+      rpmTrim -= DriverConstants.RPM_TRIM_STEP;
     }
     wasDpadUp = driver.dpad_up;
     wasDpadDown = driver.dpad_down;
@@ -1054,24 +1060,24 @@ public class Robot {
    */
   private boolean updateMotionSteady(boolean aiming, double[] velocity) {
     double nowS = clock.seconds();
-    double maxPower = aiming ? ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER : 1.0;
+    double maxPower = aiming ? DriverConstants.AIM_DRIVE_MAX_POWER : 1.0;
     // Held on the spot the driver asks for no motion; the hold's own corrections show up as acceleration
     double[] stick = isHolding() ? new double[] {0, 0}
         : driveOverride != null && steadyStickReference != null ? steadyStickReference
         : stickTranslation(maxPower);
-    if (Math.hypot(stick[0] - steadyStick[0], stick[1] - steadyStick[1]) > ShootOnTheMoveConstants.FIRE_STICK_CHANGE) {
+    if (Math.hypot(stick[0] - steadyStick[0], stick[1] - steadyStick[1]) > FireConstants.FIRE_STICK_CHANGE) {
       steadyStick = stick;
       steadyStickSinceS = nowS;
     }
     velocityHistory.addLast(new double[] {nowS, velocity[0], velocity[1]});
-    while (velocityHistory.size() > 2 && nowS - velocityHistory.peekFirst()[0] > ShootOnTheMoveConstants.ACCEL_WINDOW_S) {
+    while (velocityHistory.size() > 2 && nowS - velocityHistory.peekFirst()[0] > FireConstants.ACCEL_WINDOW_S) {
       velocityHistory.removeFirst();
     }
     double[] oldest = velocityHistory.peekFirst();
     double spanS = nowS - oldest[0];
     double accelMps2 = spanS > 0.02 ? Math.hypot(velocity[0] - oldest[1], velocity[1] - oldest[2]) / spanS : 0.0;
-    boolean steady = nowS - steadyStickSinceS >= ShootOnTheMoveConstants.FIRE_STEADY_STICK_S
-        && accelMps2 <= ShootOnTheMoveConstants.MAX_ACCEL_TO_FIRE_MPS2;
+    boolean steady = nowS - steadyStickSinceS >= FireConstants.FIRE_STEADY_STICK_S
+        && accelMps2 <= FireConstants.MAX_ACCEL_TO_FIRE_MPS2;
     Logger.recordOutput("SOTM/AccelMps2", accelMps2);
     Logger.recordOutput("SOTM/Gate/Steady", steady);
     Logger.recordOutput("SOTM/Gate/SteadyBypassed", steadyGateBypassed);
@@ -1139,7 +1145,7 @@ public class Robot {
 
   private void updateDrive(boolean aiming, Aim aim, double lockRateRadPerSec, FieldPose pose, double turnRateRadPerSec) {
     // Slower while shooting, so the shot's lead for the robot's speed stays small and the aim keeps up
-    double maxPower = aiming ? ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER : 1.0;
+    double maxPower = aiming ? DriverConstants.AIM_DRIVE_MAX_POWER : 1.0;
     double[] translation = !isHolding() ? stickTranslation(maxPower)
         : holdPoint != null && driveOverride == null ? holdPointTranslation(pose) : holdTranslation(pose, HOLD_MIN_POWER);
     // The drive runs before this loop's feed check, so lastTranslation is what was commanded as the feed started
@@ -1149,7 +1155,7 @@ public class Robot {
       feedCommitUntilS = Double.NEGATIVE_INFINITY; // The hold keeps it still through the feed already
     }
     if (committedTranslation != null
-        && (stickReleased || nowS - committedSinceS > ShootOnTheMoveConstants.FEED_COMMIT_MAX_S)) {
+        && (stickReleased || nowS - committedSinceS > FireConstants.FEED_COMMIT_MAX_S)) {
       feedCommitUntilS = Double.NEGATIVE_INFINITY;
     }
     if (aiming && nowS < feedCommitUntilS) {
@@ -1202,9 +1208,9 @@ public class Robot {
     double f = driverForwardHeadingRad();
     double[] translation = robotToDriverFrame(powers[0], powers[1], pose.headingRad, f);
     double magnitude = Math.hypot(translation[0], translation[1]);
-    if (aiming && magnitude > ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER) { // Slower while shooting, as for the driver
-      translation[0] *= ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER / magnitude;
-      translation[1] *= ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER / magnitude;
+    if (aiming && magnitude > DriverConstants.AIM_DRIVE_MAX_POWER) { // Slower while shooting, as for the driver
+      translation[0] *= DriverConstants.AIM_DRIVE_MAX_POWER / magnitude;
+      translation[1] *= DriverConstants.AIM_DRIVE_MAX_POWER / magnitude;
     }
     double forward = translation[0];
     double right = translation[1];
@@ -1246,7 +1252,7 @@ public class Robot {
     if (shotKnown) { lastShotKnownS = nowS; }
     // A shot gone for a moment (NO_SAFE_SHOT flickers, a median 0.42 s, p90 1.2 s, 13 Nov) keeps its speed:
     // dropping to IDLE braked the wheels a median 1350 RPM, 478 times that day, and they then had to come back
-    boolean shotJustLost = !shotKnown && nowS - lastShotKnownS <= ShootOnTheMoveConstants.PRESPIN_HOLD_S;
+    boolean shotJustLost = !shotKnown && nowS - lastShotKnownS <= FireConstants.PRESPIN_HOLD_S;
     double rpmRate = shotKnown ? aim.rpmRatePerSec : 0.0;
     // The shot is for the ball leaving FEED_DELAY_S from now. The wheels and hood only have to be there by
     // then, so they follow the shot for now and arrive at this one as the ball leaves. Holding this one
@@ -1264,9 +1270,9 @@ public class Robot {
     }
     if (volleyMode) { // Full power back up to speed after each ball of a volley
       boolean fast = volleyShot && (volleyFastRecovery != null ? volleyFastRecovery
-          : ShootOnTheMoveConstants.VOLLEY_FAST_RECOVERY);
-      shooter.setSpinThresholds(fast ? ShootOnTheMoveConstants.VOLLEY_OPEN_LOOP_BELOW_RPM : Double.NaN,
-          fast ? ShootOnTheMoveConstants.VOLLEY_HANDBACK_RPM : Double.NaN);
+          : VolleyConstants.VOLLEY_FAST_RECOVERY);
+      shooter.setSpinThresholds(fast ? VolleyConstants.VOLLEY_OPEN_LOOP_BELOW_RPM : Double.NaN,
+          fast ? VolleyConstants.VOLLEY_HANDBACK_RPM : Double.NaN);
     }
 
     if (eject) {
@@ -1289,13 +1295,13 @@ public class Robot {
       }
     } else if (shooterStopLatched || tuningMode) { // The tuning OpModes rest the wheels between shots
       shooter.setShooterState(ShooterState.STOP);
-    } else if (shotKnown && ShootOnTheMoveConstants.PRESPIN_ON) {
+    } else if (shotKnown && FireConstants.PRESPIN_ON) {
       // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
       shooter.setShooterState(ShooterState.AIM);
       shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE
           : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim) + volleyBackwardRpm(aim),
           ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
-    } else if (shotJustLost && ShootOnTheMoveConstants.PRESPIN_ON
+    } else if (shotJustLost && FireConstants.PRESPIN_ON
         && shooter.getShooterState() == ShooterState.AIM) {
       shooter.setShooterState(ShooterState.AIM); // At the last target, which it keeps
     } else {
@@ -1408,7 +1414,7 @@ public class Robot {
     }
     wasFull = full;
 
-    boolean intakeWanted = tuningMode || !ShootOnTheMoveConstants.INTAKE_ONLY_ON_LT
+    boolean intakeWanted = tuningMode || !DriverConstants.INTAKE_ONLY_ON_LT
         || loadTrigger > TRIGGER_PRESSED;
     intakeOn = intakeWanted;
     intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted, autoIntake));
@@ -1441,7 +1447,7 @@ public class Robot {
       telemetry.addLine("LT: waiting for flywheels to stop");
     }
     boolean volleyBetweenBalls = volleyShot && volleyFeedGate.ballsLeft() > 0
-        && !ShootOnTheMoveConstants.VOLLEY_HOLD_BETWEEN_BALLS;
+        && !VolleyConstants.VOLLEY_HOLD_BETWEEN_BALLS;
     FeederState feederCommand = feederCommand(ejecting, loading || loadingShooter.clearing(), shooting, feeding,
         fireRequested, feedGate.feederEmpty(), volleyBetweenBalls);
     if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
@@ -1487,7 +1493,7 @@ public class Robot {
 
   /** In front of the Cell the backward shot is forced, within the range its table was shot at. */
   static boolean wedgeForcesBackward(boolean inFrontOfCell, double backwardLipM) {
-    return inFrontOfCell && backwardLipM <= ShootOnTheMoveConstants.BACKWARD_WEDGE_MAX_LIP_M;
+    return inFrontOfCell && backwardLipM <= ShotPickConstants.BACKWARD_WEDGE_MAX_LIP_M;
   }
 
   /** The intake's ease ends on an LT press after a real let-go, or once it runs free (nothing pushing back). */
@@ -1548,15 +1554,15 @@ public class Robot {
   }
 
   private static int feedStopHoodTicks() {
-    return (int) Math.round(ShootOnTheMoveConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
+    return (int) Math.round(FireConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
   }
 
   private static int volleyHoodToleranceTicks() {
-    return (int) Math.round(ShootOnTheMoveConstants.VOLLEY_HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
+    return (int) Math.round(VolleyConstants.VOLLEY_HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
   }
 
   private static int hoodToleranceTicks() {
-    return (int) Math.round(ShootOnTheMoveConstants.HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
+    return (int) Math.round(FireConstants.HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
   }
 
   /**
@@ -1754,7 +1760,7 @@ public class Robot {
 
   /** Every subsystem's state on the Driver Station: the tuning OpModes, or TELEMETRY_DETAIL from Panels. */
   public boolean isTelemetryDetail() {
-    return tuningMode || ShootOnTheMoveConstants.TELEMETRY_DETAIL;
+    return tuningMode || DriverConstants.TELEMETRY_DETAIL;
   }
 
   private void addTelemetry(Aim aim, FieldPose pose) {
@@ -1823,7 +1829,7 @@ public class Robot {
     } else {
       telemetry.addData("Distance", String.format("%.2f m to lip  %s  (%s)", aim.shot.distanceToLipM,
           aim.backward ? "BACKWARD, hood down" : "FRONT, hooded",
-          aimingAtFieldCell ? alliance + " " + aimCell() + (ShootOnTheMoveConstants.AIM_AT_FRONT_CELL ? " (in front)" : " up, from tags")
+          aimingAtFieldCell ? alliance + " " + aimCell() + (AimConstants.AIM_AT_FRONT_CELL ? " (in front)" : " up, from tags")
               : cellSeenAgoS < 0.5 ? "camera sees Cell" : String.format("odometry, seen %.1f s ago", cellSeenAgoS)));
       telemetry.addData("Shot", aim.shot.valid ? "OK" : aim.shot.reason);
       telemetry.addData("Dist", String.format("%.2f m  toward %.2f  sideways %.2f m/s",
@@ -1889,7 +1895,7 @@ public class Robot {
    * 6.8-6.9 V, and every auto sags to 9.6 V at spin-up even from 12.6 V.
    */
   static boolean swapBattery(double restingVolts) {
-    return restingVolts < ShootOnTheMoveConstants.SWAP_BATTERY_V;
+    return restingVolts < DriverConstants.SWAP_BATTERY_V;
   }
 
   /**
@@ -1932,8 +1938,8 @@ public class Robot {
       return 0;
     }
     double toward = finiteOr0(aim.shot.speedTowardCellMps);
-    return aim.backward ? ShootOnTheMoveConstants.SOTM_BACKWARD_RPM_PER_TOWARD_MPS * toward
-        : ShootOnTheMoveConstants.HOODED_RPM_OFFSET + ShootOnTheMoveConstants.SOTM_RPM_PER_TOWARD_MPS * toward;
+    return aim.backward ? SotmConstants.SOTM_BACKWARD_RPM_PER_TOWARD_MPS * toward
+        : AimConstants.HOODED_RPM_OFFSET + SotmConstants.SOTM_RPM_PER_TOWARD_MPS * toward;
   }
 
   /** Launch angle added to a hooded shot for its speed toward the Cell. */
@@ -1942,17 +1948,17 @@ public class Robot {
       return 0;
     }
     double towardMps = finiteOr0(aim.shot.speedTowardCellMps);
-    return ShootOnTheMoveConstants.SOTM_HOOD_DEG_PER_TOWARD_MPS * towardMps + (tuningMode ? 0
+    return SotmConstants.SOTM_HOOD_DEG_PER_TOWARD_MPS * towardMps + (tuningMode ? 0
         : movingHoodTrimDeg(aim.shot.distanceToLipM, Math.hypot(towardMps, finiteOr0(aim.shot.sidewaysSpeedMps))));
   }
 
   /**
    * TeleOp's launch angle added to a moving hooded shot for its distance to the lip
-   * ({@link ShootOnTheMoveConstants#SOTM_HOOD_TRIM_DEG}): full from the moving shot speed, scaled down to none at rest.
+   * ({@link SotmConstants#SOTM_HOOD_TRIM_DEG}): full from the moving shot speed, scaled down to none at rest.
    */
   static double movingHoodTrimDeg(double lipM, double speedMps) {
-    double[] d = ShootOnTheMoveConstants.SOTM_HOOD_TRIM_DIST_M;
-    double[] t = ShootOnTheMoveConstants.SOTM_HOOD_TRIM_DEG;
+    double[] d = SotmConstants.SOTM_HOOD_TRIM_DIST_M;
+    double[] t = SotmConstants.SOTM_HOOD_TRIM_DEG;
     if (Double.isNaN(lipM) || Double.isNaN(speedMps)) {
       return 0;
     }
@@ -1966,7 +1972,7 @@ public class Robot {
       while (lipM > d[i + 1]) { i++; }
       trim = t[i] + (t[i + 1] - t[i]) * (lipM - d[i]) / (d[i + 1] - d[i]);
     }
-    return trim * Math.min(1, Math.abs(speedMps) / ShootOnTheMoveConstants.MOVING_SHOT_SPEED_MPS);
+    return trim * Math.min(1, Math.abs(speedMps) / FireConstants.MOVING_SHOT_SPEED_MPS);
   }
 
   /**
@@ -1977,8 +1983,8 @@ public class Robot {
     if (tuningMode) {
       return toolTrimDeg;
     }
-    return backward ? ShootOnTheMoveConstants.BACKWARD_HEADING_TRIM_DEG
-        : ShootOnTheMoveConstants.HOODED_HEADING_TRIM_DEG;
+    return backward ? BackwardShotConstants.BACKWARD_HEADING_TRIM_DEG
+        : AimConstants.HOODED_HEADING_TRIM_DEG;
   }
 
   /** Aim turned anticlockwise for the shot's sideways speed. */
@@ -1986,8 +1992,8 @@ public class Robot {
     if (aim == null || (tuningMode && !tuningLive)) {
       return 0;
     }
-    return (aim.backward ? ShootOnTheMoveConstants.SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS
-        : ShootOnTheMoveConstants.SOTM_HEADING_DEG_PER_SIDEWAYS_MPS) * finiteOr0(aim.shot.sidewaysSpeedMps);
+    return (aim.backward ? SotmConstants.SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS
+        : SotmConstants.SOTM_HEADING_DEG_PER_SIDEWAYS_MPS) * finiteOr0(aim.shot.sidewaysSpeedMps);
   }
 
   private static double finiteOr0(double v) {
@@ -2236,7 +2242,7 @@ public class Robot {
 
   public double volleyIndexerPower() {
     return Double.isNaN(volleyIndexerPower)
-        ? volleyFeedPower() * ShootOnTheMoveConstants.VOLLEY_INDEXER_SCALE : volleyIndexerPower;
+        ? volleyFeedPower() * VolleyConstants.VOLLEY_INDEXER_SCALE : volleyIndexerPower;
   }
 
   /** RPM over the table's for a volley; NaN for VOLLEY_BOOST_RPM. */
@@ -2255,15 +2261,15 @@ public class Robot {
   public double getVolleyDipDepthRpm() { return volleyFeedGate.lastDipDepthRpm(); }
 
   public double volleyFeedPower() {
-    return Double.isNaN(volleyFeedPower) ? ShootOnTheMoveConstants.VOLLEY_FEED_POWER : volleyFeedPower;
+    return Double.isNaN(volleyFeedPower) ? VolleyConstants.VOLLEY_FEED_POWER : volleyFeedPower;
   }
 
   public double volleyBoostRpm() {
-    return Double.isNaN(volleyBoostRpm) ? ShootOnTheMoveConstants.VOLLEY_BOOST_RPM : volleyBoostRpm;
+    return Double.isNaN(volleyBoostRpm) ? VolleyConstants.VOLLEY_BOOST_RPM : volleyBoostRpm;
   }
 
   public boolean volleyFastRecovery() {
-    return volleyFastRecovery != null ? volleyFastRecovery : ShootOnTheMoveConstants.VOLLEY_FAST_RECOVERY;
+    return volleyFastRecovery != null ? volleyFastRecovery : VolleyConstants.VOLLEY_FAST_RECOVERY;
   }
 
   private boolean buttonsFree() {
@@ -2272,7 +2278,7 @@ public class Robot {
 
   private boolean volleyAim(Aim aim) {
     return volleyMode && volleyRequested && aim != null
-        && (!aim.backward || ShootOnTheMoveConstants.VOLLEY_BACKWARD_ON);
+        && (!aim.backward || VolleyConstants.VOLLEY_BACKWARD_ON);
   }
 
   private double volleyBoostRpm(Aim aim) {
@@ -2281,8 +2287,8 @@ public class Robot {
 
   /** Top of a volley's matched band: tighter for a backward burst, which goes long when fed fast. */
   private static double volleyReadyAboveRpm(Aim aim) {
-    return aim != null && aim.backward ? ShootOnTheMoveConstants.VOLLEY_BACKWARD_READY_ABOVE_RPM
-        : ShootOnTheMoveConstants.VOLLEY_READY_ABOVE_RPM;
+    return aim != null && aim.backward ? VolleyConstants.VOLLEY_BACKWARD_READY_ABOVE_RPM
+        : VolleyConstants.VOLLEY_READY_ABOVE_RPM;
   }
 
   /**
@@ -2298,11 +2304,11 @@ public class Robot {
     double towardMps = finiteOr0(aim.shot.speedTowardCellMps);
     double boostDeg = ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, boost);
     double followDeg = 0;
-    double gain = ShootOnTheMoveConstants.VOLLEY_HOOD_FOLLOW_GAIN;
+    double gain = VolleyConstants.VOLLEY_HOOD_FOLLOW_GAIN;
     if (gain != 0) {
-      double above = rpmTrend.predicted(ShootOnTheMoveConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm() + boost;
-      above = Math.max(boost - ShootOnTheMoveConstants.VOLLEY_READY_BELOW_RPM,
-          Math.min(boost + ShootOnTheMoveConstants.VOLLEY_READY_ABOVE_RPM, above));
+      double above = rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm() + boost;
+      above = Math.max(boost - VolleyConstants.VOLLEY_READY_BELOW_RPM,
+          Math.min(boost + VolleyConstants.VOLLEY_READY_ABOVE_RPM, above));
       followDeg = gain * (ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, above) - boostDeg);
     }
     return finiteOr0(boostDeg + followDeg) + volleyTrimDeg(false);
@@ -2320,12 +2326,12 @@ public class Robot {
   public static double volleyTrimDeg(double trim, boolean volleyTrimsBackward, boolean backward, boolean first) {
     if (backward) {
       if (volleyTrimsBackward && !Double.isNaN(trim)) { return trim; }
-      return first ? ShootOnTheMoveConstants.VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG
-          : ShootOnTheMoveConstants.VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG;
+      return first ? VolleyConstants.VOLLEY_BACKWARD_FIRST_BALL_TRIM_DEG
+          : VolleyConstants.VOLLEY_BACKWARD_LATER_BALL_TRIM_DEG;
     }
     if (volleyTrimsBackward || Double.isNaN(trim)) {
-      return first ? ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG
-          : ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG;
+      return first ? VolleyConstants.VOLLEY_FIRST_BALL_TRIM_DEG
+          : VolleyConstants.VOLLEY_LATER_BALL_TRIM_DEG;
     }
     return trim;
   }
@@ -2333,7 +2339,7 @@ public class Robot {
   /** A backward volley's trim, as wheel speed: its hood follows the table, and its range comes from the RPM. */
   private double volleyBackwardRpm(Aim aim) {
     return volleyAim(aim) && aim.backward
-        ? -ShootOnTheMoveConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * volleyTrimDeg(true) : 0;
+        ? -VolleyConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * volleyTrimDeg(true) : 0;
   }
 
   private void logVolley() {
@@ -2343,7 +2349,7 @@ public class Robot {
     Logger.recordOutput("Volley/LeftAtRpm", volleyFeedGate.peakAtLeaveRpm());
     Logger.recordOutput("Volley/DipDepthRpm", volleyFeedGate.lastDipDepthRpm());
     Logger.recordOutput("Volley/DoubleBall",
-        volleyFeedGate.lastDipDepthRpm() > ShootOnTheMoveConstants.VOLLEY_DOUBLE_DIP_RPM);
+        volleyFeedGate.lastDipDepthRpm() > VolleyConstants.VOLLEY_DOUBLE_DIP_RPM);
     Logger.recordOutput("Volley/HoodDeg", volleyHoodDeg);
     Logger.recordOutput("Volley/BoostRpm", volleyBoostRpm());
     Logger.recordOutput("Volley/FeedPower", volleyFeedPower());

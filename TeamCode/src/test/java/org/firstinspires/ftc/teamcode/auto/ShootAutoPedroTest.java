@@ -12,7 +12,7 @@ import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.field.FieldGeometry;
 import org.junit.Test;
 
 /**
@@ -40,7 +40,7 @@ public class ShootAutoPedroTest {
 
   @Test
   public void parkPathKeepsClearOfTheHiveAndTheFlower() {
-    double f = ShootOnTheMoveConstants.ALLIANCE_FORWARD_RED_RAD;
+    double f = FieldGeometry.ALLIANCE_FORWARD_RED_RAD;
     Path path = ShootAuto.pedroParkPath(1.583, -0.556, -0.17, ShootAuto.parkRoute(f, 1.583, -0.556));
     for (int i = 0; i <= 200; i++) {
       Pose p = path.get(i / 200.0);
@@ -53,12 +53,12 @@ public class ShootAutoPedroTest {
 
   @Test
   public void redParksFrom220620sShotSpotWithoutRunningPast() {
-    park(ShootOnTheMoveConstants.ALLIANCE_FORWARD_RED_RAD, 1.583, -0.556, -0.17);
+    park(FieldGeometry.ALLIANCE_FORWARD_RED_RAD, 1.583, -0.556, -0.17);
   }
 
   @Test
   public void blueParksFrom200130sShotSpotWithoutRunningPast() {
-    park(ShootOnTheMoveConstants.ALLIANCE_FORWARD_BLUE_RAD, -1.477, 0.468, Math.PI - 0.2);
+    park(FieldGeometry.ALLIANCE_FORWARD_BLUE_RAD, -1.477, 0.468, Math.PI - 0.2);
   }
 
   private static void park(double f, double x, double y, double h) {

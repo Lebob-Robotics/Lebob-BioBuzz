@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 
 public class TargetTrackerTest {
   private static final double TOLERANCE = 1e-9;
@@ -98,7 +97,7 @@ public class TargetTrackerTest {
     tracker.recordPose(0, new FieldPose(0, 0, 0));
     tracker.update(twoMetresAhead(0));
     tracker.update(sighting(LEVEL_FORWARD_AT_CELL_HEIGHT, 1, 0, 3, 0));
-    assertEquals(2 + ShootOnTheMoveConstants.CELL_SMOOTHING, tracker.getCellX(), TOLERANCE);
+    assertEquals(2 + VisionConstants.CELL_SMOOTHING, tracker.getCellX(), TOLERANCE);
   }
 
   @Test
@@ -106,7 +105,7 @@ public class TargetTrackerTest {
     TargetTracker tracker = new TargetTracker(10);
     tracker.recordPose(0, new FieldPose(0, 0, 0));
     tracker.update(twoMetresAhead(0));
-    long expiryNanos = (long) (ShootOnTheMoveConstants.CELL_EXPIRY_S * ONE_SECOND_NANOS);
+    long expiryNanos = (long) (VisionConstants.CELL_EXPIRY_S * ONE_SECOND_NANOS);
     assertTrue(tracker.knowsCell(expiryNanos - 1000));
     assertFalse(tracker.knowsCell(expiryNanos + 1000));
   }

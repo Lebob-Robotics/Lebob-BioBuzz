@@ -13,7 +13,8 @@ import org.firstinspires.ftc.teamcode.tuning.BallMark;
 import org.firstinspires.ftc.teamcode.tuning.MarkKeys;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.AimConstants;
+import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
 import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.tuning.ShotSearch;
 import org.firstinspires.ftc.teamcode.tuning.ShotTuningSettings;
@@ -338,7 +339,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
    * angle from 0.64 m, the table loaded for a Cell guessed before the tags were seen.
    */
   private static boolean fromBackwardTable(TuningResume.Ball first) {
-    double[] table = ShootOnTheMoveConstants.BACKWARD_DIST_M;
+    double[] table = BackwardShotConstants.BACKWARD_DIST_M;
     Shot shot = ShootOnTheMove.calculateBackward(
         Math.max(table[0], Math.min(table[table.length - 1], first.lipM)), 0, 0);
     return first.search.startsWith("rpm:") && shot.valid && Math.abs(first.launchDeg - shot.hoodDeg) <= 0.6;
@@ -1109,7 +1110,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     }
     double distM = aim.shot.distanceToLipM;
     if (backward) {
-      double[] table = ShootOnTheMoveConstants.BACKWARD_DIST_M;
+      double[] table = BackwardShotConstants.BACKWARD_DIST_M;
       Shot shot = ShootOnTheMove.calculateBackward(
           Math.max(table[0], Math.min(table[table.length - 1], distM)), 0, 0);
       return shot.valid ? new double[] {Math.round(shot.targetRpm / 10.0) * 10.0,
@@ -1117,7 +1118,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     }
     Shot shot = ShootOnTheMove.calculate(distM, 0, 0);
     return shot.valid ? new double[] {
-        Math.round((shot.targetRpm + ShootOnTheMoveConstants.HOODED_RPM_OFFSET) / 10.0) * 10.0,
+        Math.round((shot.targetRpm + AimConstants.HOODED_RPM_OFFSET) / 10.0) * 10.0,
         Math.round((HoodSubsystem.ZERO_ANGLE_DEG - shot.hoodDeg) * 10.0) / 10.0} : null;
   }
 

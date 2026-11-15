@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.vision;
 
-import static org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants.*;
+import static org.firstinspires.ftc.teamcode.field.CellGeometry.*;
 
 import java.util.ArrayList;
 import java.util.List;

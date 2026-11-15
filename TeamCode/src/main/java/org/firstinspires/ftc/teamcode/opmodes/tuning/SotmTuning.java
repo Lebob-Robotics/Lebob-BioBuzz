@@ -12,7 +12,9 @@ import org.firstinspires.ftc.teamcode.tuning.BallMark;
 import org.firstinspires.ftc.teamcode.tuning.MarkKeys;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.field.CellGeometry;
+import org.firstinspires.ftc.teamcode.shooting.AimConstants;
+import org.firstinspires.ftc.teamcode.shooting.SotmConstants;
 import org.firstinspires.ftc.teamcode.tuning.SotmSpotSearch;
 import org.firstinspires.ftc.teamcode.tuning.SotmTuningSettings;
 import org.firstinspires.ftc.teamcode.tuning.TuningResume;
@@ -51,7 +53,7 @@ import org.firstinspires.ftc.teamcode.tuning.SotmPath;
  * and confirmed, and the aim as a heading trim from the left and right misses. The passes that change speed or
  * direction come after them, one ball each, as checks. Every ball is written to {@link #CSV_PATH} with the robot's
  * state as the feed started and as the ball left (the flywheels' dip), every mark, and each spot's result (FOUND);
- * sotm-tools/sotm_report.py fits ShootOnTheMoveConstants' moving corrections from them.
+ * sotm-tools/sotm_report.py fits SotmConstants' moving corrections from them.
  *
  * <p>Controls (gamepad 1):
  * <ul>
@@ -87,10 +89,10 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   private static final double MIN_RPM = 1500;
   private static final double MAX_HOOD_TRIM_DEG = 10;
   private static final double MAX_RPM_TRIM = 800;
-  private static final double HOOD_STOP_MARGIN_DEG = 2; // The range is searched by RPM this close to a stop
+  private static final double RPM_SEARCH_NEAR_STOP_DEG = 2; // The range is searched by RPM this close to a stop
   private static final double BALL_DIP_RPM = 200; // As Shot Tuning
   private static final double BALL_DIP_WINDOW_S = 0.6;
-  private static final double ACCEL_WINDOW_S = 0.1;
+  private static final double LOGGED_ACCEL_WINDOW_S = 0.1;
 
   private enum Stage { IDLE, TO_START, READY, RUN, TO_RELOAD, END }
 
@@ -412,12 +414,12 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     boolean valid = a.shot.valid && !Double.isNaN(a.hoodNowDeg) && !Double.isNaN(a.rpmNow);
     List<String[]> old = csvSpotBalls.get(e.key);
     boolean rpm = old != null && !old.isEmpty() ? "RPM".equals(old.get(0)[0])
-        : back || !valid || a.hoodNowDeg >= HoodSubsystem.ZERO_ANGLE_DEG - HOOD_STOP_MARGIN_DEG
-            || a.hoodNowDeg <= HoodSubsystem.MIN_ANGLE_DEG + HOOD_STOP_MARGIN_DEG;
+        : back || !valid || a.hoodNowDeg >= HoodSubsystem.ZERO_ANGLE_DEG - RPM_SEARCH_NEAR_STOP_DEG
+            || a.hoodNowDeg <= HoodSubsystem.MIN_ANGLE_DEG + RPM_SEARCH_NEAR_STOP_DEG;
     double min;
     double max;
     if (rpm) {
-      double base = valid ? a.rpmNow + (back ? 0 : ShootOnTheMoveConstants.HOODED_RPM_OFFSET) : 3000;
+      double base = valid ? a.rpmNow + (back ? 0 : AimConstants.HOODED_RPM_OFFSET) : 3000;
       min = Math.max(-MAX_RPM_TRIM, MIN_RPM - base);
       max = Math.min(MAX_RPM_TRIM, robot.shooter.getMaxRpm() - base);
     } else {
@@ -605,7 +607,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   private void updateAccel(double nowS) {
     double[] v = robot.getVelocity();
     velocityHistory.addLast(new double[] {nowS, v[0], v[1]});
-    while (velocityHistory.size() > 2 && nowS - velocityHistory.peekFirst()[0] > ACCEL_WINDOW_S) {
+    while (velocityHistory.size() > 2 && nowS - velocityHistory.peekFirst()[0] > LOGGED_ACCEL_WINDOW_S) {
       velocityHistory.removeFirst();
     }
     double[] old = velocityHistory.peekFirst();
@@ -813,7 +815,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     uy /= d;
     return String.format(Locale.US, "%.3f,%.3f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.2f,%.0f,%.0f,%.2f,%.2f",
         pose.xM, pose.yM, Math.toDegrees(pose.headingRad), v[0], v[1], Math.toDegrees(v[2]), accel[0], accel[1],
-        d - ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M, v[0] * ux + v[1] * uy, -v[0] * uy + v[1] * ux,
+        d - CellGeometry.CLUSTER_TO_NEAR_LIP_M, v[0] * ux + v[1] * uy, -v[0] * uy + v[1] * ux,
         aim == null ? Double.NaN : Math.toDegrees(aim.headingErrorRad(pose.headingRad)),
         aim == null ? Double.NaN : Math.toDegrees(aim.shot.turningRad), robot.shooter.getTargetRpm(),
         robot.shooter.getRpm(), aim == null ? Double.NaN : aim.shot.hoodDeg,
@@ -842,11 +844,11 @@ public class SotmTuning extends PsiKitIterativeOpMode {
         s != null ? "SEARCH_" + s.phase().name() : inPass ? "CHECK" : "STANDING",
         s == null ? "" : s.rpm ? "RPM" : "HOOD", pendingRangeTrim,
         s != null ? s.headingTrimDeg() : standingTrimDeg(),
-        backward ? 0 : ShootOnTheMoveConstants.SOTM_HOOD_DEG_PER_TOWARD_MPS,
-        backward ? ShootOnTheMoveConstants.SOTM_BACKWARD_RPM_PER_TOWARD_MPS
-            : ShootOnTheMoveConstants.SOTM_RPM_PER_TOWARD_MPS,
-        backward ? ShootOnTheMoveConstants.SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS
-            : ShootOnTheMoveConstants.SOTM_HEADING_DEG_PER_SIDEWAYS_MPS);
+        backward ? 0 : SotmConstants.SOTM_HOOD_DEG_PER_TOWARD_MPS,
+        backward ? SotmConstants.SOTM_BACKWARD_RPM_PER_TOWARD_MPS
+            : SotmConstants.SOTM_RPM_PER_TOWARD_MPS,
+        backward ? SotmConstants.SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS
+            : SotmConstants.SOTM_HEADING_DEG_PER_SIDEWAYS_MPS);
     pendingStartS = nowS;
     pendingStartRpm = robot.shooter.getRpm();
     pendingMinRpm = pendingStartRpm;
@@ -863,8 +865,8 @@ public class SotmTuning extends PsiKitIterativeOpMode {
       lastShotRow = pendingRow.replace("%DIP%", String.format(Locale.US, "%.3f", nowS - pendingStartS))
           + "," + state()
           + String.format(Locale.US, ",%.3f,%.3f,%.2f,%.0f,%.3f,%.3f,%.3f", robot.getAimCellX(), robot.getAimCellY(),
-              robot.getBatteryVolts(), dip, ShootOnTheMoveConstants.FEED_DELAY_S,
-              ShootOnTheMoveConstants.SOTM_SIDEWAYS_GAIN, ShootOnTheMoveConstants.SOTM_TOWARD_GAIN)
+              robot.getBatteryVolts(), dip, AimConstants.FEED_DELAY_S,
+              SotmConstants.SOTM_SIDEWAYS_GAIN, SotmConstants.SOTM_TOWARD_GAIN)
           + pendingSearchColumns;
       lastShotKey = pendingKey;
       lastShotSearchKey = pendingSearchKey;

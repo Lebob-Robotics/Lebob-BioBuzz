@@ -5,7 +5,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import org.junit.Test;
-import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 
 public class ClusterFromTagsTest {
   // One logged frame (4 Nov, right camera) where the SDK cluster detector and the single-tag detector
@@ -32,7 +31,7 @@ public class ClusterFromTagsTest {
   @Test
   public void matchesTheSdkClusterDetector() {
     List<ClusterFromTags.Cluster> clusters =
-        ClusterFromTags.build(IDS, X, Y, Z, ShootOnTheMoveConstants.RIGHT_CAMERA);
+        ClusterFromTags.build(IDS, X, Y, Z, CameraMounts.RIGHT_CAMERA);
     assertEquals(3, clusters.size());
     assertNear(new double[] {-14.201, 70.876, -7.186}, find(clusters, "RED SCORING"), 1.5); // Up, two close tags
     assertNear(new double[] {-29.346, 82.612, 31.533}, find(clusters, "RED AUDIENCE"), 1.5); // Down
@@ -43,7 +42,7 @@ public class ClusterFromTagsTest {
   public void needsTwoTagsOfACell() {
     List<ClusterFromTags.Cluster> clusters = ClusterFromTags.build(new int[] {30, 34, 20},
         new double[] {1, 2, 3}, new double[] {50, 50, 50}, new double[] {0, 0, 0},
-        ShootOnTheMoveConstants.RIGHT_CAMERA);
+        CameraMounts.RIGHT_CAMERA);
     assertTrue(clusters.isEmpty());
   }
 }

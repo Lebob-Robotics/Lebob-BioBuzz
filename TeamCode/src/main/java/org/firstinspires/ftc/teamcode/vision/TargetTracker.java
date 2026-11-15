@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.vision;
 
-import static org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants.*;
+import static org.firstinspires.ftc.teamcode.field.CellGeometry.*;
+import static org.firstinspires.ftc.teamcode.vision.VisionConstants.*;
 
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
