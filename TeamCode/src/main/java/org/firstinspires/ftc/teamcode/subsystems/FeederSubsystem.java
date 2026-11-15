@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -16,10 +15,9 @@ import org.psilynx.psikit.core.Logger;
  * {@link FeederState#HOLD} runs it backward so the indexer can queue balls
  * against it without any reaching the shooter.
  */
-public class FeederSubsystem extends SubsystemBase {
+public class FeederSubsystem extends StatePowerSubsystem<FeederSubsystem.FeederState> {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
-  private double feedPower = FEED_POWER; // A volley's (Lebot Teleop RB) can be lower
   private static final double EJECT_POWER = 1.0;
   private static final double HOLD_POWER = 1.0;
 
@@ -33,9 +31,8 @@ public class FeederSubsystem extends SubsystemBase {
     STOP, FEED, HOLD, EJECT
   }
 
-  private FeederState feederState;
-
   public FeederSubsystem(HardwareMap hardwareMap) {
+    super(FEED_POWER); // A volley's (Lebot Teleop RB) feed power can be lower
     // R is the original feeder servo. Reversed: on Mark 3 a positive raw power
     // runs the tunnel backward (Servo Check and driving, 27 Oct).
     // Current three-servo robot uses the legacy FeederServo name on Control Hub port 1.
@@ -69,25 +66,26 @@ public class FeederSubsystem extends SubsystemBase {
   }
 
   public void setFeederState(FeederState newFeederState) {
-    setFeederState(newFeederState, feedPower);
+    setFeederState(newFeederState, feedPower());
   }
 
   /** Set state and power together, so returning to HOLD never briefly writes forward power. */
   public void setFeederState(FeederState newFeederState, double power) {
-    double p = Math.max(0, Math.min(1, power));
-    if (feederState == newFeederState && feedPower == p) { return; }
-    feederState = newFeederState;
-    feedPower = p;
-    setFeederPower(powerFor(feederState, feedPower));
+    setState(newFeederState, power);
+  }
+
+  @Override
+  void write(FeederState state, double feedPower) {
+    setFeederPower(powerFor(state, feedPower));
   }
 
   public FeederState getFeederState() {
-    return feederState;
+    return state();
   }
 
   @Override
   public void periodic() {
-    Logger.recordOutput("Feeder/State", feederState);
+    Logger.recordOutput("Feeder/State", state());
     Logger.recordOutput("Feeder/CommandedPower", commandedPower);
   }
 

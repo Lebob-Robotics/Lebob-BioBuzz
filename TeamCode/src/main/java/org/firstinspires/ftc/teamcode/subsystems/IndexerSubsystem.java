@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.hardware.CrServo;
@@ -13,10 +12,9 @@ import org.psilynx.psikit.core.Logger;
  * Loading advances the last roller gently against the backward-held feeder until capacity.
  * Between shot feeds the upstream stage keeps indexing while the last roller holds still.
  */
-public class IndexerSubsystem extends SubsystemBase {
+public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.IndexerState> {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
-  private double feedPower = FEED_POWER; // A volley's (Lebot Teleop RB) can be lower
   private static final double EJECT_POWER = 1.0;
   private static final double LAST_ROLLER_LOAD_POWER = 0.30;
 
@@ -28,9 +26,8 @@ public class IndexerSubsystem extends SubsystemBase {
     STOP, LOAD, STAGE, FEED, EJECT
   }
 
-  private IndexerState indexerState;
-
   public IndexerSubsystem(HardwareMap hardwareMap) {
+    super(FEED_POWER); // A volley's (Lebot Teleop RB) feed power can be lower
     // Independent stages, retaining their verified forward directions.
     indexerServoL = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_LEFT, true);
     indexerServoR = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_RIGHT, false);
@@ -58,27 +55,28 @@ public class IndexerSubsystem extends SubsystemBase {
   }
 
   public void setIndexerState(IndexerState newIndexerState) {
-    setIndexerState(newIndexerState, feedPower);
+    setIndexerState(newIndexerState, feedPower());
   }
 
   /** Apply state and power together: no brief forward pulse on release when power changes. */
   public void setIndexerState(IndexerState newIndexerState, double power) {
-    double p = Math.max(0, Math.min(1, power));
-    if (indexerState == newIndexerState && feedPower == p) { return; }
-    indexerState = newIndexerState;
-    feedPower = p;
-    double[] powers = powersFor(indexerState, feedPower);
+    setState(newIndexerState, power);
+  }
+
+  @Override
+  void write(IndexerState state, double feedPower) {
+    double[] powers = powersFor(state, feedPower);
     indexerServoL.setPower(powers[0]);
     indexerServoR.setPower(powers[1]);
   }
 
   public IndexerState getIndexerState() {
-    return indexerState;
+    return state();
   }
 
   @Override
   public void periodic() {
-    Logger.recordOutput("Indexer/State", indexerState);
+    Logger.recordOutput("Indexer/State", state());
     Logger.recordOutput("Indexer/CommandedPower", indexerServoL.getCommandedPower());
     Logger.recordOutput("Indexer/UpstreamPower", indexerServoL.getCommandedPower());
     Logger.recordOutput("Indexer/LastRollerPower", indexerServoR.getCommandedPower());
