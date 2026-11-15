@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.FieldGeometry;
 import org.psilynx.psikit.core.Logger;
-import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
+import org.firstinspires.ftc.teamcode.opmodes.LebotOpMode;
 import org.firstinspires.ftc.teamcode.opmodes.Main;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 
@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.robot.Robot;
  */
 @Configurable
 @Autonomous(name = "Shoot Auto", group = "Robot", preselectTeleOp = "Lebot Teleop")
-public class ShootAuto extends PsiKitIterativeOpMode {
+public class ShootAuto extends LebotOpMode {
   // Placed square in the corner of its own wall and the side wall on the driver's right (the loading zone), the
   // camera side toward the middle, centre this far off each wall. It aims from there at once; the tags then correct it
   public static double START_OFF_WALL_M = 0.23;
@@ -99,11 +99,6 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   private Follower follower;
   private boolean parkByPedro;
   private double autoStartS;
-
-  @Override
-  protected int getRlogPort() {
-    return Main.LIVE_LOGGING ? Main.RLOG_PORT : 0;
-  }
 
   @Override
   protected void onPsiKitConfigureLogging() {

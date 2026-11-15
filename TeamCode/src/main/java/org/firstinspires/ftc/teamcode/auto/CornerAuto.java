@@ -2,203 +2,60 @@ package org.firstinspires.ftc.teamcode.auto;
 
 import static org.firstinspires.ftc.teamcode.auto.AutoField.pedro;
 
-import com.bylazar.panels.Panels;
 import com.pedropathing.api.Paths;
-import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
-import com.pedropathing.paths.Path;
-import com.qualcomm.robotcore.util.ElapsedTime;
+
+import java.util.Locale;
 
 import org.firstinspires.ftc.teamcode.field.Alliance;
-import org.firstinspires.ftc.teamcode.opmodes.Main;
-import org.firstinspires.ftc.teamcode.robot.Robot;
-import org.firstinspires.ftc.teamcode.shooting.volley.VolleySettings;
 import org.firstinspires.ftc.teamcode.field.Angles;
-import org.firstinspires.ftc.teamcode.field.Units;
-import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
-import org.firstinspires.ftc.teamcode.pedro.Constants;
-import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
-import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
-import org.psilynx.psikit.core.Logger;
-import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
+import org.firstinspires.ftc.teamcode.field.Units;
 
 /**
- * The corner autonomous ({@link CornerSequence}), for one alliance: preloads from the rear corner, a wait there, then
- * our wall's Flower, a volley into the AUDIENCE Cell from in front of it, and park, shooting what's left. Driven as {@link ScoringAuto} drives: Pedro on the
- * Robot's pose, each volley shot stopped with the heading lock turning the robot. No gamepad is read (G401).
+ * The corner autonomous ({@link CornerSequence}), for one alliance, driven as {@link BaseAuto} drives: preloads from
+ * the rear corner, a wait there, then our wall's Flower, a volley into the AUDIENCE Cell from in front of it, and
+ * park, shooting what's left.
  */
-public abstract class CornerAuto extends PsiKitIterativeOpMode {
-  /** Shorter than this, a drive is held at its end instead: Pedro can't follow a path of no length. */
-  private static final double MIN_PATH_IN = 1.0;
-
-  private final Alliance alliance;
-  final RobotLocalizer localizer = new RobotLocalizer();
-  final CapturedDrivetrain drivetrain = new CapturedDrivetrain();
-  private final ElapsedTime clock = new ElapsedTime();
-  private Robot robot;
-  private boolean odometryReady;
-  Follower follower;
-  private CornerSequence sequence;
-  private boolean stopped;
-  private VolleySettings volley;
-  private boolean shotLastLoop; // The volley's settings are picked only before it starts, never mid-burst
-  private double speedMps;
-  private double stepStartS;
-
+public abstract class CornerAuto extends BaseAuto<CornerSequence.Step, CornerSequence> {
   protected CornerAuto(Alliance alliance) {
-    this.alliance = alliance;
+    super(alliance);
   }
 
   @Override
-  protected int getRlogPort() {
-    return Main.LIVE_LOGGING ? Main.RLOG_PORT : 0;
+  protected double[] redStart() {
+    return CornerSequence.CORNER;
   }
 
   @Override
-  protected void onPsiKitConfigureLogging() {
-    Main.configureLogging();
-    Logger.recordMetadata("Auto", getClass().getSimpleName());
-    Logger.recordMetadata("PedroTuned", String.valueOf(Constants.TUNED));
+  protected CornerSequence newPlan() {
+    return new CornerSequence(0);
+  }
+
+  /** CornerSequence's jiggle. */
+  @Override
+  protected boolean indexerPauseRunsBackward() {
+    return true;
   }
 
   @Override
-  protected void onPsiKitInit() {
-    if (!Main.PANELS_ENABLED) {
-      Panels.INSTANCE.disable();
-    }
-    robot = new Robot(hardwareMap, telemetry, gamepad1);
-    robot.setAutonomous(true);
-    robot.setVolleyMode(true);
-    robot.setAutoIndexerReverse(true); // CornerSequence's jiggle
-    robot.setAlliance(alliance);
-    robot.setHandsOffPose(true);
-    robot.init();
-    if (VolleyConstants.VOLLEY_USE_TUNING_CSV) {
-      volley = VolleySettings.loadTuned(); // Reads a file only: INIT moves nothing
-    }
-    follower = new Follower(localizer, drivetrain, Constants.algorithm());
+  protected String placement() {
+    return alliance + " CORNER: robot in the rear corner, touching our wall and the rear wall,"
+        + " intake to our wall, outside the loading zone";
   }
 
   @Override
-  protected void onPsiKitInitLoop() {
-    if (robot == null) {
-      return;
-    }
-    telemetry.addData("Auto", alliance + " CORNER: robot in the rear corner, touching our wall and the rear wall,"
-        + " intake to our wall, outside the loading zone");
-    if (!Constants.TUNED) {
-      telemetry.addData("WARNING", "Pedro not tuned: placeholder constants (run Foresight Tuner)");
-    }
-    if (Main.PANELS_ENABLED || Main.LIVE_LOGGING) {
-      telemetry.addData("WARNING", "Panels or live logging on: both must be off at competition (R704)");
-    }
-    String allianceWarning = robot.allianceWarning();
-    if (allianceWarning != null) {
-      telemetry.addLine(allianceWarning);
-    }
-    robot.initLoop();
-  }
-
-  @Override
-  protected void onPsiKitStart() {
-    if (robot == null) {
-      return;
-    }
-    clock.reset();
-    double[] start = AutoField.forAlliance(CornerSequence.CORNER, alliance);
-    robot.startAt(start[0], start[1], start[2]);
-    localizer.set(start[0], start[1], start[2], 0, 0, 0);
-    robot.setAutoDriver(this::pedroPowers);
-    robot.setDriveBrake(true); // Pedro's constants are measured on BRAKE (13 Nov)
-    sequence = new CornerSequence(0);
-    sequence.takeNewStep();
-    startStep(sequence.step());
-    robot.setAutoShoot(sequence.shoot(0));
-    robot.setAutoIntake(sequence.intake());
-  }
-
-  /** The Robot's corrected pose. */
-  FieldPose pose() {
-    return robot.getPose();
-  }
-
-  /** The heading lock's target, NaN to leave the turn to Pedro. */
-  void lockHeading(double headingRad) {
-    robot.setAutoHeading(headingRad);
-  }
-
-  /** Called by the Robot each loop with the corrected pose, before it drives. */
-  private double[] pedroPowers(FieldPose pose, double[] velocity) {
-    if (!odometryReady) { // Still while the Pinpoint finishes the reset from INIT (13 Nov)
-      odometryReady = robot.isOdometryReady();
-      Logger.recordOutput("Auto/WaitingForOdometry", !odometryReady);
-      if (!odometryReady) {
-        return null;
-      }
-    }
-    localizer.set(pose.xM, pose.yM, pose.headingRad, velocity[0], velocity[1], velocity[2]);
-    speedMps = Math.hypot(velocity[0], velocity[1]);
-    follower.update();
-    return drivetrain.powers();
-  }
-
-  @Override
-  protected void onPsiKitLoop() {
-    if (robot == null || stopped) {
-      return;
-    }
-    double t = clock.seconds();
-    if (t >= ScoringAuto.STOP_ALL_S) {
-      stopAll();
-      return;
-    }
-    double[] aimPoint = AutoField.autoAimPoint(alliance, aimCell());
-    robot.setAimPointOverride(aimPoint);
-    if (volley != null && !shotLastLoop) {
-      int spot = volley.spotFor(robot.getPose(), aimPoint[0], aimPoint[1]);
-      VolleySettings.apply(robot, volley.get(spot));
-      Logger.recordOutput("Auto/VolleySpot", spot);
-    }
-    addTelemetry(t);
-    robot.periodic();
-
-    boolean ballLeft = robot.ballLeftThisLoop();
-    sequence.update(t, stepArrived(), ballLeft, robot.isFeederEmpty(), robot.isStackFull());
-    if (sequence.takeNewStep()) {
-      stepStartS = t;
-      startStep(sequence.step());
-    }
-    shotLastLoop = sequence.shoot(t);
-    robot.setAutoShoot(shotLastLoop);
-    robot.setAutoIntake(sequence.intake());
-    robot.setAutoIndexerPaused(sequence.indexerPaused(t));
-    robot.ramp.setDeployed(sequence.armDown());
-    double inFlowerS = sequence.arrivedForS(t);
-    if (sequence.step() == CornerSequence.Step.INTAKE_FLOWER && !Double.isNaN(inFlowerS)) {
-      double[] wiggle = AutoSequence.flowerWiggle(inFlowerS); // For the intake to take every ball
-      robot.setAutoHeading(wallHeading() + wiggle[0], wiggle[1]);
-    }
-
-    Logger.recordOutput("Auto/TimeS", t);
-    Logger.recordOutput("Auto/Step", sequence.step().name());
-    Logger.recordOutput("Auto/BallsShot", sequence.ballsShot());
-    Logger.recordOutput("Auto/AimCell", aimCell().name());
-    Logger.recordOutput("Auto/IndexerPaused", sequence.indexerPaused(t));
-    Logger.recordOutput("Auto/FollowerMode", follower.mode().name());
-    Logger.recordOutput("Auto/ArmDown", sequence.armDown());
+  protected String status(double t) {
+    return String.format(Locale.US, "CORNER %s  %.1f s  %d shot  aim %s", plan.step(), t, plan.ballsShot(),
+        aimCell());
   }
 
   /** The step's drive is done: for a facing step, on its spot and at its heading. */
-  private boolean stepArrived() {
-    return stepArrived(sequence.step(), sequence.isFacingStep(), clock.seconds() - stepStartS, speedMps);
-  }
-
-  /** As above, for a step this far in, the robot moving this fast. */
-  boolean stepArrived(CornerSequence.Step step, boolean facingStep, double inStepS, double robotSpeedMps) {
-    if (step == CornerSequence.Step.INTAKE_FLOWER && inStepS >= ScoringAuto.FLOWER_STALL_AFTER_S
-        && robotSpeedMps <= ScoringAuto.FLOWER_STALLED_MPS) {
+  @Override
+  protected boolean stepArrived(CornerSequence.Step step, boolean facingStep, double inStepS, double robotSpeedMps) {
+    if (step == CornerSequence.Step.INTAKE_FLOWER && inStepS >= FLOWER_STALL_AFTER_S
+        && robotSpeedMps <= FLOWER_STALLED_MPS) {
       return true; // Pushed up against the Flower short of the intake point: in it
     }
     if (!facingStep) {
@@ -207,12 +64,13 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
     double[] stop = step == CornerSequence.Step.FACE_WALL ? CornerSequence.preloadSpot(alliance)
         : AutoField.forAlliance(AutoField.WALL_FLOWER, alliance);
     FieldPose pose = pose();
-    return Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= ScoringAuto.FACE_FLOWER_M
-        && Math.abs(Angles.normalize(pose.headingRad - wallHeading())) <= ScoringAuto.FACE_FLOWER_RAD;
+    return Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= FACE_FLOWER_M
+        && Math.abs(Angles.normalize(pose.headingRad - wallHeading())) <= FACE_FLOWER_RAD;
   }
 
-  private Cell aimCell() {
-    return aimCell(sequence == null ? null : sequence.step());
+  @Override
+  protected Cell aimCell() {
+    return aimCell(plan == null ? null : plan.step());
   }
 
   /** The Cell to aim at in a step; null, before the start, is the preloads'. */
@@ -228,17 +86,22 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
         ? CornerSequence.gardenCell(alliance) : CornerSequence.nearCell(alliance);
   }
 
+  @Override
+  protected double flowerHeading(CornerSequence.Step step) {
+    return step == CornerSequence.Step.INTAKE_FLOWER ? wallHeading() : Double.NaN;
+  }
+
   /** Intake to our wall: the start's heading, the Flower's, and the one it waits at. */
   private double wallHeading() {
     return AutoField.forAlliance(CornerSequence.CORNER, alliance)[2];
   }
 
-  /** Starts the drive for a step, from where the robot is now. */
-  void startStep(CornerSequence.Step step) {
+  @Override
+  protected void startStep(CornerSequence.Step step) {
     FieldPose now = pose();
     Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean intoFlower = step == CornerSequence.Step.INTAKE_FLOWER;
-    drivetrain.setScale(intoFlower ? ScoringAuto.SWEEP_POWER_SCALE : 1.0);
+    drivetrain.setScale(intoFlower ? SWEEP_POWER_SCALE : 1.0);
     drivetrain.setStrafeBias(0.0);
     drivetrain.setForwardBias(0.0);
     // Square to our wall everywhere but the AUDIENCE volley and the park, which Pedro turns on the way.
@@ -295,51 +158,9 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
         follower.hold(poseOf(CornerSequence.parkSpot(alliance)));
         break;
     }
-    Logger.recordOutput("Auto/HeadingTarget", turning ? Double.NaN : wallHeading());
   }
 
   private static Pose poseOf(double[] field) {
     return new Pose(field[0] / Units.M_PER_IN, field[1] / Units.M_PER_IN, field[2]);
-  }
-
-  /** A straight drive to the end's heading: turning on the way, or facing it from the start. */
-  private void line(Pose here, Pose end, boolean turnOnTheWay) {
-    if (here.distance(end) < MIN_PATH_IN) {
-      follower.hold(end);
-      return;
-    }
-    Path line = Paths.line(here, end);
-    follower.follow(turnOnTheWay ? line.linear(here.heading(), end.heading()) : line.constant(end.heading()));
-  }
-
-  private void addTelemetry(double t) {
-    telemetry.addData("Auto", String.format(java.util.Locale.US, "CORNER %s  %.1f s  %d shot  aim %s",
-        sequence.step(), t, sequence.ballsShot(), aimCell()));
-    telemetry.addData("STOP", "pressed early? Select Lebot Teleop by hand");
-    if (!Constants.TUNED) {
-      telemetry.addData("WARNING", "Pedro not tuned");
-    }
-  }
-
-  /** Stops every mechanism and ends the OpMode. */
-  private void stopAll() {
-    stopped = true;
-    robot.setAutoShoot(false);
-    robot.setAutoIntake(false);
-    robot.setAutoIndexerPaused(false);
-    robot.setAutoIndexerReverse(false);
-    robot.ramp.setDeployed(false);
-    robot.setAutoHeading(Double.NaN);
-    follower.stop();
-    robot.setAutoDriver(null);
-    robot.drive.stop();
-    requestOpModeStop();
-  }
-
-  @Override
-  protected void onPsiKitStop() {
-    if (robot != null) {
-      robot.stop();
-    }
   }
 }

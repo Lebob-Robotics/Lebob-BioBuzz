@@ -80,7 +80,7 @@ public class PedroFollowSimTest {
     return t;
   }
 
-  /** One of the auto's turning drives, from where the robot is to end, as ScoringAuto.turningLine. */
+  /** One of the auto's turning drives, from where the robot is to end, as BaseAuto.line. */
   private double turningDrive(double[] end, double maxS) {
     Pose here = new Pose(x / Units.M_PER_IN, y / Units.M_PER_IN, h);
     Pose to = new Pose(end[0] / Units.M_PER_IN, end[1] / Units.M_PER_IN, end[2]);

@@ -222,3 +222,11 @@ org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants.RPM_TRIM_STEP ->
 org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants.AIM_START_RPM -> org.firstinspires.ftc.teamcode.robot.DriverConstants.AIM_START_RPM
 org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.HOOD_STOP_MARGIN_DEG -> org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.RPM_SEARCH_NEAR_STOP_DEG
 org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.ACCEL_WINDOW_S -> org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.LOGGED_ACCEL_WINDOW_S
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.STOP_ALL_S -> org.firstinspires.ftc.teamcode.auto.BaseAuto.STOP_ALL_S
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.SWEEP_POWER_SCALE -> org.firstinspires.ftc.teamcode.auto.BaseAuto.SWEEP_POWER_SCALE
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.FACE_FLOWER_M -> org.firstinspires.ftc.teamcode.auto.BaseAuto.FACE_FLOWER_M
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.FACE_FLOWER_RAD -> org.firstinspires.ftc.teamcode.auto.BaseAuto.FACE_FLOWER_RAD
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.FLOWER_STALLED_MPS -> org.firstinspires.ftc.teamcode.auto.BaseAuto.FLOWER_STALLED_MPS
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.FLOWER_STALL_AFTER_S -> org.firstinspires.ftc.teamcode.auto.BaseAuto.FLOWER_STALL_AFTER_S
+org.firstinspires.ftc.teamcode.auto.ScoringAuto.MIN_PATH_IN -> org.firstinspires.ftc.teamcode.auto.BaseAuto.MIN_PATH_IN
+org.firstinspires.ftc.teamcode.auto.CornerAuto.MIN_PATH_IN -> org.firstinspires.ftc.teamcode.auto.BaseAuto.MIN_PATH_IN
