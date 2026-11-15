@@ -229,7 +229,6 @@ public final class ShootOnTheMoveConstants {
   // speed axis: it is only taken while the robot is nearly stopped.
   public static boolean BACKWARD_SHOTS_ON = true;
   public static double BACKWARD_DIRECTION_RAD = 0; // Relative to robot forward
-  public static double BACKWARD_LAUNCH_DEG = 99; // Hood on its lower stop (HoodSubsystem.ZERO_ANGLE_DEG)
   // 0.40 m (Shot Tuning, 6 Nov 082517): on its stop the hood never scored from 0.4-0.6 m (0 of 7 at 3400-3600 rpm,
   // and the G1 grid 0 of 3 at 0.6 m, onto the Cell's bottom); 8 degrees up at 3200 rpm scored 4 of 5, 3150-3300
   // 8 of 13. Shot Tuning 091010: 0.42 m at 90.3 degrees 8 of 10 against 0 of 2 at 91.3; 0.60 m 3270 rpm 94.0 degrees

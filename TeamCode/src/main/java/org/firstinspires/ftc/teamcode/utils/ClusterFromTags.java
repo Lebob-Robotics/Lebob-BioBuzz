@@ -37,11 +37,6 @@ public final class ClusterFromTags {
 
   private ClusterFromTags() {}
 
-  /** The SDK name of the Cell a Hive tag belongs to, or null. */
-  public static String cellName(int id) {
-    return id >= 30 && id <= 45 ? NAMES[(id - 30) / 4] : null;
-  }
-
   /**
    * The Cells seen in one frame.
    *

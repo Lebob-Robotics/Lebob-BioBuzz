@@ -177,7 +177,6 @@ public class HoodSubsystem extends SubsystemBase {
     /** As low as the stop margin allows. */
     STOW(Double.NaN),
     CLOSE(75.0), // TODO tune on robot
-    MID(65.0), // TODO tune on robot
     FAR(55.0); // TODO tune on robot
 
     private final double launchAngleDeg;
@@ -302,11 +301,6 @@ public class HoodSubsystem extends SubsystemBase {
     homeResult = "homing";
     hoodMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     hoodMotor.setPower(-HOME_POWER); // Positive raises the hood
-  }
-
-  /** True while the hood is still driving down to zero itself. */
-  public boolean isHoming() {
-    return homing;
   }
 
   /** Short status for telemetry: homing, homed on the stop, or timed out. */
@@ -633,15 +627,6 @@ public class HoodSubsystem extends SubsystemBase {
     enabled = true;
   }
 
-  /** True while a direct-ticks target is overriding the preset. */
-  public boolean isDirectMode() {
-    return directMode;
-  }
-
-  public HoodPreset getPreset() {
-    return preset;
-  }
-
   /**
    * Converts a launch angle to encoder ticks. Ticks count up as the hood
    * raises and the launch angle drops from {@link #ZERO_ANGLE_DEG}.
@@ -717,16 +702,6 @@ public class HoodSubsystem extends SubsystemBase {
         ? "FAULT: REV encoder not following the motor. Check its cable (Control Hub encoder 0) and that it"
             + " grips the pinion shaft, then re-INIT"
         : "FAULT: check wiring and re-INIT";
-  }
-
-  /** Belt slips the encoder guard has seen since INIT. */
-  public int getSlipCount() {
-    return encoderGuard.getSlipCount();
-  }
-
-  /** Re-homes after belt faults since the hood last reached a target. */
-  public int getRehomes() {
-    return recovery.rehomes();
   }
 
   /** Target position in ticks: the direct override if set, else the preset's, kept inside the margins. */

@@ -30,7 +30,7 @@ public class CornerSequenceTest {
   }
 
   @Test
-  public void runsThePlanInOrderAndWaitsTenSecondsBackInTheCorner() {
+  public void runsThePlanInOrderAndWaitsBackInTheCorner() {
     seq.takeNewStep();
     assertEquals(Step.SHOOT_PRELOAD, seq.step());
     runTo(Step.FACE_WALL, 5);

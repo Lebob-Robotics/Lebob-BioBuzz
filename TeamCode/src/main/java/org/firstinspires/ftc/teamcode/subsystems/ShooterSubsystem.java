@@ -309,12 +309,12 @@ public class ShooterSubsystem extends SubsystemBase {
     return stallGuard.isTripped();
   }
 
-  /** Stall guard state for telemetry. */
   /** Last current reads of the two flywheel motors, A (0 while stopped). */
   public double getLeftAmps() { return leftAmps; }
 
   public double getRightAmps() { return rightAmps; }
 
+  /** Stall guard state for telemetry. */
   public String getStallStatus() {
     if (stallGuard.isLockedOut()) {
       return "STALLED, off until restart: check belts and pulleys";

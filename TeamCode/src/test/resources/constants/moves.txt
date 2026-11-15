@@ -2,3 +2,7 @@
 # old.Class -> new.Class          a class moved or renamed (all its constants follow)
 # old.Class.FIELD -> new.Class.F  one constant moved
 # old.Class.FIELD -> (deleted)    removed as unused
+
+# Phase 1: unused
+org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG -> (deleted)
+org.firstinspires.ftc.teamcode.Robot.HEADING_OFF_RAD -> (deleted)

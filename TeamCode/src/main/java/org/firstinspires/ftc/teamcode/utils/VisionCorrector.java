@@ -74,7 +74,6 @@ public final class VisionCorrector {
     return new double[] {cell == Cell.AUDIENCE ? outM : -outM, ySumIn / tags * IN_TO_M};
   }
 
-  /** Clears partial tip votes. */
   /**
    * The heading came from a known placement (Shoot Auto's start): one tag may place the robot using it, instead of
    * waiting for a pair. From its start spot the Shoot Auto saw one tag, and got no fix in 30 s on 5 runs (13 Nov),

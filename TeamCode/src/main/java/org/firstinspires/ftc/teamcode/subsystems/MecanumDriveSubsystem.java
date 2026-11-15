@@ -438,11 +438,6 @@ public class MecanumDriveSubsystem extends SubsystemBase {
     return Math.max(-HEADING_MAX_ROTATE, Math.min(HEADING_MAX_ROTATE, ccw));
   }
 
-  /** Heading error from the last {@link #driveHeadingLock}, CCW positive. */
-  public double getHeadingErrorRad() {
-    return headingErrorRad;
-  }
-
   @Override
   public void periodic() {
     Logger.recordOutput("Drive/Cmd/Forward", cmdForward);

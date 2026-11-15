@@ -78,11 +78,6 @@ public class FeederSubsystem extends SubsystemBase {
     setFeederPower(powerFor(feederState, feedPower));
   }
 
-  /** Power while feeding, 0-1; the default is full. Applies at once if feeding now. */
-  public void setFeedPower(double power) {
-    setFeederState(feederState, power);
-  }
-
   public FeederState getFeederState() {
     return feederState;
   }

@@ -145,18 +145,14 @@ public class Robot {
   private final PoseHistory poseHistory = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
   private final VisionCorrector visionCorrector = new VisionCorrector();
   private long lastHistoryNanos = Long.MIN_VALUE;
-  private boolean poseValid = false; // True once a tag fix has placed the robot on the field. Nothing is gated on it yet
+  private boolean poseValid = false; // True once a tag fix has placed the robot on the field
   // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
   private boolean headingValid = false;
   private VisionCorrector.Cell frontCell = null; // Our Cell on the robot's side of the Hive
   private boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
   private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
   private long lastVisionNanos = 0;
-  private int outOfFieldFrames; // Tag fixes in a row that put the robot off the field: the pose has gone wrong
-  private int headingOffFrames; // Tag-pair headings in a row this far from the trusted heading
   private int positionFixes; // Tag fixes applied to the position so far
-  private double lastHeadingOffRad;
-  private static final double HEADING_OFF_RAD = Math.toRadians(15);
 
   private AimState aimState = AimState.OFF;
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
@@ -292,7 +288,6 @@ public class Robot {
   private double[] lastVelocity = {0, 0, 0};
   private double[] aimVelocity; // Low-passed {x, y} the aim uses; null until the first loop
   private double aimVelocityS;
-  private boolean lastFeeding = false;
   private double feedCommitUntilS = Double.NEGATIVE_INFINITY;
   private double[] committedTranslation; // Held while a fed ball is still in the shooter; null otherwise
   private double committedSinceS;
@@ -365,11 +360,6 @@ public class Robot {
     hood.init();
     ramp.setDeployed(false);
     ramp.periodic();
-  }
-
-  /** True while INIT keeps the hood and ramp still for START. */
-  public boolean mechanismsWaitForStart() {
-    return mechanismsWaitForStart;
   }
 
   /**
@@ -689,7 +679,6 @@ public class Robot {
     }
     lastPose = pose;
     lastVelocity = velocity;
-    lastFeeding = aimedFeed || manualReady;
 
     long tRun = System.nanoTime();
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
@@ -761,12 +750,6 @@ public class Robot {
     if (result.reason != VisionResult.Reason.NO_OBSERVATIONS) {
       lastVision = result;
       lastVisionNanos = nowNanos;
-      outOfFieldFrames = result.reason == VisionResult.Reason.OUT_OF_FIELD ? outOfFieldFrames + 1 : 0;
-      if (result.headingPairs > 0 && headingValid) {
-        boolean off = Math.abs(result.dHeadingRad) > HEADING_OFF_RAD;
-        headingOffFrames = off ? headingOffFrames + 1 : 0;
-        if (off) { lastHeadingOffRad = result.dHeadingRad; }
-      }
     }
     double frameAgeS = Double.NaN; // Of the newest frame handed in
     for (TagObservation observation : observations) {
@@ -786,15 +769,6 @@ public class Robot {
     }
   }
 
-  /**
-   * Null when the Cell hasn't been seen recently. While aiming, the shot direction (hooded or backward)
-   * is picked once, as the one ready soonest (ShootOnTheMove.secondsToReady: turn, hood and wheels), and kept
-   * until RT is let go: their headings are 180 degrees apart, so switching between them each loop spins the
-   * robot back and forth. A backward shot blocked only by the robot's speed still counts, SHOT_PICK_BLOCKED_S
-   * later: the robot then lines up and the hood goes down, and it fires once slowed. Picking only a ready
-   * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
-   * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
-   */
   /** The Cell on the robot's side of the Hive, changing only once the robot is FRONT_CELL_SWITCH_M past the middle. */
   static VisionCorrector.Cell frontCell(VisionCorrector.Cell current, double xM) {
     double margin = ShootOnTheMoveConstants.FRONT_CELL_SWITCH_M;
@@ -815,6 +789,15 @@ public class Robot {
     return ShootOnTheMoveConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
   }
 
+  /**
+   * Null when the Cell hasn't been seen recently. While aiming, the shot direction (hooded or backward)
+   * is picked once, as the one ready soonest (ShootOnTheMove.secondsToReady: turn, hood and wheels), and kept
+   * until RT is let go: their headings are 180 degrees apart, so switching between them each loop spins the
+   * robot back and forth. A backward shot blocked only by the robot's speed still counts, SHOT_PICK_BLOCKED_S
+   * later: the robot then lines up and the hood goes down, and it fires once slowed. Picking only a ready
+   * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
+   * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
+   */
   private Aim aimAtCell(Pose pose, double[] velocity, long nowNanos, boolean aiming) {
     tracker.recordPose(nowNanos, pose);
     // Every loop, aiming or not, so it has settled by the time RT is pressed. Only the aim uses it
@@ -1032,7 +1015,6 @@ public class Robot {
     return pressedNow && !pressedLastLoop;
   }
 
-  /** The stick directions are from the driver's wall, so the drive gets the heading less the alliance's forward. */
   /**
    * Rate the aimed lock heading moves, CCW positive, for the heading lock's feedforward. 0 when not aiming.
    * The direction to the Cell's rate comes from the velocity; the shooter's sideways turn changes with the
@@ -1897,10 +1879,6 @@ public class Robot {
   }
 
   /**
-   * Samples the battery voltage, keeping the lowest seen this run (it sags when the shooter spins up),
-   * then logs it and adds it to telemetry.
-   */
-  /**
    * A battery this low at rest sags toward brownout in a match: two 9 Nov runs that started at 11.1-11.9 V fell to
    * 6.8-6.9 V, and every auto sags to 9.6 V at spin-up even from 12.6 V.
    */
@@ -1908,6 +1886,10 @@ public class Robot {
     return restingVolts < ShootOnTheMoveConstants.SWAP_BATTERY_V;
   }
 
+  /**
+   * Samples the battery voltage, keeping the lowest seen this run (it sags when the shooter spins up),
+   * then logs it and adds it to telemetry.
+   */
   private void updateBattery(boolean telemetryDue) {
     double now = clock.seconds();
     if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
@@ -1924,32 +1906,20 @@ public class Robot {
     }
   }
 
-  /** Called once when the OpMode stops. */
   /** The pose this loop aimed from, after the vision correction. */
   public Pose getPose() { return lastPose; }
   /** Field velocity {x, y, turn rate} this loop, m/s and rad/s. */
   public double[] getVelocity() { return lastVelocity.clone(); }
   public boolean isPoseValid() { return poseValid; }
   public double getBatteryVolts() { return batteryVolts; }
-  public double getBatteryMinVolts() { return batteryMinVolts; }
-  public int getOutOfFieldFrames() { return outOfFieldFrames; }
-  public int getHeadingOffFrames() { return headingOffFrames; }
   public int getPositionFixes() { return positionFixes; }
-  public double getLastHeadingOffRad() { return lastHeadingOffRad; }
-  public boolean isHeadingValid() { return headingValid; }
-  public boolean isAimingAtFieldCell() { return aimingAtFieldCell; }
   public double getAimCellX() { return aimCellX; }
   public double getAimCellY() { return aimCellY; }
-  public AimState getAimState() { return aimState; }
-  public boolean isFeeding() { return lastFeeding; }
   /** Aims as RT asks but feeds nothing: a scripted test lining up before the shot it means to take. */
   public void setHoldFire(boolean hold) { holdFire = hold; }
 
   /** Heading/hood may track while filling, but flywheels start only for an enabled shot. */
   public void setSpinOnlyOnFire(boolean enabled) { spinOnlyOnFire = enabled; }
-
-  /** The shortest time from one aimed feed starting to the next. */
-  public void setMinFeedSpacingS(double s) { aimedFeedGate.setMinFeedSpacingS(s); }
 
   private double tableRpmOffset(Aim aim) {
     if (aim == null || (tuningMode && !tuningLive)) {
@@ -2106,10 +2076,10 @@ public class Robot {
   /** True on the loop the wheels showed a ball leaving (aimed or volley). */
   public boolean ballLeftThisLoop() { return feedGate.ballLeft(); }
 
-  /** True once a feed pulse and its pause passed with no ball out, until one leaves. */
   /** The Pinpoint's last read was good: false while it calibrates after the reset INIT asks for. */
   public boolean isOdometryReady() { return odometry.isReadGood(); }
 
+  /** True once a feed pulse and its pause passed with no ball out, until one leaves. */
   public boolean isFeederEmpty() { return feedGate.feederEmpty(); }
 
   /** The stack read full this loop (a loading ball touched the wheels): the auto moves on from a Flower. */
@@ -2118,7 +2088,6 @@ public class Robot {
   /** Frames so far whose tags voted for our up Cell as it stands. */
   public int getUpCellAgreeingFrames() { return visionCorrector.agreeingFrames(alliance); }
 
-  /** Powers for the Scoring Auto's drive, from this loop's pose (vision corrected) and field-frame velocity. */
   /** LT, or held fully down while the autonomous is loading: in auto the driver gamepad is a blank one. */
   static double loadTrigger(double leftTrigger, boolean autoIntake) {
     return autoIntake ? 1.0 : leftTrigger;
@@ -2132,6 +2101,7 @@ public class Robot {
     return loadTrigger(driver.right_trigger, autoShoot);
   }
 
+  /** Powers for the Scoring Auto's drive, from this loop's pose (vision corrected) and field-frame velocity. */
   public interface AutoDriver {
     /** @return robot-frame {forward, left, counterclockwise}, each -1..1; null to stand still, not even aiming */
     double[] drive(Pose pose, double[] velocity);
@@ -2211,9 +2181,6 @@ public class Robot {
   /** Raises every hooded shot's launch angle this much, as the driver's hood trim does (lift falls). */
   public void setHoodAngleTrimDeg(double deg) { hoodLiftTrimDeg = -deg; }
 
-  /** The longest an aimed feed runs before pausing for its ball's dip. */
-  public void setFeedPulseS(double s) { aimedFeedGate.setPulseS(s); }
-
   // ---- Volley (Lebot Teleop RB, Volley Tuning) ----
 
   /** RB's hooded aimed shot, held still, fires as a burst; RT's on the move too while VOLLEY_ON_RT. */
@@ -2230,8 +2197,6 @@ public class Robot {
     if (rightBumper) { return true; }
     return forceAim ? rightTrigger <= TRIGGER_PRESSED : rtVolley && rightTrigger > TRIGGER_PRESSED;
   }
-
-  public boolean isVolleyMode() { return volleyMode; }
 
   /** Volley calibration measures the hooded shot at every test spot. */
   public void setHoodedOnly(boolean on) { hoodedOnly = on; }
@@ -2277,20 +2242,11 @@ public class Robot {
   /** This loop's shot is a volley: volley mode, RB or RT, an aimed shot (backward too), not a tuning tool's. */
   public boolean isVolleyShot() { return volleyShot; }
 
-  /** Feeds started in this press of the volley trigger. */
-  public int getVolleyFeedStarts() { return volleyFeedGate.feedStarts(); }
-
-  /** Balls seen leaving (wheel dips) in this press of the volley trigger. */
-  public int getVolleyBallsLeft() { return volleyFeedGate.ballsLeft(); }
-
   /** About the wheel speed the last volley ball left at; NaN if none. */
   public double getVolleyLeftAtRpm() { return volleyFeedGate.peakAtLeaveRpm(); }
 
   /** How far the wheels have dropped since the last volley ball left; NaN if none. */
   public double getVolleyDipDepthRpm() { return volleyFeedGate.lastDipDepthRpm(); }
-
-  /** Launch angle the volley added to the hood this loop. */
-  public double getVolleyHoodDeg() { return volleyHoodDeg; }
 
   public double volleyFeedPower() {
     return Double.isNaN(volleyFeedPower) ? ShootOnTheMoveConstants.VOLLEY_FEED_POWER : volleyFeedPower;
@@ -2389,6 +2345,7 @@ public class Robot {
     Logger.recordOutput("Volley/FastRecovery", volleyFastRecovery());
   }
 
+  /** Called once when the OpMode stops. */
   public void stop() {
     watchdog.feed(); // A stop that hangs (closing a camera) is reported too
     if (handsOffPose) {

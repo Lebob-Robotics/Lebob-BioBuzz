@@ -395,15 +395,15 @@ public final class AutoSequence {
     return cell == Cell.AUDIENCE ? Cell.SCORING : Cell.AUDIENCE;
   }
 
-  /**
-   * The wiggle in a Flower, this long after the drive in was done: {heading offset from facing it, its rate}, radians and rad/s,
-   * CCW positive. Starts at 0 turning left, so the heading doesn't jump.
-   */
   /** Seconds since this step's drive was done, or NaN while it is still driving. */
   public double arrivedForS(double nowS) {
     return nowS - arrivedAtS;
   }
 
+  /**
+   * The wiggle in a Flower, this long after the drive in was done: {heading offset from facing it, its rate}, radians and rad/s,
+   * CCW positive. Starts at 0 turning left, so the heading doesn't jump.
+   */
   public static double[] flowerWiggle(double inStepS) {
     double w = 2 * Math.PI / WIGGLE_PERIOD_S;
     return new double[] {WIGGLE_RAD * Math.sin(w * inStepS), WIGGLE_RAD * w * Math.cos(w * inStepS)};

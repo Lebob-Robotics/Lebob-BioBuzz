@@ -744,10 +744,6 @@ public class VisionSubsystem extends SubsystemBase {
     return observations;
   }
 
-  public boolean isAvailable(Side side) {
-    return inputs[side.ordinal()].available;
-  }
-
   /** The latest logged inputs for one camera. */
   public VisionInputs getInputs(Side side) {
     return inputs[side.ordinal()];

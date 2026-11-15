@@ -57,14 +57,6 @@ public class GobildaMotor {
     maxVelocityTicksPerSec = MAX_OUTPUT * motor.getMotorType().getAchieveableMaxTicksPerSecond(); // From the motor type in the robot configuration
   }
 
-  /** Zeroes the encoder, then restores the previous run mode. */
-  public GobildaMotor resetEncoder() {
-    DcMotor.RunMode previous = motor.getMode();
-    motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-    motor.setMode(previous);
-    return this;
-  }
-
   /** Brakes (true) or floats at zero power. Written to the hub only when it changes. */
   public void setBrake(boolean on) {
     if (on != brake) {
@@ -204,9 +196,5 @@ public class GobildaMotor {
 
   public String getName() {
     return name;
-  }
-
-  public DcMotorEx getRaw() {
-    return motor;
   }
 }

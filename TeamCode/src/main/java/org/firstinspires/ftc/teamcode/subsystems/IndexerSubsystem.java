@@ -71,11 +71,6 @@ public class IndexerSubsystem extends SubsystemBase {
     indexerServoR.setPower(powers[1]);
   }
 
-  /** Forward power, 0-1. Shot staging keeps the last roller stopped; loading caps its power. */
-  public void setFeedPower(double power) {
-    setIndexerState(indexerState, power);
-  }
-
   public IndexerState getIndexerState() {
     return indexerState;
   }

@@ -76,11 +76,6 @@ public class OdometrySubsystem extends SubsystemBase {
     pinpoint = found;
   }
 
-  /** True when the Pinpoint is configured. */
-  public boolean isAvailable() {
-    return pinpoint != null;
-  }
-
   /**
    * Called once from the OpMode's init(). Configures the Pinpoint and zeroes its
    * pose.
