@@ -47,14 +47,21 @@ import java.util.concurrent.TimeUnit;
 @Configurable
 public class VisionSubsystem extends SubsystemBase {
   /** Which field's lighting the camera exposure is set for. Switch it in Panels on arriving at a field. */
-  public enum FieldLighting { CURTIN, HOME }
+  public enum FieldLighting { CURTIN, HOME, COMP }
 
-  public static FieldLighting FIELD_LIGHTING = FieldLighting.HOME;
+  public static FieldLighting FIELD_LIGHTING = FieldLighting.COMP;
   /** Live camera controls for tuning tag contrast, per field. Exposure is in milliseconds. */
   public static int CURTIN_EXPOSURE_MS = 3;
   public static int CURTIN_GAIN = 30;
   public static int HOME_EXPOSURE_MS = 5; // Matches the working home Shot/SOTM camera capture
   public static int HOME_GAIN = 60;
+  /**
+   * The 15 Nov competition venue. At the home 5 ms / gain 60, camera R's frames there averaged 181 of 255 with 22%
+   * clipped white and tag blacks lifted to ~90, and tag decision margins fell to about half of home (R 77, L 41 at
+   * 1-1.5 m, against ~140 at home). 3 ms / gain 30 lets in about a third of the light.
+   */
+  public static int COMP_EXPOSURE_MS = 3;
+  public static int COMP_GAIN = 30;
   /**
    * Saves a frame from each camera this often (0 never), to /sdcard/VisionPortal-cam{L,R}{0-9}.png, the
    * names cycling so a PC can pull them and see what the robot sees.
@@ -416,8 +423,10 @@ public class VisionSubsystem extends SubsystemBase {
       });
       return;
     }
-    final int exposureWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_EXPOSURE_MS : HOME_EXPOSURE_MS;
-    final int gainWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_GAIN : HOME_GAIN;
+    final int exposureWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_EXPOSURE_MS
+        : FIELD_LIGHTING == FieldLighting.COMP ? COMP_EXPOSURE_MS : HOME_EXPOSURE_MS;
+    final int gainWanted = FIELD_LIGHTING == FieldLighting.CURTIN ? CURTIN_GAIN
+        : FIELD_LIGHTING == FieldLighting.COMP ? COMP_GAIN : HOME_GAIN;
     if (appliedExposure[i] == exposureWanted && appliedGain[i] == gainWanted) {
       return;
     }
@@ -621,6 +630,18 @@ public class VisionSubsystem extends SubsystemBase {
     return side == Side.LEFT ? ShootOnTheMoveConstants.LEFT_CAMERA : ShootOnTheMoveConstants.RIGHT_CAMERA;
   }
 
+  /** Below this the stream is still (re)starting: see {@link #frameTimesTrusted}. Normal running is 5-25 fps. */
+  public static double MIN_TRUSTED_FPS = 5.0;
+
+  /**
+   * A stream that has just (re)started can hand over a frame taken well before its time stamp. Camera R's first
+   * frame after a restart (4.4 fps) was taken before a 36 degree turn but placed after it, which put the Cell 0.7 m
+   * off; TeleOp then aimed 0.34-0.69 m from the lip when it was nearer 1 m and every ball fell short (15 Nov, 080649).
+   */
+  static boolean frameTimesTrusted(double fps) {
+    return fps >= MIN_TRUSTED_FPS;
+  }
+
   /**
    * Cell cluster sightings from both cameras, from frames not handed out before. Call once per loop.
    * Reads only the logged inputs, so replay behaves like the live run.
@@ -641,7 +662,7 @@ public class VisionSubsystem extends SubsystemBase {
       for (int i = 0; i < detectionCount; i++) {
         boolean isCluster = camera.tagIds[i] == VisionInputs.CLUSTER_ID;
         boolean isNewFrame = camera.frameNanos[i] > previousNewestNanos;
-        if (isCluster && isNewFrame && !Double.isNaN(camera.x[i])) {
+        if (isCluster && isNewFrame && !Double.isNaN(camera.x[i]) && frameTimesTrusted(camera.fps)) {
           sightings.add(new CellSighting(camera.clusterNames[i], mount, camera.frameNanos[i],
               camera.x[i] * INCHES_TO_METRES, camera.y[i] * INCHES_TO_METRES, camera.z[i] * INCHES_TO_METRES));
         }
@@ -674,7 +695,7 @@ public class VisionSubsystem extends SubsystemBase {
       for (int i = 0; i < detectionCount; i++) {
         boolean isSingleTag = camera.tagIds[i] != VisionInputs.CLUSTER_ID;
         boolean isNewFrame = camera.frameNanos[i] > previousNewestNanos;
-        if (isSingleTag && isNewFrame) {
+        if (isSingleTag && isNewFrame && frameTimesTrusted(camera.fps)) {
           observations.add(new TagObservation(camera.tagIds[i], mount,
               camera.x[i] * INCHES_TO_METRES, camera.y[i] * INCHES_TO_METRES, camera.z[i] * INCHES_TO_METRES,
               camera.decisionMargin[i], camera.frameNanos[i]));
