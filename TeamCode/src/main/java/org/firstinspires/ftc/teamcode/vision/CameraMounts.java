@@ -8,8 +8,7 @@ public final class CameraMounts {
   private CameraMounts() {}
 
   // Both cameras are mounted upside down: roll must be undone before pitch and yaw.
-  // The replacement left camera's yaw and pitch are fitted to the right camera's tag positions, not CAD
-  // (6 Nov calibration drive, 824 sightings both cameras made of the same tags).
+  // The replacement left camera's yaw and pitch are fitted to the right camera's sightings of the same tags, not CAD
   public static final CameraMount LEFT_CAMERA = new CameraMount(
       -0.1624, 0.0377, 0.2093, Math.PI - Math.toRadians(37), Math.toRadians(39.85), Math.PI);
   public static final CameraMount RIGHT_CAMERA = new CameraMount(

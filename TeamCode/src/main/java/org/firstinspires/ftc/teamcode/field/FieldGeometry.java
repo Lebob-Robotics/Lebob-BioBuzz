@@ -8,7 +8,7 @@ public final class FieldGeometry {
   // use the tags' field positions. The drive stays driver relative: heading minus the forward below.
   // Heading the driver calls "forward", standing at their wall. The tags set the field heading, so these must
   // match the real field. Each driver stands at the wall nearest their own Cells (red tags at -y, blue at +y), with
-  // both Cells off to the sides, 90 degrees from them: red faces +y, blue -y (6 Nov, from the drivers)
+  // both Cells off to the sides, 90 degrees from them: red faces +y, blue -y (from the drivers)
   public static final double ALLIANCE_FORWARD_RED_RAD = Math.PI / 2;
   public static final double ALLIANCE_FORWARD_BLUE_RAD = -Math.PI / 2;
 

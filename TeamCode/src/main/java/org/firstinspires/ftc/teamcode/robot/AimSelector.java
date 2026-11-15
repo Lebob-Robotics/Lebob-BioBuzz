@@ -84,7 +84,7 @@ final class AimSelector {
    * robot back and forth. A backward shot blocked only by the robot's speed still counts, SHOT_PICK_BLOCKED_S
    * later: the robot then lines up and the hood goes down, and it fires once slowed. Picking only a ready
    * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
-   * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
+   * press. SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
    */
   Aim aimAtCell(FieldPose pose, double[] velocity, long nowNanos, boolean aiming) {
     robot.tracker.recordPose(nowNanos, pose);
@@ -95,7 +95,7 @@ final class AimSelector {
         AimConstants.AIM_VELOCITY_SMOOTHING_S);
     aimVelocityS = velocityNowS;
     Logger.recordOutput("SOTM/AimVelocity", aimVelocity);
-    // Spinning fast, the frame's pose is too uncertain and moved the Cell 0.17 m during one shot (5 Nov)
+    // Spinning fast, the frame's pose is too uncertain and moves the Cell
     boolean steady = Math.abs(velocity[2]) <= VisionConstants.MAX_OMEGA_FOR_VISION_RAD_S;
     for (CellSighting sighting : robot.vision.takeNewCellSightings()) {
       Alliance other = robot.alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;
@@ -111,8 +111,8 @@ final class AimSelector {
     }
     cellSeenAgoS = robot.tracker.secondsSinceSeen(nowNanos);
     // Once the tags have placed the robot and shown which of our Cells is up, aim at that Cell's place on the
-    // field. The tracker's Cell, last seen 6-20 s before, had been dragged 0.38 m toward the down Cell by the
-    // pose corrections it follows, and the balls went into the down Cell (5 Nov, 081558)
+    // field. The tracker's Cell, unseen for a while, had been dragged toward the down Cell by the pose corrections it
+    // follows, and the balls went into the down Cell
     if (!aiming || frontCell == null) { // Held for the whole shot
       frontCell = frontCell(frontCell, pose.xM);
     }
@@ -164,7 +164,7 @@ final class AimSelector {
     } else if (frontOfCell || backwardOnly) {
       pickBackward = true;
     } else if (ShotPickConstants.SHOT_PICK_QUICKEST) {
-      // Whichever is ready soonest from the heading, hood and wheels now (8 Nov): no backward arc
+      // Whichever is ready soonest from the heading, hood and wheels now: no backward arc
       pickBackward = ShootOnTheMove.backwardQuicker(hooded, backward, pose.headingRad,
           HoodSubsystem.ticksToAngle(robot.hood.getPosition()), robot.shooter.getRpm());
     } else {
@@ -176,7 +176,7 @@ final class AimSelector {
       aimBackwardLatched = null;
       // The shot RT would pick, so the hood can get there first. Only switched once the other one has
       // been the pick for PREPOSITION_SETTLE_S, so turning past the switch point doesn't swing the hood
-      // through its whole travel each time (the belt skipped doing that, 4 Nov).
+      // through its whole travel each time (the belt skipped doing that).
       double nowS = nowNanos * 1e-9;
       if (pickBackward == prepositionBackward) {
         prepositionSwitchSinceS = Double.NaN;

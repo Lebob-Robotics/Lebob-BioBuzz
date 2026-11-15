@@ -127,9 +127,8 @@ public class Robot {
   private Aim lastAim = null;
   private boolean forceAim = false; // Aims as RB does, without firing
   private final LoopWatchdog watchdog = new LoopWatchdog();
-  // Volley mode (Lebot Teleop, Volley Tuning): RB's hooded aimed shot, held still, fires as a burst, each ball at
-  // the matched wheel speed (VolleyConstants). RT stays the one-at-a-time shoot on the move. Off,
-  // RB is a plain held shot as RT's
+  // Volley mode: RB's hooded aimed shot, held still, fires as a burst, each ball at the matched wheel speed
+  // (VolleyConstants). RT stays the one-at-a-time shoot on the move. Off, RB is a plain held shot as RT's
   boolean volleyMode = false;
   boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
   // Volley Tuning's settings in place of the constants
@@ -143,7 +142,7 @@ public class Robot {
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
   private FieldPose lastPose = new FieldPose(0, 0, 0);
   double[] lastVelocity = {0, 0, 0};
-  // Scoring Auto (6 Nov, feature/auto): no gamepad is read (G401); it drives, aims and intakes through these
+  // Scoring Auto: no gamepad is read (G401); it drives, aims and intakes through these
   boolean autonomous = false;
   boolean autoIndexerPaused = false; // The auto's agitation: a loading indexer stops while true
   boolean autoIndexerReverse = false; // ...or runs backward, a jiggle like the volley's retry pulse
@@ -181,9 +180,8 @@ public class Robot {
   }
 
   /**
-   * With {@code stillInInit}, nothing moves until START: the hood homes and the ramp servo is powered then, not
-   * in INIT. G403 bans any powered movement, a twitch included, in the 8 s between AUTO and TELEOP, and Lebot
-   * Teleop is INITed then: its INIT drove the hood down from the auto's ~61 degrees.
+   * With {@code stillInInit}, nothing moves until START: the hood homes and the ramp servo is powered then. G403
+   * bans any powered movement, a twitch included, in the 8 s between AUTO and TELEOP, when Lebot Teleop is INITed.
    */
   public void init(boolean stillInInit) {
     if (!Logger.isReplay()) {
@@ -206,10 +204,7 @@ public class Robot {
     ramp.periodic();
   }
 
-  /**
-   * Merges the Panels browser gamepad into gamepad 1 so either can drive. Panels builds a new
-   * combined Gamepad on every call, so this runs once per loop. Off with Main.PANELS_ENABLED.
-   */
+  /** Merges the Panels browser gamepad into gamepad 1. Panels builds a new one each call, so this runs once a loop. */
   private void refreshDriver() {
     driver = autonomous ? noGamepad
         : Main.PANELS_ENABLED
@@ -226,10 +221,7 @@ public class Robot {
     }
   }
 
-  /**
-   * Called repeatedly during INIT: the driver picks the alliance. The shooter is stopped here, but
-   * its stall guard still runs so the shooter is logged from the start.
-   */
+  /** Called repeatedly during INIT. The stopped shooter still runs its stall guard, so it is logged from the start. */
   public void initLoop() {
     watchdog.feed();
     refreshDriver();
@@ -246,9 +238,8 @@ public class Robot {
   }
 
   /**
-   * Called once when the OpMode starts. Sets the heading from {@link #placedHeadingRad}: the robot placed square,
-   * its camera side toward the middle of the field. From then on two Hive tags seen together correct it
-   * automatically; A resets it by hand the same way.
+   * Called once when the OpMode starts, with the robot placed square, its camera side toward the middle of the field.
+   * From then on two Hive tags seen together correct the heading; A resets it by hand the same way.
    */
   public void start() {
     if (mechanismsWaitForStart) {
@@ -263,9 +254,8 @@ public class Robot {
   }
 
   /**
-   * Shoot Auto: the robot is where it was placed, so it can aim at its Hive at once, before any tag is seen. The
-   * first tag fix still replaces this in full (poseValid stays false until then). Until the tags show which Cell
-   * is up, it aims at the one the corrector starts with.
+   * Shoot Auto: the robot is where it was placed, so it can aim at its Hive before any tag is seen. The first tag
+   * fix still replaces this in full. Until the tags show which Cell is up, it aims at the corrector's starting Cell.
    */
   public void seedPose(double xM, double yM, double headingRad) {
     odometry.setPose(xM, yM, headingRad);
@@ -286,18 +276,12 @@ public class Robot {
     return alliance;
   }
 
-  /**
-   * Field heading of the driver's forward: away from the alliance's wall, or toward it with the driver on the far
-   * side. The sticks, the start heading and A all use it.
-   */
+  /** Field heading of the driver's forward: away from our wall, or toward it with the driver on the far side. */
   public double driverForwardHeadingRad() {
     return alliance.forwardHeadingRad() + (driverOnFarSide ? Math.PI : 0);
   }
 
-  /**
-   * Heading of a robot placed square with its camera side (the back) toward the middle, away from the driver, so
-   * its front faces the driver.
-   */
+  /** Heading of a robot placed square, camera side (the back) toward the middle, so its front faces the driver. */
   private double placedHeadingRad() {
     return AngleUnit.normalizeRadians(driverForwardHeadingRad() + Math.PI);
   }
@@ -368,7 +352,7 @@ public class Robot {
     driverPad.updateTrim(aiming);
     driverPad.updateToggles(aiming);
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
-    // that had just moved 3 degrees (the robot stopped) was judged against the old one, and the ball missed (5 Nov, 095605)
+    // that had just moved (the robot stopped) was judged against the old one, and the ball missed
     times.shooter = System.nanoTime();
     fireControl.selectGate(aim);
     shooterControl.update(aiming, aim);
@@ -445,10 +429,7 @@ public class Robot {
   /** Heading/hood may track while filling, but flywheels start only for an enabled shot. */
   public void setSpinOnlyOnFire(boolean enabled) { spinOnlyOnFire = enabled; }
 
-  /**
-   * Shot Tuning: every shot is the one set by {@link #setTuningShot}, from anywhere, and D-pad, left bumper, X and
-   * Y are left to the OpMode.
-   */
+  /** Shot Tuning: every shot is {@link #setTuningShot}'s, from anywhere; D-pad, LB, X and Y are left to the OpMode. */
   public void setTuningMode(boolean on) { tuningMode = on; }
 
   /** @param hoodDeg launch angle; HoodGeometry.ZERO_ANGLE_DEG is the hood on its lower stop */
@@ -554,10 +535,7 @@ public class Robot {
     return autoIntake ? 1.0 : leftTrigger;
   }
 
-  /**
-   * RT, or held fully down while the autonomous shoots. 13 Nov 224556: with only the aim taking autoShoot, the
-   * indexer never staged or fed (shotRequested read the blank gamepad's RT), and the auto shot nothing in 29 s.
-   */
+  /** RT, or held fully down while the auto shoots: shotRequested reads it too, or the indexer never stages or feeds. */
   private double fireTrigger() {
     return loadTrigger(driver.right_trigger, autoShoot);
   }
@@ -580,10 +558,7 @@ public class Robot {
   /** An autonomous: on stop, its pose and alliance are left for the TeleOp after it ({@link PoseHandoff}). */
   public void setHandsOffPose(boolean on) { handsOffPose = on; }
 
-  /**
-   * TeleOp: starts from the auto's pose if it just stopped, else as {@link #start}. Returns whether it did.
-   * The pose counts as placed, so field-centric driving and the aim are right from the first loop.
-   */
+  /** TeleOp: starts from the auto's pose if it just stopped, else as {@link #start}. Returns whether it did. */
   public boolean startFromAuto() {
     FieldPose handoff = PoseHandoff.take(System.nanoTime());
     if (handoff == null) {
@@ -637,7 +612,6 @@ public class Robot {
   public void setRpmTrim(double rpm) { rpmTrim = rpm; }
 
   public void setHeadingTrimDeg(double deg) { headingTrimDeg = deg; }
-
 
   /** Raises every hooded shot's launch angle this much, as the driver's hood trim does (lift falls). */
   public void setHoodAngleTrimDeg(double deg) { hoodLiftTrimDeg = -deg; }

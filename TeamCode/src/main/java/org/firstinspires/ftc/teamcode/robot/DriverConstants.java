@@ -8,7 +8,7 @@ public final class DriverConstants {
   private DriverConstants() {}
 
   // TeleOp's Driver Station: false shows the driver's few lines (shot, aim, power, problems); true every subsystem's
-  // state, as before 14 Nov. The tuning OpModes always show it all
+  // state. The tuning OpModes always show it all
   public static boolean TELEMETRY_DETAIL = false;
   // Drive power at full stick while RT or RB is held. Full: the hood, wheels and heading follow the shot's rates
   // now, so the driver doesn't have to slow down to shoot
@@ -16,8 +16,8 @@ public final class DriverConstants {
 
   // INIT tells the driver to swap a battery under this at rest (it rumbles once)
   public static double SWAP_BATTERY_V = 12.3;
-  // Lebot Teleop: the intake only spins while LT is held (13 Nov), so it isn't pushing at 5-6 A all match. B's eject
-  // still runs it backward. The tuning tools keep it running. False: always on, as before
+  // Lebot Teleop: the intake only spins while LT is held, so it isn't pushing at 5-6 A all match. B's eject still
+  // runs it backward. The tuning tools keep it running. False: always on
   public static boolean INTAKE_ONLY_ON_LT = true;
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming
   public static double AIM_START_RPM = 2500; // Held while aiming until the first valid shot. Middle of the table

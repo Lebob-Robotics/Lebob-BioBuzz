@@ -12,10 +12,7 @@ import java.util.List;
  * round it, and the go-to-point gains. Field metres, robot centre.
  */
 public final class FieldRoute {
-  /**
-   * Robot centre limits: 0.25 m inside the perimeter, and out of the Hive's footprint. At 0.15 m a pose that went
-   * 0.4 m wrong took the robot off the mat (5 Nov, 081516).
-   */
+  /** Robot centre limits: 0.25 m inside the perimeter, a margin for a wrong pose, and out of the Hive's footprint. */
   public static final double FIELD_LIMIT_M = 1.35;
   /** Farthest the robot centre can be from the field's middle: 1.83 m to the wall less half the 18 in robot. */
   public static final double MAX_REACH_M = 1.60;
@@ -48,24 +45,21 @@ public final class FieldRoute {
   };
 
   public static final double GOTO_STICK = 0.6;
-  // Into the corner at GOTO_STICK it was still at 0.6 m/s 0.15 m out, its stop fell 4 cm past the check and the
-  // drive stopped short (7 Nov, 080429)
+  // Into the corner at GOTO_STICK it came in too fast: its stop fell past the check and the drive stopped short
   public static final double RELOAD_STICK = 0.4;
-  // Only this close to the reload spot: the whole 2.3 m leg at RELOAD_STICK crept at 0.1 m/s (7 Nov, 085204)
+  // Only this close to the reload spot: the whole leg at RELOAD_STICK crept
   public static final double RELOAD_SLOW_M = 0.5;
   static final double RELOAD_MARGIN_M = 0.04; // Past the reload spot the stop check allows, inside MAX_REACH_M
   static final double GOTO_GAIN = 2.0; // Stick per metre off
   public static final double GOTO_TOLERANCE_M = 0.07;
-  /** Least stick while still off: 0.18 shaped to 0.19 power and stalled 9 cm short. */
+  /** Least stick while still off, so the robot doesn't stall short. */
   static final double GOTO_MIN_STICK = 0.35;
-  // Added per second without progress: 0.35 sideways (0.26 power) sat 11 cm short until skipped (5 Nov, 082021)
+  // Added per second without progress: GOTO_MIN_STICK sideways sat short of the spot until skipped
   public static final double GOTO_STUCK_BOOST_PER_S = 0.3;
   public static final double GOTO_TIMEOUT_S = 10;
-  // Odometry alone took the robot off the mat: driving to the blue side the camera saw no tags for 20 s while the
-  // pose barely moved (5 Nov, 080742)
+  // Odometry alone took the robot off the mat: driving on with the camera seeing no tags while the pose barely moved
   public static final double GOTO_BLIND_S = 3.0;
-  // Back onto the straight leg: aimed only at the end, 2.5 m down the edge drifted 0.21 m out into the fence
-  // (5 Nov, 082500)
+  // Back onto the straight leg: aimed only at the end, a long leg down the edge drifted out into the fence
   public static final double CROSS_GAIN = 2.0;
   public static final double SPOT_FENCE_SLACK_M = 0.05;
   static final double TAKEOVER_STICK = 0.3;
@@ -152,8 +146,8 @@ public final class FieldRoute {
       cx = -uy * cross * CROSS_GAIN;
       cy = ux * cross * CROSS_GAIN;
     }
-    // A stuck robot's boost lifts a cap below GOTO_STICK: at RELOAD_STICK (0.29 power) it sat still for 5 s at a time
-    // on the way to the reload corner and had to be pulled (7 Nov, 082948)
+    // A stuck robot's boost lifts a cap below GOTO_STICK: at RELOAD_STICK it sat still on the way to the reload
+    // corner and had to be pulled
     maxStick = Math.max(maxStick, Math.min(GOTO_STICK, GOTO_MIN_STICK + boost));
     double speed = Math.min(maxStick, Math.max(GOTO_MIN_STICK + boost, GOTO_GAIN * dist));
     double vx = dist > 1e-6 ? ex / dist * speed + cx : 0;

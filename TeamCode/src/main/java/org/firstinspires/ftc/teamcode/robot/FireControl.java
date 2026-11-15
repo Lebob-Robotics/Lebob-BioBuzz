@@ -88,7 +88,7 @@ final class FireControl {
     Logger.recordOutput("SOTM/Gate/Flywheels", flywheelsReady);
     Logger.recordOutput("SOTM/Gate/Hood", hoodReady);
     // A feed under way stops if the shot goes bad before the ball is out: the driver set off or turned back
-    // mid-feed, and the ball left 3 degrees of hood or 37 degrees of heading off (5 Nov, 095605)
+    // mid-feed, and the ball left with the hood or heading off
     shotLost = aim != null && (!aim.shot.valid
         || Math.abs(Angles.normalize(aim.lockHeadingRad - pose.headingRad)) > aim.headingToleranceRad
         || !robot.hood.atTarget(feedStopHoodTicks()));
@@ -109,7 +109,7 @@ final class FireControl {
     boolean oneBallReady = aim != null ? ready
         : !robot.tuningMode && robot.shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !robot.shooter.isStalled();
     // Held fire counts as released: the gate cycled through its pulses with the feeder held, so the first ball
-    // got the last 0.06 s of a pulse and fell short (6 Nov, 081518)
+    // got only the end of a pulse and fell short
     volleyFeedGate.setLeadBelowRpm(robot.autonomous ? VolleyConstants.AUTO_VOLLEY_LEAD_BELOW_RPM
         : VolleyConstants.VOLLEY_LEAD_BELOW_RPM);
     volleyFeedGate.setMinFeedSpacingS(VolleyConstants.VOLLEY_MIN_FEED_SPACING_S);

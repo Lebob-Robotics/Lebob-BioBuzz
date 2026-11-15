@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.field.Units;
  * detector has to run per frame. Each Cell's four tags sit on a level line. Two or more tags give that
  * line, and the Cell reference point is a fixed offset from the line's centre: up, and toward or away
  * from the camera. The offset depends on whether the Cell is up or down. It was measured against the SDK
- * cluster detector on 4 Nov (both detectors on the same frames). Everything is in the SDK's ftcPose axes
+ * cluster detector (both detectors on the same frames). Everything is in the SDK's ftcPose axes
  * (right, forward along the lens, up the picture), in inches.
  */
 public final class ClusterFromTags {

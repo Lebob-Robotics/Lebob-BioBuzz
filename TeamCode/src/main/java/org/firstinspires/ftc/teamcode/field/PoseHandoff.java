@@ -3,9 +3,8 @@ package org.firstinspires.ftc.teamcode.field;
 
 /**
  * The autonomous's last pose and alliance, for the TeleOp that follows it. Every OpMode resets the Pinpoint, and
- * TeleOp used to start at the "placed square" heading: after the Scoring Auto ended at -129 degrees, TeleOp
- * started at +90 and drove 140 degrees rotated until its first two-tag fix, 4.7 s in (13 Nov 224556 -> 225324).
- * The first fix took 2.9 s typically, and 26-118 s at worst. In a match nobody touches the robot in between.
+ * TeleOp used to start at the "placed square" heading, driving rotated until its first two-tag fix, which can take
+ * seconds. In a match nobody touches the robot in between.
  *
  * <p>Held in a static, so it lives as long as the Robot Controller app does. The pose is used once, and only while
  * fresh; the alliance carries on until another auto runs.

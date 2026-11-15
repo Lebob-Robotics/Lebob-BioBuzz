@@ -62,8 +62,7 @@ public final class VisionCorrector {
 
   /**
    * Where a Cell sighting puts a Hive's up Cell on the field, {x, y} in metres: the centre of its line of tags,
-   * moved out from the Hive by the offset the sightings use (CELL_REF_UP_TOWARD_IN). Cell sightings agreed with
-   * it within 4 cm (5 Nov, 081558).
+   * moved out from the Hive by the offset the sightings use (CELL_REF_UP_TOWARD_IN).
    */
   public static double[] upCellAimPoint(Alliance alliance, Cell cell) {
     double ySumIn = 0;
@@ -80,9 +79,8 @@ public final class VisionCorrector {
 
   /**
    * The heading came from a known placement (Shoot Auto's start): one tag may place the robot using it, instead of
-   * waiting for a pair. From its start spot the Shoot Auto saw one tag, and got no fix in 30 s on 5 runs (13 Nov),
-   * firing 24-28 balls on the placement alone. Placed square is within 1-2 degrees, ~7 cm at 2 m. Heading fixes still
-   * come from pairs as before.
+   * waiting for a pair, as the Shoot Auto sees only one tag from its start spot. Placed square is within 1-2
+   * degrees, ~7 cm at 2 m. Heading fixes still come from pairs.
    */
   private boolean headingSeeded = false;
 
@@ -335,8 +333,8 @@ public final class VisionCorrector {
     double spread = spreadOf(usedDx, usedDy, medianDx, medianDy);
     if (spread > MAX_SPREAD_M && headingGain > 0 && headingGain < 1.0 && steadyForHeading && used >= 3) {
       // The tags only disagree because the heading is wrong if turning by all of the pairs' heading brings them
-      // together. Standing still, five tags agreed the heading was 13 degrees out and every frame was refused for
-      // spread, so the heading was never fixed (5 Nov, 080149). Jumps too big to believe still wait for the override
+      // together. A wrong heading alone had every frame refused for spread, so it was never fixed. Jumps too big to
+      // believe still wait for the override
       double cosAll = Math.cos(dHeading);
       double sinAll = Math.sin(dHeading);
       double[] turnedDx = new double[used];
@@ -368,8 +366,7 @@ public final class VisionCorrector {
       reason = Reason.OUT_OF_FIELD;
     } else if (!poseValid && !headingValid && !headingSeeded && headingGain == 0) {
       // Offsets turned by an untrusted heading put the robot anywhere. Once accepted, the pose is trusted and
-      // the true fix is refused as a jump: one tag with the start heading 154 degrees out put the robot 2 m
-      // away, on the far side of the Cell, for the whole run (5 Nov, 082826)
+      // the true fix is refused as a jump, leaving the robot misplaced for the whole run
       reason = Reason.NO_HEADING;
     } else if (poseValid && Math.hypot(medianDx, medianDy) > MAX_JUMP_M) {
       reason = Reason.JUMP;
@@ -490,7 +487,6 @@ public final class VisionCorrector {
     return true;
   }
 
-  /** The middle value of a non-empty array. Leaves the input alone. */
   /**
    * Median of angles that may straddle +-pi: fixes of 179 and -179 degrees are 2 degrees apart, but their plain
    * median is near 0. Each is unwrapped to within pi of the first before taking the median.
@@ -503,6 +499,7 @@ public final class VisionCorrector {
     return Angles.normalize(median(unwrapped));
   }
 
+  /** The middle value of a non-empty array. Leaves the input alone. */
   private static double median(double[] values) {
     double[] sorted = Arrays.copyOf(values, values.length);
     Arrays.sort(sorted);

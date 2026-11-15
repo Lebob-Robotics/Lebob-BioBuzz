@@ -41,13 +41,13 @@ final class ShooterControl {
     boolean shotKnown = validShot || backwardWaiting;
     double nowS = robot.clock.seconds();
     if (shotKnown) { lastShotKnownS = nowS; }
-    // A shot gone for a moment (NO_SAFE_SHOT flickers, a median 0.42 s, p90 1.2 s, 13 Nov) keeps its speed:
-    // dropping to IDLE braked the wheels a median 1350 RPM, 478 times that day, and they then had to come back
+    // A shot gone for a moment (NO_SAFE_SHOT flickers) keeps its speed: dropping to IDLE braked the wheels, and they
+    // then had to come back
     boolean shotJustLost = !shotKnown && nowS - lastShotKnownS <= FireConstants.PRESPIN_HOLD_S;
     double rpmRate = shotKnown ? aim.rpmRatePerSec : 0.0;
     // The shot is for the ball leaving FEED_DELAY_S from now. The wheels and hood only have to be there by
     // then, so they follow the shot for now and arrive at this one as the ball leaves. Holding this one
-    // already put them a feed delay early: 4 degrees of hood at 20 degrees/s (5 Nov, 080236).
+    // already put them a feed delay early.
     if (shotKnown && !Double.isNaN(aim.rpmNow)) {
       aimRpm = aim.rpmNow;
     }
@@ -89,7 +89,7 @@ final class ShooterControl {
     } else if (shooterStopLatched || robot.tuningMode) { // The tuning OpModes rest the wheels between shots
       robot.shooter.setShooterState(ShooterState.STOP);
     } else if (shotKnown && FireConstants.PRESPIN_ON) {
-      // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
+      // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle)
       robot.shooter.setShooterState(ShooterState.AIM);
       robot.shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE
           : aimRpm + robot.rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim) + volleyBackwardRpm(aim),
@@ -110,7 +110,7 @@ final class ShooterControl {
         robot.hood.setTargetTicks(Math.max(HoodSubsystem.minTargetTicks(), HoodSubsystem.angleToTicks(aim.hoodNowDeg)));
       } else if (shotKnown && aim.backward) {
         // Never under just above the lower stop. Target 0 cuts the motor to rest on the stop, but the hood
-        // doesn't fall by itself: it stayed ~36 degrees up and the shot never got ready. Trim doesn't apply
+        // doesn't fall by itself: it stayed up and the shot never got ready. Trim doesn't apply
         robot.hood.setTargetTicks(Double.isNaN(aim.hoodNowDeg) ? HoodSubsystem.minTargetTicks()
             : Math.max(HoodSubsystem.minTargetTicks(), HoodSubsystem.angleToTicks(aim.hoodNowDeg)));
       } else if (validShot) { // Otherwise the hood holds its last angle

@@ -24,7 +24,7 @@ public final class CellGeometry {
       19.25, 15.5, 10.0, 6.25};
 
   // Where the SDK cluster detector puts a Cell, from the centre of its line of tags: up, and toward the
-  // camera (negative is away). Measured 4 Nov against the SDK on the same frames; see ClusterFromTags.
+  // camera (negative is away). Measured against the SDK on the same frames; see ClusterFromTags.
   public static final double CELL_REF_UP_UP_IN = 8.0; // Cell up
   public static final double CELL_REF_UP_TOWARD_IN = 4.2;
   public static final double CELL_REF_DOWN_UP_IN = 0.5; // Cell down

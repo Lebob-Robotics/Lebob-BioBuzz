@@ -61,7 +61,7 @@ final class BallPath {
       intakeEased = false;
     }
     // The intake's ease clears on a real LT re-press even with the wheels spinning: the last roller stays stopped
-    // (stackPacked) until a ball leaves, so the front ball still can't creep into the wheels (14 Nov 222230)
+    // (stackPacked) until a ball leaves, so the front ball still can't creep into the wheels
     if (intakeEaseClears(ltPressed && !wasLtPressed, nowS - ltReleasedAtS,
         stackPressure.runningFree(nowS, intakeEased && robot.intake.getIntakeState() == IntakeState.INTAKE,
             robot.intake.getAmps()))) {
@@ -102,8 +102,8 @@ final class BallPath {
     robot.intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted, robot.autoIntake));
     boolean feeding = enabledShot && (!aiming || ready);
     // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
-    // the stack at full power against its stopped last roller, or the 4th ball took 2.9 s to come up (12 Nov)
-    // The auto feeds at full power: its slowed last roller brought the next ball up too little, 14 Nov 220201
+    // the stack at full power against its stopped last roller, or the 4th ball is slow to come up
+    // The auto feeds at full power: its slowed last roller brought the next ball up too little
     double indexerPower = robot.volleyMode && fire.volleyShot && feeding && !robot.autonomous
         ? robot.volleyIndexerPower() : 1.0;
     IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
@@ -139,9 +139,9 @@ final class BallPath {
 
   /**
    * The feeder's command. Held back whenever nothing shoots, as Volley Tuning's always-aimed robot does: stopped,
-   * the spinning wheels and the intake's push took balls out of the stack between shots in Lebot Teleop (12 Nov),
-   * and 14 Nov 211610 the auto, aiming all the time, left it stopped after an empty volley while the indexer staged
-   * the next pickup at full power: balls went out on the way to the Flower.
+   * the spinning wheels and the intake's push took balls out of the stack between shots in Lebot Teleop, and the
+   * auto, aiming all the time, left it stopped after an empty volley while the indexer staged the next pickup at
+   * full power: balls went out on the way to the Flower.
    */
   static FeederState feederCommand(boolean ejecting, boolean loadingOrClearing, boolean shooting, boolean feeding,
       boolean fireRequested, boolean feederEmpty, boolean volleyBetweenBalls) {
@@ -166,8 +166,8 @@ final class BallPath {
 
   /**
    * "Packed" and "full" clear on a ball leaving, B, or an LT press after LT was let go REARM_RELEASE_S or more, the
-   * last only with the flywheels stopped. 14 Nov 222230 a press 5.7 s after a packed stack was let go cleared it with
-   * the wheels at 3500 RPM: loading pushed the stack at its last roller's power and shot the front ball out.
+   * last only with the flywheels stopped: cleared with the wheels spinning, loading pushed the stack at its last
+   * roller's power and shot the front ball out.
    */
   static boolean loadingLatchesClear(boolean newLtPress, double ltReleasedForS, boolean ejecting, boolean ballLeft,
       boolean wheelsSpinning) {
@@ -181,7 +181,7 @@ final class BallPath {
 
   /**
    * The intake as LT, B and a full stack ask; in the auto a full stack stops it instead of ejecting, so the Pollen
-   * already taken stays in for the next volley (13 Nov 224556 ejected at the rear Flower for 3.2 s).
+   * already taken stays in for the next volley.
    */
   static IntakeState intakeCommand(boolean full, boolean ejecting, boolean wanted, boolean auto) {
     if (auto && full && !ejecting) {
@@ -192,8 +192,7 @@ final class BallPath {
 
   /**
    * In the auto the last roller keeps bringing balls up between shots, against the held-back feeder, as loading does:
-   * stopped (STAGE), the next ball never reached the feeder in the 0.2-0.4 s feed pulses. 14 Nov 220201 the preload
-   * shot 2 of 4, the Garden and Flower volleys none, the last roller still for 2 s before each.
+   * stopped (STAGE), the next ball never reached the feeder in the 0.2-0.4 s feed pulses.
    */
   static IndexerState autoStage(IndexerState command, boolean autonomous) {
     return autonomous && command == IndexerState.STAGE ? IndexerState.LOAD : command;

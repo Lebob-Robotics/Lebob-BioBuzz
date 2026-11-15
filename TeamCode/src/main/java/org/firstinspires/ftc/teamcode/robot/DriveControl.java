@@ -293,8 +293,8 @@ final class DriveControl {
       robot.drive.driveHeadingLock(forward, right, aim.lockHeadingRad - f, lockRateRadPerSec, driverHeadingRad,
           velocity[2]);
     } else if (!Double.isNaN(autoHeadingRad)) {
-      // Pedro's turn fades under the friction near its heading: 14 Nov it stalled 8 degrees off at 0.14 power, where
-      // the lock's least power and stuck boost turn the robot
+      // Pedro's turn fades under the friction near its heading and stalls short of it, where the lock's least power
+      // and stuck boost turn the robot
       robot.drive.driveHeadingLock(forward, right, autoHeadingRad - f, autoHeadingRateRadPerSec, driverHeadingRad,
           velocity[2]);
     } else {

@@ -40,8 +40,8 @@ final class AlliancePicker {
   }
 
   /**
-   * Shoot Auto set to BLUE saw only RED's Hive tags and never fired: it ignores the other alliance's Hive (13 Nov,
-   * 193125). Warns while the other Hive was seen in the last second and ours not in the last three.
+   * A Shoot Auto set to the wrong alliance never fires: it ignores the other alliance's Hive. Warns while the other
+   * Hive was seen in the last second and ours not in the last three.
    */
   static String allianceWarning(Alliance alliance, double ownSeenAgoS, double otherSeenAgoS) {
     Alliance other = alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;

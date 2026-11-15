@@ -37,10 +37,7 @@ final class BatteryMonitor {
     }
   }
 
-  /**
-   * A battery this low at rest sags toward brownout in a match: two 9 Nov runs that started at 11.1-11.9 V fell to
-   * 6.8-6.9 V, and every auto sags to 9.6 V at spin-up even from 12.6 V.
-   */
+  /** A battery this low at rest sags toward brownout in a match. */
   static boolean swapBattery(double restingVolts) {
     return restingVolts < DriverConstants.SWAP_BATTERY_V;
   }

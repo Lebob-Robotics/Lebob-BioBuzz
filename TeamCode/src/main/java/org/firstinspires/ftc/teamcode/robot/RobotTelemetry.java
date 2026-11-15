@@ -39,8 +39,7 @@ final class RobotTelemetry {
 
   /**
    * Panels writes to every connected browser on the calling thread, and that write blocks for good once a
-   * client stops reading (5 Nov: the OpMode thread hung in field.update(), the robot stopped responding
-   * and the app restarted from "stuck in stop()"). So the field is sent from this thread instead.
+   * client stops reading, hanging the OpMode thread. So the field is sent from this thread instead.
    */
   private final ExecutorService fieldSender = Executors.newSingleThreadExecutor(r -> {
     Thread t = new Thread(r, "PanelsField");
@@ -55,7 +54,7 @@ final class RobotTelemetry {
     this.telemetry = telemetry;
   }
 
-  /** The Driver Station shows it at 4 Hz at most, and its formatting cost 10-18 ms a loop (7 Nov, 080123). */
+  /** The Driver Station shows it at 4 Hz at most, and its formatting cost 10-18 ms a loop. */
   boolean due() {
     return robot.clock.seconds() - lastTelemetryS >= DS_TELEMETRY_PERIOD_S;
   }
@@ -305,7 +304,7 @@ final class RobotTelemetry {
   /**
    * Power summary for the co-driver, first on the Driver Station (Main adds it before anything else): intake current
    * and how much of its overload budget is used, the flywheels' current, and the battery. The intake is the one that
-   * overheats (13 Nov: 5-6 A for most of a match; ~9 A is a stall).
+   * overheats (~9 A is a stall).
    */
   void addPowerTelemetry() {
     String allianceWarning = robot.allianceWarning();
