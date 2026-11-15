@@ -250,3 +250,7 @@ org.firstinspires.ftc.teamcode.robot.Robot.PREPOSITION_SETTLE_S -> org.firstinsp
 org.firstinspires.ftc.teamcode.robot.Robot.STOP_HINT_RUMBLE_AFTER_S -> org.firstinspires.ftc.teamcode.robot.AimSelector.STOP_HINT_RUMBLE_AFTER_S
 org.firstinspires.ftc.teamcode.robot.Robot.STOP_HINT_RUMBLE_MS -> org.firstinspires.ftc.teamcode.robot.AimSelector.STOP_HINT_RUMBLE_MS
 org.firstinspires.ftc.teamcode.robot.Robot.TUNING_HEADING_TOLERANCE_DEG -> org.firstinspires.ftc.teamcode.robot.AimSelector.TUNING_HEADING_TOLERANCE_DEG
+org.firstinspires.ftc.teamcode.robot.Robot.STALL_RUMBLE_MS -> org.firstinspires.ftc.teamcode.robot.DriverPad.STALL_RUMBLE_MS
+org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_RUMBLE_MS -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_RUMBLE_MS
+org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_REMIND_MS -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_REMIND_MS
+org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_REMIND_S -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_REMIND_S

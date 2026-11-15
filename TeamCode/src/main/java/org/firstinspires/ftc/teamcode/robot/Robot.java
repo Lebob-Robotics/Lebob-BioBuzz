@@ -79,6 +79,7 @@ public class Robot {
   final AimSelector aimSelector = new AimSelector(this);
   final PoseFusion poseFusion = new PoseFusion(this);
   final FireControl fireControl = new FireControl(this);
+  final DriverPad driverPad = new DriverPad(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -98,8 +99,6 @@ public class Robot {
   public static final double TRIGGER_PRESSED = 0.5;
   boolean holdFire;
   boolean spinOnlyOnFire;
-  /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
-  private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
   private static final double BATTERY_SAMPLE_PERIOD_S = 0.1;
 
@@ -152,15 +151,6 @@ public class Robot {
   private boolean swapBatteryRumbled = false;
   private boolean startedFromAuto = false;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
-  private boolean wasDpadUp = false;
-  private boolean wasDpadDown = false;
-  private boolean wasRampButton = false;
-  private boolean wasLeftBumper = false;
-  private boolean shooterWasStalled = false;
-  private double intakeLockRumbleS = Double.NaN; // Last rumble for a tripped intake; NaN while it runs
-  static final int INTAKE_LOCK_RUMBLE_MS = 1000;
-  static final int INTAKE_LOCK_REMIND_MS = 400;
-  static final double INTAKE_LOCK_REMIND_S = 2.0;
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
   private FieldPose lastPose = new FieldPose(0, 0, 0);
   double[] lastVelocity = {0, 0, 0};
@@ -431,8 +421,8 @@ public class Robot {
     }
     lastAim = aim;
     double lockRateRadPerSec = driveControl.updateLockRate(aiming, aim);
-    updateTrim(aiming);
-    updateToggles(aiming);
+    driverPad.updateTrim(aiming);
+    driverPad.updateToggles(aiming);
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
     // that had just moved 3 degrees (the robot stopped) was judged against the old one, and the ball missed (5 Nov, 095605)
     times.shooter = System.nanoTime();
@@ -459,17 +449,7 @@ public class Robot {
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
     poseFusion.stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
 
-    if (shooter.isStalled() && !shooterWasStalled) {
-      physicalDriver.rumble(STALL_RUMBLE_MS);
-    }
-    shooterWasStalled = shooter.isStalled();
-    int lockRumbleMs = intakeLockRumbleMs(intake.isOverloaded(), clock.seconds(), intakeLockRumbleS);
-    if (lockRumbleMs > 0) {
-      physicalDriver.rumble(lockRumbleMs);
-      intakeLockRumbleS = clock.seconds();
-    } else if (!intake.isOverloaded()) {
-      intakeLockRumbleS = Double.NaN;
-    }
+    driverPad.updateRumbles();
 
     times.log = System.nanoTime();
     boolean telemetryDue = display.due();
@@ -483,62 +463,6 @@ public class Robot {
     display.sendPanelsTelemetry(aim, pose);
     times.end = System.nanoTime();
     times.record();
-  }
-
-  /** While aiming, D-pad up and down nudge the RPM, for when the table is a little off on the day. */
-  private void updateTrim(boolean aiming) {
-    if (!buttonsFree()) {
-      return;
-    }
-    if (aiming && justPressed(driver.dpad_up, wasDpadUp)) {
-      rpmTrim += DriverConstants.RPM_TRIM_STEP;
-    }
-    if (aiming && justPressed(driver.dpad_down, wasDpadDown)) {
-      rpmTrim -= DriverConstants.RPM_TRIM_STEP;
-    }
-    wasDpadUp = driver.dpad_up;
-    wasDpadDown = driver.dpad_down;
-  }
-
-  /**
-   * Left bumper deliberately rearms a cooled intake overload trip. D-pad up toggles the Pollen ramp when not aiming
-   * (aiming, it trims the RPM).
-   */
-  private void updateToggles(boolean aiming) {
-    if (tuningMode) {
-      return;
-    }
-    if (justPressed(driver.left_bumper, wasLeftBumper)) {
-      intake.resetOverload();
-    }
-    wasLeftBumper = driver.left_bumper;
-    if (rampToggled(driver.dpad_up, wasRampButton, aiming, buttonsFree())) {
-      ramp.toggle();
-    }
-    wasRampButton = driver.dpad_up;
-  }
-
-  /** D-pad up just pressed, not aiming (where it trims the RPM) and with the buttons not taken by a tuning tool. */
-  static boolean rampToggled(boolean pressed, boolean wasPressed, boolean aiming, boolean buttonsFree) {
-    return buttonsFree && !aiming && justPressed(pressed, wasPressed);
-  }
-
-  /**
-   * How long to rumble this loop for a tripped intake, which stays off until LB: long when it trips, then a short
-   * reminder every {@link #INTAKE_LOCK_REMIND_S} while it is still off. 0 for no rumble.
-   */
-  static int intakeLockRumbleMs(boolean tripped, double nowS, double lastRumbleS) {
-    if (!tripped) {
-      return 0;
-    }
-    if (Double.isNaN(lastRumbleS)) {
-      return INTAKE_LOCK_RUMBLE_MS;
-    }
-    return nowS - lastRumbleS >= INTAKE_LOCK_REMIND_S ? INTAKE_LOCK_REMIND_MS : 0;
-  }
-
-  private static boolean justPressed(boolean pressedNow, boolean pressedLastLoop) {
-    return pressedNow && !pressedLastLoop;
   }
 
   boolean shotRequested() {

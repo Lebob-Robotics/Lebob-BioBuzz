@@ -61,11 +61,11 @@ public class IndexerControlTest {
   }
 
   @Test public void trippedIntakeRumblesUntilReset() {
-    assertEquals(0, Robot.intakeLockRumbleMs(false, 5, Double.NaN));
-    assertEquals(Robot.INTAKE_LOCK_RUMBLE_MS, Robot.intakeLockRumbleMs(true, 5, Double.NaN)); // Trips
-    assertEquals(0, Robot.intakeLockRumbleMs(true, 6, 5));
-    assertEquals(Robot.INTAKE_LOCK_REMIND_MS, Robot.intakeLockRumbleMs(true, 5 + Robot.INTAKE_LOCK_REMIND_S, 5));
-    assertEquals(0, Robot.intakeLockRumbleMs(false, 9, 5)); // LB reset it
+    assertEquals(0, DriverPad.intakeLockRumbleMs(false, 5, Double.NaN));
+    assertEquals(DriverPad.INTAKE_LOCK_RUMBLE_MS, DriverPad.intakeLockRumbleMs(true, 5, Double.NaN)); // Trips
+    assertEquals(0, DriverPad.intakeLockRumbleMs(true, 6, 5));
+    assertEquals(DriverPad.INTAKE_LOCK_REMIND_MS, DriverPad.intakeLockRumbleMs(true, 5 + DriverPad.INTAKE_LOCK_REMIND_S, 5));
+    assertEquals(0, DriverPad.intakeLockRumbleMs(false, 9, 5)); // LB reset it
   }
 
   @Test public void tappingLtKeepsAPackedStackEased() {
