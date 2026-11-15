@@ -17,11 +17,11 @@ import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.FieldRoute;
+import org.firstinspires.ftc.teamcode.field.RouteDriver;
 
 /**
  * Lob over our Hive into its far Cell: the robot stands {@link #LIP_GAP_M} out from the near Cell's lip, on the
@@ -99,17 +99,7 @@ public class SpecialShotCalibration extends TuningOpMode {
   private final BallDipDetector ballDip = new BallDipDetector();
 
   private boolean driving = false;
-  private List<double[]> route;
-  private int routeIndex;
-  private double legStartX;
-  private double legStartY;
-  private double driveStartS;
-  private double driveTimeoutS;
-  private int lastFixCount;
-  private double lastFixS;
-  private double progressX;
-  private double progressY;
-  private double progressS;
+  private final RouteDriver routeDriver = new RouteDriver();
   private double settleUntilS = Double.NaN;
   private double orientUntilS = Double.NaN;
   private String driveStatus = "";
@@ -273,25 +263,7 @@ public class SpecialShotCalibration extends TuningOpMode {
     }
     farCell = farEndFrom(pose);
     double[] spot = spotFor(robot.getAlliance(), farCell);
-    route = FieldRoute.route(pose.xM, pose.yM, spot[0], spot[1]);
-    routeIndex = 0;
-    legStartX = pose.xM;
-    legStartY = pose.yM;
-    driveStartS = nowS;
-    double pathM = 0;
-    double fromX = pose.xM;
-    double fromY = pose.yM;
-    for (double[] w : route) {
-      pathM += Math.hypot(w[0] - fromX, w[1] - fromY);
-      fromX = w[0];
-      fromY = w[1];
-    }
-    driveTimeoutS = FieldRoute.GOTO_TIMEOUT_S + pathM / 0.4;
-    lastFixCount = robot.getPositionFixes();
-    lastFixS = nowS;
-    progressX = pose.xM;
-    progressY = pose.yM;
-    progressS = nowS;
+    routeDriver.start(nowS, pose, FieldRoute.route(pose.xM, pose.yM, spot[0], spot[1]), robot.getPositionFixes());
     settleUntilS = Double.NaN;
     orientUntilS = Double.NaN;
     driving = true;
@@ -308,44 +280,24 @@ public class SpecialShotCalibration extends TuningOpMode {
     double[] stick = null;
     boolean aim = false;
     if (driving) {
-      if (robot.getPositionFixes() != lastFixCount) {
-        lastFixCount = robot.getPositionFixes();
-        lastFixS = nowS;
-      }
-      if (Math.hypot(pose.xM - progressX, pose.yM - progressY) >= 0.05) {
-        progressX = pose.xM;
-        progressY = pose.yM;
-        progressS = nowS;
-      }
+      routeDriver.track(nowS, pose, robot.getPositionFixes());
       if (took) {
         stopDriving("stopped: you took over");
       } else if (!robot.isPoseValid()) {
         stopDriving("stopped: pose not placed by the tags");
-      } else if (nowS - lastFixS > FieldRoute.GOTO_BLIND_S) {
+      } else if (routeDriver.blind(nowS)) {
         stopDriving("stopped: no tags seen for a while");
-      } else if (nowS - driveStartS > driveTimeoutS) {
+      } else if (routeDriver.timedOut(nowS)) {
         stopDriving("stopped: took too long");
       } else if (!FieldRoute.headedSafely(pose, robot.getVelocity())) {
         stopDriving("stopped: heading for the fence or the Hive");
+      } else if (routeDriver.arrived(pose)) {
+        driving = false;
+        driveStatus = "at the spot";
+        settleUntilS = nowS + SPOT_SETTLE_S;
       } else {
-        double[] w = route.get(routeIndex);
-        boolean last = routeIndex == route.size() - 1;
-        double away = Math.hypot(w[0] - pose.xM, w[1] - pose.yM);
-        if (last && away <= FieldRoute.GOTO_TOLERANCE_M) {
-          driving = false;
-          driveStatus = "at the spot";
-          settleUntilS = nowS + SPOT_SETTLE_S;
-        } else {
-          if (!last && away <= FieldRoute.ROUTE_WAYPOINT_TOLERANCE_M) {
-            routeIndex++;
-            legStartX = pose.xM;
-            legStartY = pose.yM;
-            w = route.get(routeIndex);
-          }
-          stick = FieldRoute.goToStick(pose, w[0], w[1], legStartX, legStartY,
-              FieldRoute.GOTO_STUCK_BOOST_PER_S * (nowS - progressS));
-          aim = true; // Keeps the cameras on the Hive tags on the way
-        }
+        stick = routeDriver.stick(nowS, pose);
+        aim = true; // Keeps the cameras on the Hive tags on the way
       }
     }
     if (!Double.isNaN(settleUntilS)) {

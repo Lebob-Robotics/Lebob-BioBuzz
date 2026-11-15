@@ -8,6 +8,7 @@ import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.FieldRoute;
+import org.firstinspires.ftc.teamcode.field.RouteDriver;
 
 /** Volley Tuning uses Shot Tuning's spots, safe routes and persistent field-point hold. */
 public final class VolleySpotDrive {
@@ -18,11 +19,9 @@ public final class VolleySpotDrive {
   private int spot = -1;
   private double searchSince, searchStep, turn;
   private double[] target;
-  private List<double[]> route;
-  private int leg;
-  private double legX, legY, progressX, progressY, progressS, lastFixS, deadlineS;
+  private final RouteDriver route = new RouteDriver();
+  private double deadlineS;
   private double settledSince = Double.NaN;
-  private int fixes;
   private String status = "Circle: move to the first test spot";
   private double[] drive = new double[] {0, 0};
 
@@ -149,9 +148,8 @@ public final class VolleySpotDrive {
       length += Math.hypot(p[0] - x, p[1] - y);
       x = p[0]; y = p[1];
     }
-    spot = index; target = end; route = path; leg = 0; creeping = false;
-    legX = progressX = pose.xM; legY = progressY = pose.yM;
-    progressS = lastFixS = now; fixes = fixCount;
+    spot = index; target = end; creeping = false;
+    route.start(now, pose, path, fixCount);
     deadlineS = now + FieldRoute.GOTO_TIMEOUT_S + length / 0.4;
     settledSince = Double.NaN;
     stage = Stage.MOVING;
@@ -185,7 +183,7 @@ public final class VolleySpotDrive {
 
   public void update(double now, FieldPose pose, double[] velocity, boolean valid, int fixCount) {
     if (stage == Stage.IDLE || stage == Stage.ACQUIRING) { drive = new double[] {0, 0}; return; }
-    if (fixCount != fixes) { fixes = fixCount; lastFixS = now; }
+    route.track(now, pose, fixCount);
     if (!valid) { stop("Stopped: field pose invalid; Circle retries"); return; }
     if (spot == PARK && (creeping || stage == Stage.HOLDING)) {
       updatePark(now, pose, velocity);
@@ -196,7 +194,7 @@ public final class VolleySpotDrive {
     }
     // A parked robot keeps its trusted odometry pose when balls/hands hide the tags. Keep the
     // loading hold and RB trial available, with only small position corrections while blind.
-    boolean blind = now - lastFixS > FieldRoute.GOTO_BLIND_S;
+    boolean blind = route.blind(now);
     if (blind && (stage == Stage.MOVING
         || Math.hypot(target[0] - pose.xM, target[1] - pose.yM) > MAX_BLIND_HOLD_ERROR_M)) {
       stop(stage == Stage.MOVING ? "Stopped: tag fixes lost on route; Circle retries"
@@ -205,24 +203,15 @@ public final class VolleySpotDrive {
     }
     if (stage == Stage.MOVING) {
       if (now > deadlineS) { stop("Route timed out; Circle retries"); return; }
-      if (Math.hypot(pose.xM - progressX, pose.yM - progressY) >= 0.05) {
-        progressX = pose.xM; progressY = pose.yM; progressS = now;
-      }
-      double[] p = route.get(leg);
-      boolean last = leg == route.size() - 1;
-      double away = Math.hypot(p[0] - pose.xM, p[1] - pose.yM);
-      if (last && away <= FieldRoute.GOTO_TOLERANCE_M && spot == PARK) {
+      boolean arrived = route.arrived(pose);
+      if (arrived && spot == PARK) {
         creeping = true; creepSince = now; stoppedSince = Double.NaN;
         updatePark(now, pose, velocity);
         return;
-      } else if (last && away <= FieldRoute.GOTO_TOLERANCE_M) {
+      } else if (arrived) {
         stage = Stage.SETTLING;
       } else {
-        if (!last && away <= FieldRoute.ROUTE_WAYPOINT_TOLERANCE_M) {
-          leg++; legX = pose.xM; legY = pose.yM; p = route.get(leg);
-        }
-        drive = FieldRoute.goToStick(pose, p[0], p[1], legX, legY,
-            FieldRoute.GOTO_STUCK_BOOST_PER_S * (now - progressS));
+        drive = route.stick(now, pose);
         return;
       }
     }
