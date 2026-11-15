@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import org.junit.Test;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /** Replays complete home-camera detection sequences, rather than selected favorable tag pairs. */
 public class HomeVisionAcquisitionTest {
@@ -28,7 +29,7 @@ public class HomeVisionAcquisitionTest {
     long first = batches.keySet().iterator().next();
     for (Map.Entry<Long, List<String[]>> batch : batches.entrySet()) {
       List<TagObservation> tags = new ArrayList<>();
-      Map<Long, Pose> recorded = new TreeMap<>();
+      Map<Long, FieldPose> recorded = new TreeMap<>();
       String[] last = null;
       for (String[] row : batch.getValue()) {
         last = row;
@@ -37,12 +38,12 @@ public class HomeVisionAcquisitionTest {
             : ShootOnTheMoveConstants.RIGHT_CAMERA;
         tags.add(new TagObservation(Integer.parseInt(row[3]), camera, n(row, 4), n(row, 5),
             n(row, 6), n(row, 7), frame));
-        recorded.put(frame - 1, new Pose(n(row, 8), n(row, 9), n(row, 10)));
-        recorded.put(frame + 1, new Pose(n(row, 8), n(row, 9), n(row, 10)));
+        recorded.put(frame - 1, new FieldPose(n(row, 8), n(row, 9), n(row, 10)));
+        recorded.put(frame + 1, new FieldPose(n(row, 8), n(row, 9), n(row, 10)));
       }
       PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
-      for (Map.Entry<Long, Pose> p : recorded.entrySet()) { history.add(p.getKey(), p.getValue()); }
-      VisionResult result = corrector.process(tags, history, new Pose(n(last, 11), n(last, 12), n(last, 13)),
+      for (Map.Entry<Long, FieldPose> p : recorded.entrySet()) { history.add(p.getKey(), p.getValue()); }
+      VisionResult result = corrector.process(tags, history, new FieldPose(n(last, 11), n(last, 12), n(last, 13)),
           n(last, 14), n(last, 15), n(last, 16), false, false, batch.getKey());
       if (result.gain > 0 && result.headingGain > 0) { return (batch.getKey() - first) * 1e-9; }
     }

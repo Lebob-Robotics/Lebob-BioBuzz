@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import static org.junit.Assert.*;
 import java.util.Arrays;
 import java.util.List;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.junit.Test;
 
 public class VolleyTuningDataTest {
@@ -33,11 +33,11 @@ public class VolleyTuningDataTest {
 
   @Test public void onlyNearbyConfirmedSpotsCanSupplyTeleOpSettings() {
     boolean[] known = new boolean[10]; known[0] = true;
-    assertEquals(0, VolleySettings.nearestSpot(new Pose(-1, -0.32, 0), -0.44, -0.32, known));
-    assertEquals(0, VolleySettings.nearestSpot(new Pose(1, 0.32, 0), 0.44, 0.32, known));
-    assertEquals(-1, VolleySettings.nearestSpot(new Pose(1, 1, 0), -0.44, -0.32, known));
+    assertEquals(0, VolleySettings.nearestSpot(new FieldPose(-1, -0.32, 0), -0.44, -0.32, known));
+    assertEquals(0, VolleySettings.nearestSpot(new FieldPose(1, 0.32, 0), 0.44, 0.32, known));
+    assertEquals(-1, VolleySettings.nearestSpot(new FieldPose(1, 1, 0), -0.44, -0.32, known));
     known[0] = false;
-    assertEquals(-1, VolleySettings.nearestSpot(new Pose(-1, -0.32, 0), -0.44, -0.32, known));
+    assertEquals(-1, VolleySettings.nearestSpot(new FieldPose(-1, -0.32, 0), -0.44, -0.32, known));
   }
   @Test public void actualWrittenRowsResumeTheSameAutomaticCandidate() {
     org.firstinspires.ftc.teamcode.utils.VolleyAutoTuner tuner =

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
+import org.firstinspires.ftc.teamcode.field.FieldPose;
+
 /** What {@link VisionCorrector#process} made of one loop's tags. */
 public final class VisionResult {
   /** Why the pose was or was not corrected. */
@@ -35,7 +37,7 @@ public final class VisionResult {
   public final double dxM; // Median correction: where the tags say the robot was, less where odometry said. Zero unless accepted
   public final double dyM;
   public final double gain; // Share of the correction to apply. Zero unless accepted
-  public final Pose newPose; // Current pose plus gain times the correction. Null unless accepted
+  public final FieldPose newPose; // Current pose plus gain times the correction. Null unless accepted
   public final int tagsUsed;
   public final int tagsRejected;
   public final double spreadM; // Furthest any used tag's correction is from the median. NaN if none were used
@@ -49,7 +51,7 @@ public final class VisionResult {
   public int headingPairs; // Tag pairs that gave a heading
 
   VisionResult(Reason reason, TagReject firstTagReject, double dxM, double dyM, double gain,
-      Pose newPose, int tagsUsed, int tagsRejected, double spreadM, boolean redFlipped,
+      FieldPose newPose, int tagsUsed, int tagsRejected, double spreadM, boolean redFlipped,
       boolean blueFlipped, int[] usedIds, double[] usedDxM, double[] usedDyM) {
     this.accepted = reason == Reason.ACCEPTED || reason == Reason.HEADING_ONLY || reason == Reason.RELOCATED;
     this.reason = reason;

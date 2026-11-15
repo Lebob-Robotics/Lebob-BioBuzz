@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
 import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * The robot's recent poses with their times, so a camera frame can be matched to where the robot was
@@ -22,7 +23,7 @@ public final class PoseHistory {
     headingsRad = new double[size];
   }
 
-  public void add(long timeNanos, Pose pose) {
+  public void add(long timeNanos, FieldPose pose) {
     int slot;
     if (count < timesNanos.length) {
       slot = (oldest + count) % timesNanos.length;
@@ -69,7 +70,7 @@ public final class PoseHistory {
    * The pose at a time, blended between the two samples around it (heading takes the short way round).
    * Up to one average sample gap outside the stored range gives the end sample; further out gives null.
    */
-  public Pose sample(long timeNanos) {
+  public FieldPose sample(long timeNanos) {
     if (count == 0) {
       return null;
     }
@@ -92,7 +93,7 @@ public final class PoseHistory {
         double fraction = (double) (timeNanos - before) / (double) (after - before);
         int a = slotOf(k);
         int b = slotOf(k + 1);
-        return new Pose(
+        return new FieldPose(
             xM[a] + fraction * (xM[b] - xM[a]),
             yM[a] + fraction * (yM[b] - yM[a]),
             Angles.normalize(headingsRad[a]
@@ -106,8 +107,8 @@ public final class PoseHistory {
     return (oldest + ageOrder) % timesNanos.length;
   }
 
-  private Pose at(int ageOrder) {
+  private FieldPose at(int ageOrder) {
     int slot = slotOf(ageOrder);
-    return new Pose(xM[slot], yM[slot], headingsRad[slot]);
+    return new FieldPose(xM[slot], yM[slot], headingsRad[slot]);
   }
 }

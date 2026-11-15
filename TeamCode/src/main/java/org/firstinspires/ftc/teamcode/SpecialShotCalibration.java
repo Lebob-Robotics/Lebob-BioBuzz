@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.utils.Aim;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.psilynx.psikit.core.Logger;
@@ -181,7 +181,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   protected void onPsiKitLoop() {
     double nowS = clock.seconds();
     Gamepad pad = robot.getDriver();
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     Cell far = farCell != null ? farCell : farEndFrom(pose);
     if (justPressed(pad.back, wasBack)) {
       robot.setDriverOnFarSide(!robot.isDriverOnFarSide());
@@ -269,7 +269,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
   }
 
   /** The end of our Hive away from the robot: SCORING is at -x, AUDIENCE at +x. */
-  private static Cell farEndFrom(Pose pose) {
+  private static Cell farEndFrom(FieldPose pose) {
     return pose != null && pose.xM < 0 ? Cell.AUDIENCE : Cell.SCORING;
   }
 
@@ -311,7 +311,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
 
   // ---- Driving to the spot, and turning to the shot
 
-  private void startDriving(double nowS, Pose pose) {
+  private void startDriving(double nowS, FieldPose pose) {
     if (!robot.isPoseValid()) {
       driveStatus = "B needs the tags to have placed the robot: point the cameras at the Hive";
       return;
@@ -348,7 +348,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
     driveStatus = why;
   }
 
-  private void autoDrive(double nowS, Pose pose, Gamepad pad) {
+  private void autoDrive(double nowS, FieldPose pose, Gamepad pad) {
     boolean took = FieldRoute.driverTookOver(pad);
     double[] stick = null;
     boolean aim = false;
@@ -424,7 +424,7 @@ public class SpecialShotCalibration extends PsiKitIterativeOpMode {
     if (aim == null) {
       return;
     }
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     pendingRow = String.format(Locale.US, "%.3f,%.3f,%.2f,%.3f,%.3f,%s,%d,%d,%.2f,%.0f,%.0f,%.2f,%.2f,%.2f,%.1f",
         pose.xM, pose.yM, Math.toDegrees(pose.headingRad), robot.getAimCellX(), robot.getAimCellY(), far,
         robot.getUpCell() == far ? 1 : 0, robot.isUpCellConfirmed() ? 1 : 0,

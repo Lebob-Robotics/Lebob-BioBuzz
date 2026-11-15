@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import org.firstinspires.ftc.teamcode.utils.Aim;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 
 /**
@@ -553,12 +553,12 @@ final class SotmPath {
   private static boolean shotFrom(double[] s, double speedScale, boolean backward) {
     double vx = s[2] * speedScale;
     double vy = s[3] * speedScale;
-    Pose pose = new Pose(s[0], s[1], Math.atan2(CELL_Y - s[1], CELL_X - s[0]));
+    FieldPose pose = new FieldPose(s[0], s[1], Math.atan2(CELL_Y - s[1], CELL_X - s[0]));
     Aim aim = null;
     for (int i = 0; i < 2; i++) { // The shooter sits off the middle, so where it points moves the shot a little
       aim = backward ? ShootOnTheMove.aimBackward(pose, vx, vy, CELL_X, CELL_Y)
           : ShootOnTheMove.aimHooded(pose, vx, vy, CELL_X, CELL_Y);
-      pose = new Pose(s[0], s[1], aim.lockHeadingRad);
+      pose = new FieldPose(s[0], s[1], aim.lockHeadingRad);
     }
     return aim.shot.valid;
   }

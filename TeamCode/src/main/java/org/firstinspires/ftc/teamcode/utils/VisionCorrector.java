@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.field.Cell;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * Keeps the odometry pose honest from the Hive's AprilTags, and tracks which Cell of each Hive is up.
@@ -157,7 +158,7 @@ public final class VisionCorrector {
    *     may be any size and is applied in full
    * @param nowNanos the loop time, on the same clock as the frame times
    */
-  public VisionResult process(List<TagObservation> observations, PoseHistory history, Pose now,
+  public VisionResult process(List<TagObservation> observations, PoseHistory history, FieldPose now,
       double velocityXMps, double velocityYMps, double turnRateRadPerSec, boolean poseValid,
       long nowNanos) {
     return process(observations, history, now, velocityXMps, velocityYMps, turnRateRadPerSec, poseValid,
@@ -168,7 +169,7 @@ public final class VisionCorrector {
    * As above, with the heading trusted separately: false means the next heading fix may be any size
    * and is applied in full.
    */
-  public VisionResult process(List<TagObservation> observations, PoseHistory history, Pose now,
+  public VisionResult process(List<TagObservation> observations, PoseHistory history, FieldPose now,
       double velocityXMps, double velocityYMps, double turnRateRadPerSec, boolean poseValid,
       boolean headingValid, long nowNanos) {
     if (observations == null || observations.isEmpty()) {
@@ -193,7 +194,7 @@ public final class VisionCorrector {
       Cell measuredUp = null;
       double[] inRobot = null;
       double[] tagField = null;
-      Pose atFrame = null;
+      FieldPose atFrame = null;
 
       if (Double.isNaN(tag.rightM) || Double.isNaN(tag.forwardM) || Double.isNaN(tag.upM)) {
         reject = TagReject.NO_POSE;
@@ -386,7 +387,7 @@ public final class VisionCorrector {
     boolean headingStillGood = reason == Reason.OUT_OF_FIELD || reason == Reason.JUMP; // Not about the heading
     if (reason != Reason.ACCEPTED && headingStillGood && headingGain > 0) {
       // The heading from tag pairs doesn't depend on where the robot is, so keep it
-      Pose turned = new Pose(now.xM, now.yM, Angles.normalize(now.headingRad + headingGain * dHeading));
+      FieldPose turned = new FieldPose(now.xM, now.yM, Angles.normalize(now.headingRad + headingGain * dHeading));
       VisionResult headingOnly = new VisionResult(Reason.HEADING_ONLY, firstReject, 0, 0, 0, turned, used,
           rejected, spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);
       headingOnly.dHeadingRad = dHeading;
@@ -403,7 +404,7 @@ public final class VisionCorrector {
     }
 
     double gain = poseValid && reason != Reason.RELOCATED ? CORRECTION_GAIN : 1.0;
-    Pose newPose = new Pose(now.xM + gain * medianDx, now.yM + gain * medianDy,
+    FieldPose newPose = new FieldPose(now.xM + gain * medianDx, now.yM + gain * medianDy,
         Angles.normalize(now.headingRad + headingGain * dHeading));
     VisionResult result = new VisionResult(reason, firstReject, medianDx, medianDy, gain, newPose, used,
         rejected, spread, redFlipped, blueFlipped, usedIds, usedDx, usedDy);

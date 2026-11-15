@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.pedro.RobotLocalizer;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
@@ -148,7 +148,7 @@ public class ShootAuto extends PsiKitIterativeOpMode {
   protected void onPsiKitLoop() {
     double nowS = getRuntime();
     double inPhaseS = nowS - phaseStartS;
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     switch (phase) {
       case DRIVE: {
         // Summed loop by loop, leaving out the jump when the tags first place the robot (13 Nov 191356: from

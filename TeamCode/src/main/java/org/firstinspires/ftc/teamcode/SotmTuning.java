@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.BallMark;
 import org.firstinspires.ftc.teamcode.utils.MarkKeys;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.SotmSpotSearch;
@@ -400,7 +400,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     }
     boolean back = e.key.startsWith("BACKWARD");
     double[] f = p.sample(p.fireS);
-    Pose at = new Pose(f[0], f[1], 0);
+    FieldPose at = new FieldPose(f[0], f[1], 0);
     double cx = robot.getAimCellX();
     double cy = robot.getAimCellY();
     Aim a = back ? ShootOnTheMove.aimBackward(at, f[2], f[3], cx, cy) : ShootOnTheMove.aimHooded(at, f[2], f[3], cx, cy);
@@ -477,7 +477,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     double nowS = clock.seconds();
     resumeSpots();
     Gamepad pad = robot.getDriver();
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     BallMark mark = keys.update(pad.x, pad.a, pad.dpad_up, pad.dpad_down, pad.dpad_left, pad.dpad_right);
     updateAccel(nowS);
     boolean between = stage == Stage.IDLE || stage == Stage.END || stage == Stage.TO_RELOAD;
@@ -543,7 +543,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
     logState();
   }
 
-  private void start(double nowS, Pose pose, SotmPath.Entry e) {
+  private void start(double nowS, FieldPose pose, SotmPath.Entry e) {
     if (!planned()) {
       status = planError != null ? "planning failed: " + planError : "still planning the passes";
       return;
@@ -573,7 +573,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   }
 
   /** Sets up the drive round the Hive to (x, y). */
-  private void driveTo(double nowS, Pose pose, double x, double y) {
+  private void driveTo(double nowS, FieldPose pose, double x, double y) {
     route = FieldRoute.route(pose.xM, pose.yM, x, y);
     routeIndex = 0;
     legStartX = pose.xM;
@@ -609,7 +609,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   }
 
   /** Sets this loop's scripted drive, aim and fire. */
-  private void drive(double nowS, Pose pose) {
+  private void drive(double nowS, FieldPose pose) {
     double[] stick = null;
     double[] steadyReference = null;
     boolean fire = false;
@@ -744,7 +744,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   }
 
   /** How far the robot is behind the plan's point {x, y, vx, vy} along its direction of travel, metres. */
-  private static double lagM(double[] want, Pose pose) {
+  private static double lagM(double[] want, FieldPose pose) {
     double speed = Math.hypot(want[2], want[3]);
     return speed < SotmTuningSettings.MIN_SPEED_MPS ? 0
         : ((want[0] - pose.xM) * want[2] + (want[1] - pose.yM) * want[3]) / speed;
@@ -797,7 +797,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   /** The robot's state now: {@link #STATE_COLUMNS}. */
   private String state() {
     Aim aim = robot.getLastAim();
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     double[] v = robot.getVelocity();
     double cx = robot.getAimCellX();
     double cy = robot.getAimCellY();
@@ -964,7 +964,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
 
   // ---- Telemetry and logs
 
-  private void addTelemetry(Pose pose) {
+  private void addTelemetry(FieldPose pose) {
     SotmPath.Entry next = nextEntry();
     int[] n = doneCounts();
     line("SOTM", String.format(Locale.US, "%s %s  gates: %s  spots %d/%d done, then checks %d/%d",

@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.utils.AimTrimSearch;
 import org.firstinspires.ftc.teamcode.utils.BackwardShotSearch;
 import org.firstinspires.ftc.teamcode.utils.BallMark;
 import org.firstinspires.ftc.teamcode.utils.MarkKeys;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.Shot;
@@ -348,7 +348,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   /** Once the Cell and pose are known, holds the resumed spot, driving the route there if it's far. */
-  private void holdResumedSpot(double nowS, Pose pose) {
+  private void holdResumedSpot(double nowS, FieldPose pose) {
     if (!resumeSpotPending || driving || robot.getLastAim() == null || !robot.isPoseValid()) {
       return;
     }
@@ -376,7 +376,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   protected void onPsiKitLoop() {
     double nowS = clock.seconds();
     Gamepad pad = robot.getDriver();
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     BallMark mark = keys.update(pad.x, pad.a, pad.dpad_up, pad.dpad_down, pad.dpad_left, pad.dpad_right);
     if (justPressed(pad.left_bumper, wasLeftBumper)) {
       backward = !backward;
@@ -522,7 +522,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   /** Starts this spot's search from the table's shot, if searching is on. */
-  private void startSearch(Pose pose, double distM) {
+  private void startSearch(FieldPose pose, double distM) {
     search = null;
     if (!ShotTuningSettings.AUTO_SEARCH) {
       return;
@@ -637,7 +637,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     }
   }
 
-  private String searchLine(Pose pose) {
+  private String searchLine(FieldPose pose) {
     if (!ShotTuningSettings.AUTO_SEARCH) {
       return "off (Panels: ShotTuningSettings.AUTO_SEARCH)";
     }
@@ -678,7 +678,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   // Lines go to the Driver Station and the Panels Telemetry tab, before the robot's own (which end with the update)
-  private void addTelemetry(double nowS, Pose pose) {
+  private void addTelemetry(double nowS, FieldPose pose) {
     double trimDeg = trim().trimDeg();
     line("TUNING", String.format(Locale.US, "%s %s  %.0f rpm  launch %.1f deg (lift %.1f)  aim %s",
         robot.getAlliance(), backward ? "BACKWARD" : "FRONT hooded", rpm, launchDeg(), hoodLiftDeg,
@@ -732,7 +732,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
 
   // ---- Driving to a spot or a pass's start, the pass itself, and turning to the shot
 
-  private void startDrivingToNextSpot(double nowS, Pose pose) {
+  private void startDrivingToNextSpot(double nowS, FieldPose pose) {
     Aim aim = robot.getLastAim();
     if (aim == null || !robot.isPoseValid()) {
       driveStatus = "B needs the Cell known: point the cameras at the Hive";
@@ -753,7 +753,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   /** Drives the route to a point; for the backward shot, first turns the cameras to the Hive and waits for fixes. */
-  private void startRoute(double nowS, Pose pose, double targetX, double targetY, Arrive why, int toSpot) {
+  private void startRoute(double nowS, FieldPose pose, double targetX, double targetY, Arrive why, int toSpot) {
     settleUntilS = Double.NaN;
     orientUntilS = Double.NaN;
     if (!backward) {
@@ -785,7 +785,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     return backward && passStage == PassStage.NONE && (looking || driving || !Double.isNaN(settleUntilS));
   }
 
-  private void startDrivingTo(double nowS, Pose pose, double targetX, double targetY, Arrive why) {
+  private void startDrivingTo(double nowS, FieldPose pose, double targetX, double targetY, Arrive why) {
     route = FieldRoute.route(pose.xM, pose.yM, targetX, targetY);
     routeIndex = 0;
     legStartX = pose.xM;
@@ -825,7 +825,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   /** A moving pass through where the robot is: the next of toward, away and across that stays in the area. */
-  private void startPass(double nowS, Pose pose) {
+  private void startPass(double nowS, FieldPose pose) {
     if (robot.getLastAim() == null || !robot.isPoseValid()) {
       passStatus = "Start needs the Cell known: point the cameras at the Hive";
       return;
@@ -872,7 +872,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   /** Sets the robot's scripted drive, aim and fire for this loop. */
-  private void autoDrive(double nowS, Pose pose) {
+  private void autoDrive(double nowS, FieldPose pose) {
     double[] stick = null;
     boolean aim = false;
     boolean live = false;
@@ -1125,7 +1125,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
     if (aim == null) {
       return;
     }
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     boolean fromPass = passStage == PassStage.READY || passStage == PassStage.RUN;
     double moved = Math.hypot(pose.xM - searchX, pose.yM - searchY);
     boolean searchable = !fromPass && search != null && moved <= ShotTuningSettings.SEARCH_MOVED_M;

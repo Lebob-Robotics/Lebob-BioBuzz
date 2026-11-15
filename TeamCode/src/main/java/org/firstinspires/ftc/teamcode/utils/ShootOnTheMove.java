@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.utils;
 import static org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.*;
 
 import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * Shoot on the move maths. Pure Java with no hardware, so it is unit tested on a laptop.
@@ -126,7 +127,7 @@ public final class ShootOnTheMove {
   private static final double MAX_RPM_RATE_PER_SEC = 3000;
 
   /** Where to point the robot and what shot to take. Everything is in the field frame. */
-  public static Aim aim(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+  public static Aim aim(FieldPose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
     return aim(robot, velocityXMps, velocityYMps, cellX, cellY, false);
   }
 
@@ -134,7 +135,7 @@ public final class ShootOnTheMove {
    * As {@link #aim(Pose, double, double, double, double)}, but with {@code allowBackward} a backward shot
    * is taken whenever the backward table has one, and the hooded shot only otherwise.
    */
-  public static Aim aim(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY,
+  public static Aim aim(FieldPose robot, double velocityXMps, double velocityYMps, double cellX, double cellY,
       boolean allowBackward) {
     if (allowBackward) {
       Aim backward = aimBackward(robot, velocityXMps, velocityYMps, cellX, cellY);
@@ -159,7 +160,7 @@ public final class ShootOnTheMove {
   }
 
   /** The hooded shot out of the shooter's side, whether or not the table has one. */
-  public static Aim aimHooded(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+  public static Aim aimHooded(FieldPose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
     Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, FEED_DELAY_S);
     Geometry now = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, 0);
     Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps * SOTM_TOWARD_GAIN,
@@ -182,7 +183,7 @@ public final class ShootOnTheMove {
    * The backward shot, whether or not the backward table has one. Its heading is 180 degrees from the
    * hooded shot's, so a caller that has picked it keeps it rather than falling back each loop.
    */
-  public static Aim aimBackward(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
+  public static Aim aimBackward(FieldPose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
     Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, FEED_DELAY_S);
     Geometry now = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, 0);
     Shot shot = calculateBackward(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
@@ -226,7 +227,7 @@ public final class ShootOnTheMove {
    * middle, from Cells once thought to be on the walls, so the wedge never held and TeleOp shot hooded from
    * straight in front (230333: 11.5 degrees off the axis, the balls bounced out).
    */
-  public static boolean inFrontOfCell(Pose robot, double cellX, double cellY, double halfAngleDeg) {
+  public static boolean inFrontOfCell(FieldPose robot, double cellX, double cellY, double halfAngleDeg) {
     if (!(halfAngleDeg > 0)) {
       return false;
     }
@@ -265,7 +266,7 @@ public final class ShootOnTheMove {
     final double speedTowardCellMps;
     final double sidewaysSpeedMps;
 
-    Geometry(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY, double leadS) {
+    Geometry(FieldPose robot, double velocityXMps, double velocityYMps, double cellX, double cellY, double leadS) {
       double predictedX = robot.xM + velocityXMps * leadS;
       double predictedY = robot.yM + velocityYMps * leadS;
 

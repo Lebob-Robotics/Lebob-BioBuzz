@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.utils;
 import static org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.*;
 
 import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * Remembers where our up-facing Cell is on the field, from camera sightings.
@@ -13,7 +14,7 @@ import org.firstinspires.ftc.teamcode.field.Angles;
  */
 public final class TargetTracker {
   private final long[] poseTimesNanos;
-  private final Pose[] poses;
+  private final FieldPose[] poses;
   private int nextPoseSlot;
   private int poseCount;
 
@@ -25,11 +26,11 @@ public final class TargetTracker {
 
   public TargetTracker(int poseHistorySize) {
     poseTimesNanos = new long[poseHistorySize];
-    poses = new Pose[poseHistorySize];
+    poses = new FieldPose[poseHistorySize];
   }
 
   /** Call once per loop. */
-  public void recordPose(long timeNanos, Pose pose) {
+  public void recordPose(long timeNanos, FieldPose pose) {
     poseTimesNanos[nextPoseSlot] = timeNanos;
     poses[nextPoseSlot] = pose;
     nextPoseSlot = (nextPoseSlot + 1) % poses.length;
@@ -51,7 +52,7 @@ public final class TargetTracker {
       return false;
     }
 
-    Pose pose = poseNearestTo(sighting.frameTimeNanos);
+    FieldPose pose = poseNearestTo(sighting.frameTimeNanos);
     boolean sameCell = sighting.clusterName.equals(cellName);
     if (cellSeen && !sameCell) {
       // Another of our Cells in view: keep the one we have unless the new one is clearly nearer or
@@ -77,7 +78,7 @@ public final class TargetTracker {
     return true;
   }
 
-  private Pose poseNearestTo(long timeNanos) {
+  private FieldPose poseNearestTo(long timeNanos) {
     int nearest = 0;
     for (int slot = 1; slot < poseCount; slot++) {
       if (Math.abs(poseTimesNanos[slot] - timeNanos) < Math.abs(poseTimesNanos[nearest] - timeNanos)) {
@@ -109,10 +110,10 @@ public final class TargetTracker {
       cellY = pivotYM + x * sin + y * cos + dyM;
     }
     for (int slot = 0; slot < poseCount; slot++) {
-      Pose pose = poses[slot];
+      FieldPose pose = poses[slot];
       double x = pose.xM - pivotXM;
       double y = pose.yM - pivotYM;
-      poses[slot] = new Pose(pivotXM + x * cos - y * sin + dxM, pivotYM + x * sin + y * cos + dyM,
+      poses[slot] = new FieldPose(pivotXM + x * cos - y * sin + dxM, pivotYM + x * sin + y * cos + dyM,
           Angles.normalize(pose.headingRad + dHeadingRad));
     }
   }

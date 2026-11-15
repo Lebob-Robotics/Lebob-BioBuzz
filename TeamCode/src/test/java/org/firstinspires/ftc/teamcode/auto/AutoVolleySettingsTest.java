@@ -9,7 +9,7 @@ import java.util.List;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.VolleySettings;
 import org.firstinspires.ftc.teamcode.VolleySettingsAccess;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.utils.VolleyAutoTuner.Settings;
 import org.junit.Test;
@@ -31,9 +31,9 @@ public class AutoVolleySettingsTest {
       for (Cell c : Cell.values()) {
         double[] s = AutoField.shotSpot(a, c);
         double[] aim = AutoField.autoAimPoint(a, c);
-        int spot = v.spotFor(new Pose(s[0], s[1], s[2]), aim[0], aim[1]);
+        int spot = v.spotFor(new FieldPose(s[0], s[1], s[2]), aim[0], aim[1]);
         assertEquals(a + " " + c, 4, spot);
-        assertEquals(v.isNear(new Pose(s[0], s[1], s[2]), aim[0], aim[1], spot), true);
+        assertEquals(v.isNear(new FieldPose(s[0], s[1], s[2]), aim[0], aim[1], spot), true);
         Settings t = v.get(spot);
         assertEquals(-0.5, t.firstTrim, 1e-9);
         assertEquals(-0.5, t.laterTrim, 1e-9);
@@ -49,7 +49,7 @@ public class AutoVolleySettingsTest {
         double[] aim = AutoField.autoAimPoint(a, c);
         // The near Cell's park is the tuned park; the far Cell's is 1.80 m out, nearest spot 9's 1.73 m
         boolean nearCell = Math.signum(aim[0]) == Math.signum(p[0]);
-        assertEquals(a + " " + c, nearCell ? 10 : 9, v.spotFor(new Pose(p[0], p[1], p[2]), aim[0], aim[1]));
+        assertEquals(a + " " + c, nearCell ? 10 : 9, v.spotFor(new FieldPose(p[0], p[1], p[2]), aim[0], aim[1]));
       }
     }
   }

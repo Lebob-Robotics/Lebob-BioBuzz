@@ -8,7 +8,7 @@ import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.BallMark;
 import org.firstinspires.ftc.teamcode.utils.MarkKeys;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.firstinspires.ftc.teamcode.utils.VolleyCalibration;
 import org.firstinspires.ftc.teamcode.utils.VolleyCalibration.Ball;
@@ -160,7 +160,7 @@ public class VolleyTuning extends Main {
     wasL3 = g.left_stick_button;
     robot.setHoodedOnly(!backwardMode);
     robot.setBackwardOnly(backwardMode);
-    Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     position.acquire(now, pose, robot.isPoseValid() && robot.getLastAim() != null,
         robot.getPositionFixes(), robot.getAimCellX(), robot.getAimCellY(), robot.getTagsSeenAgoS());
     position.update(now, pose, robot.getVelocity(), robot.isPoseValid(), robot.getPositionFixes());

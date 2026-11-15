@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import java.util.List;
 import org.firstinspires.ftc.teamcode.auto.AutoField;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShotTuningSettings;
 import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
 import org.firstinspires.ftc.teamcode.field.Cell;
@@ -129,7 +129,7 @@ final class VolleySpotDrive {
     return -1;
   }
 
-  boolean start(int index, double cellX, double cellY, double now, Pose pose, boolean valid, int fixCount) {
+  boolean start(int index, double cellX, double cellY, double now, FieldPose pose, boolean valid, int fixCount) {
     if (!valid || !Double.isFinite(cellX) || !Double.isFinite(cellY)) {
       stop("Finding Hive tags for spot " + name(index) + "; Circle cancels");
       spot = index; searchSince = searchStep = now; stage = Stage.ACQUIRING;
@@ -158,7 +158,7 @@ final class VolleySpotDrive {
   }
 
   /** Rotate only until vision supplies a trusted pose and Cell, then fulfill the queued Circle. */
-  void acquire(double now, Pose pose, boolean valid, int fixCount,
+  void acquire(double now, FieldPose pose, boolean valid, int fixCount,
       double cellX, double cellY, double tagsAgo) {
     turn = 0;
     if (stage != Stage.ACQUIRING) { return; }
@@ -181,7 +181,7 @@ final class VolleySpotDrive {
         + (seen ? ": waiting for a reliable pose; Circle cancels" : "; Circle cancels");
   }
 
-  void update(double now, Pose pose, double[] velocity, boolean valid, int fixCount) {
+  void update(double now, FieldPose pose, double[] velocity, boolean valid, int fixCount) {
     if (stage == Stage.IDLE || stage == Stage.ACQUIRING) { drive = new double[] {0, 0}; return; }
     if (fixCount != fixes) { fixes = fixCount; lastFixS = now; }
     if (!valid) { stop("Stopped: field pose invalid; Circle retries"); return; }
@@ -239,7 +239,7 @@ final class VolleySpotDrive {
    * The park's last bit: creeps toward our wall (held to the park's x) until the wall stops it, then holds there
    * pushed against it. The wall is the stop, so the route's stopping check is replaced by a reach check on the pose.
    */
-  private void updatePark(double now, Pose pose, double[] velocity) {
+  private void updatePark(double now, FieldPose pose, double[] velocity) {
     double wall = Math.signum(target[1]);
     if (Math.abs(pose.yM) > FieldRoute.MAX_REACH_M + PARK_POSE_SLACK_M
         || Math.abs(pose.xM - target[0]) > MAX_BLIND_HOLD_ERROR_M) {

@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -131,12 +131,12 @@ final class FieldRoute {
    * Field-frame stick toward (x, y) along the leg from (legStartX, legStartY), with a pull back onto the leg's line,
    * and boost added to the least stick.
    */
-  static double[] goToStick(Pose pose, double x, double y, double legStartX, double legStartY, double boost) {
+  static double[] goToStick(FieldPose pose, double x, double y, double legStartX, double legStartY, double boost) {
     return goToStick(pose, x, y, legStartX, legStartY, boost, GOTO_STICK);
   }
 
   /** As above, with the stick capped at maxStick. */
-  static double[] goToStick(Pose pose, double x, double y, double legStartX, double legStartY, double boost,
+  static double[] goToStick(FieldPose pose, double x, double y, double legStartX, double legStartY, double boost,
       double maxStick) {
     double ex = x - pose.xM;
     double ey = y - pose.yM;
@@ -168,12 +168,12 @@ final class FieldRoute {
   }
 
   /** Where it would stop stays off the fence and the Hive. Not checked until it is inside, so it can drive in. */
-  static boolean headedSafely(Pose pose, double[] velocity) {
+  static boolean headedSafely(FieldPose pose, double[] velocity) {
     return headedSafely(pose, velocity, FIELD_LIMIT_M);
   }
 
   /** As {@link #headedSafely(Pose, double[])}, with the robot centre allowed out to {@code limit}. */
-  static boolean headedSafely(Pose pose, double[] velocity, double limit) {
+  static boolean headedSafely(FieldPose pose, double[] velocity, double limit) {
     if (!inBox(pose.xM, pose.yM, limit, 0, 0)) {
       return true;
     }
@@ -183,7 +183,7 @@ final class FieldRoute {
   }
 
   /** Entering from the perimeter still respects the physical wall and Hive stopping bounds. */
-  static boolean headedSafelyEntering(Pose pose, double[] velocity) {
+  static boolean headedSafelyEntering(FieldPose pose, double[] velocity) {
     if (inBox(pose.xM, pose.yM, 0, 0)) { return headedSafely(pose, velocity); }
     if (!inBox(pose.xM, pose.yM, MAX_REACH_M, 0, 0)) { return false; }
     return inBox(pose.xM + stopDistance(velocity[0]), pose.yM + stopDistance(velocity[1]),

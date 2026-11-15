@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
 import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * The autonomous's last pose and alliance, for the TeleOp that follows it. Every OpMode resets the Pinpoint, and
@@ -15,14 +16,14 @@ public final class PoseHandoff {
   /** The pose is only used this soon after the auto stopped: a match's transition is about 8 s. */
   public static double MAX_AGE_S = 60;
 
-  private static Pose pose;
+  private static FieldPose pose;
   private static long savedNanos;
   private static Alliance alliance;
 
   private PoseHandoff() {}
 
   /** The auto's pose as it stops (null if it never knew where it was), and its alliance. */
-  public static synchronized void save(Pose lastPose, Alliance lastAlliance, long nowNanos) {
+  public static synchronized void save(FieldPose lastPose, Alliance lastAlliance, long nowNanos) {
     pose = lastPose;
     savedNanos = nowNanos;
     alliance = lastAlliance;
@@ -34,13 +35,13 @@ public final class PoseHandoff {
   }
 
   /** The auto's pose if it is under MAX_AGE_S old, else null. Doesn't use it up. */
-  public static synchronized Pose peek(long nowNanos) {
+  public static synchronized FieldPose peek(long nowNanos) {
     return pose != null && (nowNanos - savedNanos) * 1e-9 <= MAX_AGE_S ? pose : null;
   }
 
   /** As {@link #peek}, then forgets the pose, so a later practice TeleOp doesn't start from it. */
-  public static synchronized Pose take(long nowNanos) {
-    Pose p = peek(nowNanos);
+  public static synchronized FieldPose take(long nowNanos) {
+    FieldPose p = peek(nowNanos);
     pose = null;
     return p;
   }

@@ -6,7 +6,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.utils.Aim;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.junit.Test;
@@ -30,7 +30,7 @@ public class VolleyBackwardSpotsTest {
   @Test public void everyBackwardSpotHasABackwardTableShotInTheWedge() {
     for (int s : VolleySpotDrive.BACKWARD_ORDER) {
       double[] p = VolleySpotDrive.point(s, AX, AY);
-      Pose pose = new Pose(p[0], p[1], 0);
+      FieldPose pose = new FieldPose(p[0], p[1], 0);
       Aim aim = ShootOnTheMove.aimBackward(pose, 0, 0, AX, AY);
       assertTrue("spot " + VolleySpotDrive.name(s) + ": " + aim.shot.reason, aim.shot.valid);
       assertTrue(ShootOnTheMove.inFrontOfCell(pose, AX, AY, ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
@@ -41,7 +41,7 @@ public class VolleyBackwardSpotsTest {
   @Test public void backwardSpotsAreReachable() {
     for (int s : VolleySpotDrive.BACKWARD_ORDER) {
       VolleySpotDrive d = new VolleySpotDrive();
-      assertTrue(VolleySpotDrive.name(s), d.start(s, AX, AY, 0, new Pose(-1.0, -1.0, 0), true, 1));
+      assertTrue(VolleySpotDrive.name(s), d.start(s, AX, AY, 0, new FieldPose(-1.0, -1.0, 0), true, 1));
       assertEquals(VolleySpotDrive.Stage.MOVING, d.stage());
     }
   }

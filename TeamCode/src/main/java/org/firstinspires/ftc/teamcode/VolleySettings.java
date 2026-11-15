@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.util.RobotLog;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.VolleyAutoTuner;
 import org.firstinspires.ftc.teamcode.utils.VolleyAutoTuner.Settings;
 import java.io.BufferedReader;
@@ -66,12 +66,12 @@ public final class VolleySettings {
    * The confirmed spot whose settings apply at {@code pose}: one within NEAR_SPOT_M, else the one whose distance to
    * the Cell is nearest the robot's. -1 for the constants.
    */
-  public int spotFor(Pose pose, double cellX, double cellY) {
+  public int spotFor(FieldPose pose, double cellX, double cellY) {
     return spotFor(pose, cellX, cellY, false);
   }
 
   /** As above, among the backward spots for a backward volley and the hooded ones otherwise. */
-  public int spotFor(Pose pose, double cellX, double cellY, boolean backward) {
+  public int spotFor(FieldPose pose, double cellX, double cellY, boolean backward) {
     boolean[] known = new boolean[spots.length];
     for (int i = 0; i < spots.length; i++) {
       known[i] = spots[i] != null && VolleySpotDrive.isBackward(i) == backward;
@@ -82,7 +82,7 @@ public final class VolleySettings {
   }
 
   /** The known spot whose distance to the Cell is nearest the robot's; -1 if none is known. */
-  static int nearestRange(Pose pose, double cellX, double cellY, boolean[] known) {
+  static int nearestRange(FieldPose pose, double cellX, double cellY, boolean[] known) {
     double range = Math.hypot(pose.xM - cellX, pose.yM - cellY);
     int best = -1;
     double off = Double.POSITIVE_INFINITY;
@@ -99,13 +99,13 @@ public final class VolleySettings {
 
   boolean isConfirmed(int spot) { return spot >= 0 && confirmed[spot]; }
 
-  public boolean isNear(Pose pose, double cellX, double cellY, int spot) {
+  public boolean isNear(FieldPose pose, double cellX, double cellY, int spot) {
     if (spot < 0 || pose == null) { return false; }
     double[] p = VolleySpotDrive.point(spot, cellX, cellY);
     return Math.hypot(p[0] - pose.xM, p[1] - pose.yM) <= NEAR_SPOT_M;
   }
 
-  static int nearestSpot(Pose pose, double cellX, double cellY, boolean[] known) {
+  static int nearestSpot(FieldPose pose, double cellX, double cellY, boolean[] known) {
     int best = -1;
     double distance = NEAR_SPOT_M;
     for (int i = 0; i < known.length; i++) {

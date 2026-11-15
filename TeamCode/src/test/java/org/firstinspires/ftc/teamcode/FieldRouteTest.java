@@ -5,7 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.junit.Test;
 
 public class FieldRouteTest {
@@ -74,12 +74,12 @@ public class FieldRouteTest {
       y = w[1];
     }
     // Slowing in to the spot it is safe; the match's limit would have stopped it
-    Pose near = new Pose(-1.42, -1.42, 0);
+    FieldPose near = new FieldPose(-1.42, -1.42, 0);
     double[] slow = {-0.3, -0.3, 0};
     assertTrue(FieldRoute.headedSafely(near, slow, limit));
     double[] cruising = {-0.5, -0.5, 0};
-    assertTrue(FieldRoute.headedSafely(new Pose(-1.30, -1.30, 0), cruising, limit));
-    assertTrue(!FieldRoute.headedSafely(new Pose(-1.30, -1.30, 0), cruising, FieldRoute.FIELD_LIMIT_M));
+    assertTrue(FieldRoute.headedSafely(new FieldPose(-1.30, -1.30, 0), cruising, limit));
+    assertTrue(!FieldRoute.headedSafely(new FieldPose(-1.30, -1.30, 0), cruising, FieldRoute.FIELD_LIMIT_M));
     // Fast at the corner it still stops
     assertTrue(!FieldRoute.headedSafely(near, new double[] {-1.0, -1.0, 0}, limit));
   }
@@ -93,7 +93,7 @@ public class FieldRouteTest {
   @Test
   public void stuckBoostLiftsTheReloadCap() {
     // 7 Nov, 082948: capped at RELOAD_STICK it sat still on the way to the reload corner and had to be pulled
-    Pose at = new Pose(-1.30, -0.65, 0);
+    FieldPose at = new FieldPose(-1.30, -0.65, 0);
     double[] calm = FieldRoute.goToStick(at, -1.5, -1.5, -1.30, -0.60, 0, FieldRoute.RELOAD_STICK);
     assertEquals(FieldRoute.RELOAD_STICK, Math.hypot(calm[0], calm[1]), 1e-9);
     double[] stuck = FieldRoute.goToStick(at, -1.5, -1.5, -1.30, -0.60, 1.0, FieldRoute.RELOAD_STICK);
@@ -116,10 +116,10 @@ public class FieldRouteTest {
   }
 
   @Test public void perimeterEntryStopsBeforeAnOutwardCoastWouldReachTheWall() {
-    Pose p = new Pose(-1.578, -.362, 0);
+    FieldPose p = new FieldPose(-1.578, -.362, 0);
     assertTrue(FieldRoute.headedSafelyEntering(p, new double[]{.2, 0, 0}));
     assertTrue(!FieldRoute.headedSafelyEntering(p, new double[]{-.5, 0, 0}));
-    assertTrue(!FieldRoute.headedSafelyEntering(new Pose(-1.61, -.362, 0), new double[3]));
+    assertTrue(!FieldRoute.headedSafelyEntering(new FieldPose(-1.61, -.362, 0), new double[3]));
   }
 
 }

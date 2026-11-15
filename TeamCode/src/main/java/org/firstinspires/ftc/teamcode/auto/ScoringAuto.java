@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import org.firstinspires.ftc.teamcode.field.Cell;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * The shooting autonomous ({@link AutoSequence}), for one alliance. Pedro follows the paths from the Robot's own
@@ -152,7 +153,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
   }
 
   /** Called by the Robot each loop with the corrected pose, before it drives. */
-  private double[] pedroPowers(org.firstinspires.ftc.teamcode.utils.Pose pose, double[] velocity) {
+  private double[] pedroPowers(FieldPose pose, double[] velocity) {
     // Still while the Pinpoint finishes the reset from INIT: 13 Nov it calibrated for 0.2 s after START both runs,
     // and the IMU calibrates only standing still
     if (!odometryReady) {
@@ -245,7 +246,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     }
     AutoSequence.Step step = sequence.step();
     double[] stop = AutoField.forAlliance(holdSpot(step), alliance);
-    org.firstinspires.ftc.teamcode.utils.Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     if (step == AutoSequence.Step.ONTO_GARDEN_WALL && clock.seconds() - stepStartS >= WALL_SETTLE_S
         && speedMps <= WALL_STOPPED_MPS) {
       return true; // Stopped by the wall, wherever odometry puts it
@@ -262,7 +263,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
 
   /** Starts the drive for a step, from where the robot is now. */
   private void startStep(AutoSequence.Step step) {
-    org.firstinspires.ftc.teamcode.utils.Pose now = robot.getPose();
+    FieldPose now = robot.getPose();
     Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean slow = step == AutoSequence.Step.SWEEP_GARDEN || step == AutoSequence.Step.INTAKE_WALL_FLOWER
         || step == AutoSequence.Step.INTAKE_REAR_FLOWER;

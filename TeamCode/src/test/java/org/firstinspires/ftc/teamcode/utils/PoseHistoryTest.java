@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
 import org.firstinspires.ftc.teamcode.field.Angles;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 public class PoseHistoryTest {
   private static final double TOLERANCE = 1e-9;
@@ -13,9 +14,9 @@ public class PoseHistoryTest {
   @Test
   public void blendsBetweenTheTwoSamplesAroundATime() {
     PoseHistory history = new PoseHistory(100);
-    history.add(1000, new Pose(0, 0, 0));
-    history.add(2000, new Pose(2, 4, 1));
-    Pose halfway = history.sample(1500);
+    history.add(1000, new FieldPose(0, 0, 0));
+    history.add(2000, new FieldPose(2, 4, 1));
+    FieldPose halfway = history.sample(1500);
     assertNotNull(halfway);
     assertEquals(1, halfway.xM, TOLERANCE);
     assertEquals(2, halfway.yM, TOLERANCE);
@@ -27,8 +28,8 @@ public class PoseHistoryTest {
   @Test
   public void headingTakesTheShortWayRoundPi() {
     PoseHistory history = new PoseHistory(100);
-    history.add(0, new Pose(0, 0, Math.PI - 0.1));
-    history.add(100, new Pose(0, 0, -Math.PI + 0.1));
+    history.add(0, new FieldPose(0, 0, Math.PI - 0.1));
+    history.add(100, new FieldPose(0, 0, -Math.PI + 0.1));
     assertEquals(Math.PI, Math.abs(history.sample(50).headingRad), TOLERANCE); // Not 0
     double quarter = history.sample(25).headingRad;
     assertEquals(0, Angles.normalize(quarter - (Math.PI - 0.05)), TOLERANCE);
@@ -39,7 +40,7 @@ public class PoseHistoryTest {
     PoseHistory history = new PoseHistory(100);
     assertNull(history.sample(0));
     for (int i = 0; i < 5; i++) {
-      history.add(1000 + i * 100L, new Pose(i, 0, 0));
+      history.add(1000 + i * 100L, new FieldPose(i, 0, 0));
     }
     assertNull(history.sample(500));
     assertNull(history.sample(5000));
@@ -52,7 +53,7 @@ public class PoseHistoryTest {
   public void theOldestSampleIsOverwrittenFirst() {
     PoseHistory history = new PoseHistory(3);
     for (int i = 0; i < 5; i++) {
-      history.add(i * 10L, new Pose(i, 0, 0));
+      history.add(i * 10L, new FieldPose(i, 0, 0));
     }
     assertEquals(3, history.size());
     assertEquals(2, history.sample(20).xM, TOLERANCE); // Oldest kept
@@ -64,8 +65,8 @@ public class PoseHistoryTest {
   @Test
   public void shiftMovesEverySampleAndClearEmptiesIt() {
     PoseHistory history = new PoseHistory(100);
-    history.add(0, new Pose(0, 0, 0));
-    history.add(10, new Pose(1, 1, 0));
+    history.add(0, new FieldPose(0, 0, 0));
+    history.add(10, new FieldPose(1, 1, 0));
     history.shift(0.5, -0.25);
     assertEquals(0.5, history.sample(0).xM, TOLERANCE);
     assertEquals(-0.25, history.sample(0).yM, TOLERANCE);

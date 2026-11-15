@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import org.firstinspires.ftc.teamcode.field.Cell;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /**
  * The corner autonomous ({@link CornerSequence}), for one alliance: preloads from the rear corner, a wait there, then
@@ -119,7 +120,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
   }
 
   /** Called by the Robot each loop with the corrected pose, before it drives. */
-  private double[] pedroPowers(org.firstinspires.ftc.teamcode.utils.Pose pose, double[] velocity) {
+  private double[] pedroPowers(FieldPose pose, double[] velocity) {
     if (!odometryReady) { // Still while the Pinpoint finishes the reset from INIT (13 Nov)
       odometryReady = robot.isOdometryReady();
       Logger.recordOutput("Auto/WaitingForOdometry", !odometryReady);
@@ -191,7 +192,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
     }
     double[] stop = step == CornerSequence.Step.FACE_WALL ? CornerSequence.preloadSpot(alliance)
         : AutoField.forAlliance(AutoField.WALL_FLOWER, alliance);
-    org.firstinspires.ftc.teamcode.utils.Pose pose = robot.getPose();
+    FieldPose pose = robot.getPose();
     return Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= ScoringAuto.FACE_FLOWER_M
         && Math.abs(Angles.normalize(pose.headingRad - wallHeading())) <= ScoringAuto.FACE_FLOWER_RAD;
   }
@@ -215,7 +216,7 @@ public abstract class CornerAuto extends PsiKitIterativeOpMode {
 
   /** Starts the drive for a step, from where the robot is now. */
   private void startStep(CornerSequence.Step step) {
-    org.firstinspires.ftc.teamcode.utils.Pose now = robot.getPose();
+    FieldPose now = robot.getPose();
     Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean intoFlower = step == CornerSequence.Step.INTAKE_FLOWER;
     drivetrain.setScale(intoFlower ? ScoringAuto.SWEEP_POWER_SCALE : 1.0);

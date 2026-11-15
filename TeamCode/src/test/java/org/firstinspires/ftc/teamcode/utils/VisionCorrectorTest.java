@@ -16,6 +16,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 
 /** Ported from Sean's vision tests on feature/sotm, using this branch's camera mounts. */
 public class VisionCorrectorTest {
@@ -28,7 +29,7 @@ public class VisionCorrectorTest {
   private static final CameraMount RIGHT = ShootOnTheMoveConstants.RIGHT_CAMERA;
 
   // Robot used for most tests: between the Hives
-  private static final Pose TRUE_POSE = new Pose(0.1, -0.9, -Math.PI / 2);
+  private static final FieldPose TRUE_POSE = new FieldPose(0.1, -0.9, -Math.PI / 2);
 
   private double[] savedConstants; // The constants are live-tunable statics, so tests put them back
   private int savedConfirmFrames;
@@ -72,7 +73,7 @@ public class VisionCorrectorTest {
    * What a camera would report for a tag, worked out from first principles: the tag's offset from the
    * camera, projected on the camera's right, forward and up axes (up built as right cross forward).
    */
-  private static TagObservation observe(CameraMount camera, Pose robot, int id, Cell up,
+  private static TagObservation observe(CameraMount camera, FieldPose robot, int id, Cell up,
       double tagHeightOverrideM, long frameNanos) {
     double[] tag = VisionCorrector.tagFieldPosition(id, up);
     double tagHeightM = Double.isNaN(tagHeightOverrideM) ? tag[2] : tagHeightOverrideM;
@@ -109,23 +110,23 @@ public class VisionCorrectorTest {
   }
 
   /** Seen by the left camera at T0 + 50 ms. */
-  private static TagObservation observe(int id, Cell up, Pose robot) {
+  private static TagObservation observe(int id, Cell up, FieldPose robot) {
     return observe(LEFT, robot, id, up, Double.NaN, T0 + 50 * MS);
   }
 
   /** Odometry sat still at the given pose from T0 to T0 + 100 ms. */
-  private static PoseHistory stillHistory(Pose odometry) {
+  private static PoseHistory stillHistory(FieldPose odometry) {
     PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     history.add(T0, odometry);
     history.add(T0 + 100 * MS, odometry);
     return history;
   }
 
-  private static Pose offsetBy(Pose pose, double dx, double dy) {
-    return new Pose(pose.xM + dx, pose.yM + dy, pose.headingRad);
+  private static FieldPose offsetBy(FieldPose pose, double dx, double dy) {
+    return new FieldPose(pose.xM + dx, pose.yM + dy, pose.headingRad);
   }
 
-  private VisionResult run(List<TagObservation> observations, Pose odometry, boolean poseValid) {
+  private VisionResult run(List<TagObservation> observations, FieldPose odometry, boolean poseValid) {
     return corrector.process(observations, stillHistory(odometry), odometry, 0, 0, 0, poseValid, T0 + 100 * MS);
   }
 
@@ -201,7 +202,7 @@ public class VisionCorrectorTest {
   @Test
   public void measuredHeightDoesNotDependOnHeadingOrPosition() {
     for (double heading : new double[] {0, 1, -2}) {
-      TagObservation tag = observe(RIGHT, new Pose(-0.3, 0.2, heading), 36, Cell.AUDIENCE, Double.NaN, 0);
+      TagObservation tag = observe(RIGHT, new FieldPose(-0.3, 0.2, heading), 36, Cell.AUDIENCE, Double.NaN, 0);
       double[] inRobot = tag.camera.toRobotFrame(tag.rightM, tag.forwardM, tag.upM);
       assertEquals(1.2646, inRobot[2], TOLERANCE);
     }
@@ -213,8 +214,8 @@ public class VisionCorrectorTest {
     for (double heading : headings) {
       for (Cell redUp : Cell.values()) {
         corrector = new VisionCorrector();
-        Pose truth = new Pose(0.1, -0.9, heading);
-        Pose odometry = offsetBy(truth, 0.04, -0.03); // Odometry is wrong by (+0.04, -0.03)
+        FieldPose truth = new FieldPose(0.1, -0.9, heading);
+        FieldPose odometry = offsetBy(truth, 0.04, -0.03); // Odometry is wrong by (+0.04, -0.03)
         // Each tag is placed using the tip state its own height shows, so the corrector's belief does not matter
         List<TagObservation> observations = new ArrayList<>();
         for (CameraMount camera : new CameraMount[] {LEFT, RIGHT}) {
@@ -459,14 +460,14 @@ public class VisionCorrectorTest {
   @Test
   public void measuresTheCorrectionFromWhereTheRobotWasAtTheFrame() {
     // Odometry went from x = 0 to x = 1 (heading -pi/2 to -pi/2 + 0.2) over one second
-    Pose start = new Pose(0.0, -0.9, -Math.PI / 2);
-    Pose end = new Pose(1.0, -0.9, -Math.PI / 2 + 0.2);
+    FieldPose start = new FieldPose(0.0, -0.9, -Math.PI / 2);
+    FieldPose end = new FieldPose(1.0, -0.9, -Math.PI / 2 + 0.2);
     PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     history.add(T0, start);
     history.add(T0 + 1000 * MS, end);
     // At the frame (0.5 s) odometry said (0.5, -0.9, -pi/2 + 0.1). The real robot was 0.10 m ahead in x
     // and 0.05 m ahead in y of that
-    Pose truthAtFrame = new Pose(0.6, -0.85, -Math.PI / 2 + 0.1);
+    FieldPose truthAtFrame = new FieldPose(0.6, -0.85, -Math.PI / 2 + 0.1);
     TagObservation tag = observe(RIGHT, truthAtFrame, 35, Cell.AUDIENCE, Double.NaN, T0 + 500 * MS);
     VisionResult result = corrector.process(list(tag), history, end, 0.5, 0, 0, true, T0 + 600 * MS);
     assertTrue(result.accepted);
@@ -479,7 +480,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void theFirstFixAcceptsALargeJumpInFull() {
-    Pose odometry = offsetBy(TRUE_POSE, 0.9, 0.7); // Far beyond MAX_JUMP_M
+    FieldPose odometry = offsetBy(TRUE_POSE, 0.9, 0.7); // Far beyond MAX_JUMP_M
     VisionResult result = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
         odometry, 0, 0, 0, false, true, T0 + 100 * MS); // Heading set by the driver (A)
     assertTrue(result.accepted);
@@ -503,7 +504,7 @@ public class VisionCorrectorTest {
   @Test
   public void oneTagCannotPlaceTheRobotBeforeTheHeadingIsKnown() {
     // Logged 5 Nov (082826): start heading 154 degrees out, and tag 45 alone put the robot 2 m from the truth
-    Pose odometry = new Pose(0, 0, TRUE_POSE.headingRad + Math.toRadians(154));
+    FieldPose odometry = new FieldPose(0, 0, TRUE_POSE.headingRad + Math.toRadians(154));
     VisionResult one = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
         odometry, 0, 0, 0, false, false, T0 + 100 * MS);
     assertEquals(Reason.NO_HEADING, one.reason);
@@ -519,7 +520,7 @@ public class VisionCorrectorTest {
   @Test
   public void oneTagPlacesTheRobotWhenItsHeadingWasSeededByPlacement() {
     // Shoot Auto, 13 Nov: one tag in view from its start spot, and the seeded pose 0.26 m off
-    Pose odometry = new Pose(TRUE_POSE.xM - 0.26, TRUE_POSE.yM, TRUE_POSE.headingRad);
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM - 0.26, TRUE_POSE.yM, TRUE_POSE.headingRad);
     corrector.setHeadingSeeded(true);
     VisionResult one = corrector.process(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), stillHistory(odometry),
         odometry, 0, 0, 0, false, false, T0 + 100 * MS);
@@ -533,7 +534,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void aBigJumpThatKeepsRepeatingReplacesATrustedPosition() {
-    Pose odometry = offsetBy(TRUE_POSE, 1.8, 0.8);
+    FieldPose odometry = offsetBy(TRUE_POSE, 1.8, 0.8);
     for (int frame = 1; frame < ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {
       assertEquals(Reason.JUMP, run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true).reason);
     }
@@ -548,24 +549,24 @@ public class VisionCorrectorTest {
   @Test
   public void bigJumpsThatDisagreeNeverReplaceATrustedPosition() {
     for (int frame = 0; frame < 3 * ShootOnTheMoveConstants.POSE_OVERRIDE_FRAMES; frame++) {
-      Pose odometry = offsetBy(TRUE_POSE, frame % 2 == 0 ? 0.8 : -0.8, 0);
+      FieldPose odometry = offsetBy(TRUE_POSE, frame % 2 == 0 ? 0.8 : -0.8, 0);
       assertEquals(Reason.JUMP, run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true).reason);
     }
   }
 
   @Test
   public void rejectsAJumpOnceThePoseIsTrusted() {
-    Pose far = offsetBy(TRUE_POSE, 0.6, 0.0);
+    FieldPose far = offsetBy(TRUE_POSE, 0.6, 0.0);
     VisionResult result = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), far, true);
     assertEquals(Reason.JUMP, result.reason);
     assertFalse(result.accepted);
-    Pose near = offsetBy(TRUE_POSE, 0.4, 0.0);
+    FieldPose near = offsetBy(TRUE_POSE, 0.4, 0.0);
     assertTrue(run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), near, true).accepted);
   }
 
   @Test
   public void appliesTheGainOnceThePoseIsTrusted() {
-    Pose odometry = offsetBy(TRUE_POSE, 0.2, -0.1);
+    FieldPose odometry = offsetBy(TRUE_POSE, 0.2, -0.1);
     VisionResult result = run(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, true);
     assertTrue(result.accepted);
     assertEquals(0.5, result.gain, TOLERANCE);
@@ -584,25 +585,25 @@ public class VisionCorrectorTest {
 
   @Test
   public void rejectsAPositionOutsideTheField() {
-    Pose out = new Pose(1.75, -0.9, -Math.PI / 2); // The limit is 1.83 - 0.15 = 1.68 each way
+    FieldPose out = new FieldPose(1.75, -0.9, -Math.PI / 2); // The limit is 1.83 - 0.15 = 1.68 each way
     VisionResult result = run(list(observe(31, Cell.AUDIENCE, out)), out, true);
     assertEquals(Reason.OUT_OF_FIELD, result.reason);
     assertFalse(result.accepted);
-    Pose outY = new Pose(0.1, 1.70, -Math.PI / 2);
+    FieldPose outY = new FieldPose(0.1, 1.70, -Math.PI / 2);
     assertEquals(Reason.OUT_OF_FIELD, run(list(observe(31, Cell.AUDIENCE, outY)), outY, true).reason);
-    Pose inside = new Pose(1.6, -0.9, -Math.PI / 2);
+    FieldPose inside = new FieldPose(1.6, -0.9, -Math.PI / 2);
     assertTrue(run(list(observe(31, Cell.AUDIENCE, inside)), inside, true).accepted);
     assertEquals(Reason.OUT_OF_FIELD, run(list(observe(31, Cell.AUDIENCE, out)), out, false).reason); // Still checked for the first fix
   }
 
   // ---- Heading ----------------------------------------------------------
 
-  private VisionResult runHeading(List<TagObservation> observations, Pose odometry, boolean headingValid) {
+  private VisionResult runHeading(List<TagObservation> observations, FieldPose odometry, boolean headingValid) {
     return corrector.process(observations, stillHistory(odometry), odometry, 0, 0, 0, true, headingValid,
         T0 + 100 * MS);
   }
 
-  private static List<TagObservation> fourRedTags(Pose truth) {
+  private static List<TagObservation> fourRedTags(FieldPose truth) {
     return list(observe(30, Cell.AUDIENCE, truth), observe(33, Cell.AUDIENCE, truth),
         observe(34, Cell.AUDIENCE, truth), observe(37, Cell.AUDIENCE, truth));
   }
@@ -610,7 +611,7 @@ public class VisionCorrectorTest {
   @Test
   public void twoTagsFixAWrongStartHeadingInFull() {
     // Placed 25 degrees off square, and odometry also 0.1 m out
-    Pose odometry = new Pose(TRUE_POSE.xM + 0.1, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(25));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM + 0.1, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(25));
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, false);
     assertTrue(result.accepted);
     assertEquals(1.0, result.headingGain, TOLERANCE);
@@ -622,7 +623,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void aTrustedHeadingIsTrimmedByTheGain() {
-    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(5));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(5));
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
     assertTrue(result.accepted);
     assertEquals(Math.toRadians(-5), result.dHeadingRad, 1e-6);
@@ -634,7 +635,7 @@ public class VisionCorrectorTest {
   @Test
   public void tagsThatOnlyDisagreeThroughTheHeadingFixItInFull() {
     ShootOnTheMoveConstants.MAX_SPREAD_M = 0.03; // Tight enough that a 15 degree heading error spreads them
-    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(15));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(15));
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
     assertTrue(result.accepted);
     assertEquals(1.0, result.headingGain, TOLERANCE);
@@ -649,7 +650,7 @@ public class VisionCorrectorTest {
   @Test
   public void movingTheTrustedHeadingIsLeftToOdometry() {
     // 5 Nov: a frame taken at 1 m/s turning 39 deg/s put the heading 11.5 degrees out, where odometry was right
-    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(5));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(5));
     VisionResult moving = corrector.process(fourRedTags(TRUE_POSE), stillHistory(odometry), odometry, 0.4, 0, 0,
         true, true, T0 + 100 * MS);
     assertTrue(moving.accepted); // The position still is
@@ -665,7 +666,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void aBigHeadingJumpIsIgnoredOnceTrusted() {
-    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(40));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(40));
     VisionResult result = runHeading(fourRedTags(TRUE_POSE), odometry, true);
     assertEquals(0, result.headingGain, TOLERANCE);
     assertTrue(result.newPose == null || result.newPose.headingRad == odometry.headingRad);
@@ -674,7 +675,7 @@ public class VisionCorrectorTest {
   @Test
   public void aBigHeadingFixThatKeepsRepeatingReplacesATrustedHeading() {
     // Logged 4 Nov: a bad Pinpoint read left the trusted heading 172 degrees out, and the tags kept saying so
-    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(172));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(172));
     for (int frame = 1; frame < ShootOnTheMoveConstants.HEADING_OVERRIDE_FRAMES; frame++) {
       assertEquals(0, runHeading(fourRedTags(TRUE_POSE), odometry, true).headingGain, TOLERANCE);
     }
@@ -686,17 +687,17 @@ public class VisionCorrectorTest {
 
   @Test
   public void bigHeadingFixesThatDisagreeNeverReplaceATrustedHeading() {
-    Pose plus = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(90));
-    Pose minus = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad - Math.toRadians(90));
+    FieldPose plus = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(90));
+    FieldPose minus = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad - Math.toRadians(90));
     for (int frame = 0; frame < 3 * ShootOnTheMoveConstants.HEADING_OVERRIDE_FRAMES; frame++) {
-      Pose odometry = frame % 2 == 0 ? plus : minus;
+      FieldPose odometry = frame % 2 == 0 ? plus : minus;
       assertEquals(0, runHeading(fourRedTags(TRUE_POSE), odometry, true).headingGain, TOLERANCE);
     }
   }
 
   @Test
   public void theFirstHeadingWaitsForEnoughTagPairs() {
-    Pose odometry = new Pose(0, 0, TRUE_POSE.headingRad + Math.toRadians(28));
+    FieldPose odometry = new FieldPose(0, 0, TRUE_POSE.headingRad + Math.toRadians(28));
     VisionResult pair = corrector.process(list(observe(30, Cell.AUDIENCE, TRUE_POSE), observe(37, Cell.AUDIENCE, TRUE_POSE)),
         stillHistory(odometry), odometry, 0, 0, 0, false, false, T0 + 100 * MS);
     assertEquals(1, pair.headingPairs);
@@ -711,7 +712,7 @@ public class VisionCorrectorTest {
 
   @Test
   public void oneTagOrTagsTooCloseLeaveTheHeadingAlone() {
-    Pose odometry = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
+    FieldPose odometry = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
     VisionResult one = runHeading(list(observe(31, Cell.AUDIENCE, TRUE_POSE)), odometry, false);
     assertEquals(0, one.headingPairs);
     assertEquals(odometry.headingRad, one.newPose.headingRad, TOLERANCE);
@@ -723,8 +724,8 @@ public class VisionCorrectorTest {
   @Test
   public void anOffFieldPositionStillFixesTheHeading() {
     // Logged 4 Nov: placed facing the driver (180 degrees off), and the tags put it past the field edge
-    Pose truth = new Pose(-1.75, -0.5, Math.PI);
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose truth = new FieldPose(-1.75, -0.5, Math.PI);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     ShootOnTheMoveConstants.FIELD_HALF_SIZE_M = 1.83;
     ShootOnTheMoveConstants.ROBOT_HALF_SIZE_M = 0.15;
     VisionResult result = corrector.process(fourRedTags(truth), stillHistory(odometry), odometry, 0, 0, 0,
@@ -736,11 +737,11 @@ public class VisionCorrectorTest {
     assertEquals(Math.PI, Math.abs(result.newPose.headingRad), 1e-6);
   }
 
-  private VisionResult initialPair(Pose truth, Pose odometry, long elapsedMs) {
+  private VisionResult initialPair(FieldPose truth, FieldPose odometry, long elapsedMs) {
     return initialPair(truth, odometry, elapsedMs, 0, 36, 39);
   }
 
-  private VisionResult initialPair(Pose truth, Pose odometry, long elapsedMs, double speed, int a, int b) {
+  private VisionResult initialPair(FieldPose truth, FieldPose odometry, long elapsedMs, double speed, int a, int b) {
     long frame = T0 + elapsedMs * MS;
     PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
     history.add(frame - MS, odometry); history.add(frame + MS, odometry);
@@ -750,7 +751,7 @@ public class VisionCorrectorTest {
   }
 
   @Test public void aWidePairCanBootstrapFromFourFreshConsistentFrames() {
-    Pose odometry = new Pose(0, 0, TRUE_POSE.headingRad + Math.toRadians(134));
+    FieldPose odometry = new FieldPose(0, 0, TRUE_POSE.headingRad + Math.toRadians(134));
     for (int i = 0; i < 3; i++) {
       assertFalse(initialPair(TRUE_POSE, odometry, 100 + i * 500).accepted);
     }
@@ -762,7 +763,7 @@ public class VisionCorrectorTest {
   }
 
   @Test public void replayingTheSamePairFrameCannotBootstrap() {
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 8; i++) { assertFalse(initialPair(TRUE_POSE, odometry, 100).accepted); }
     assertFalse(initialPair(TRUE_POSE, odometry, 600).accepted);
     assertFalse(initialPair(TRUE_POSE, odometry, 1100).accepted);
@@ -770,7 +771,7 @@ public class VisionCorrectorTest {
   }
 
   @Test public void staleEvidenceAndResetCannotCompleteAFirstHeading() {
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 3; i++) { initialPair(TRUE_POSE, odometry, 100 + i * 500); }
     assertFalse(initialPair(TRUE_POSE, odometry, 4000).accepted);
     assertFalse(initialPair(TRUE_POSE, odometry, 4500).accepted);
@@ -780,18 +781,18 @@ public class VisionCorrectorTest {
   }
 
   @Test public void inconsistentPairHeadingsOrPositionsRestartConfirmation() {
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 3; i++) { initialPair(TRUE_POSE, odometry, 100 + i * 500); }
-    Pose rotated = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(10));
+    FieldPose rotated = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(10));
     assertFalse(initialPair(rotated, odometry, 1600).accepted);
     assertFalse(initialPair(TRUE_POSE, odometry, 2100).accepted);
     assertFalse(initialPair(TRUE_POSE, odometry, 2600).accepted);
-    Pose moved = new Pose(TRUE_POSE.xM + 0.2, TRUE_POSE.yM, TRUE_POSE.headingRad);
+    FieldPose moved = new FieldPose(TRUE_POSE.xM + 0.2, TRUE_POSE.yM, TRUE_POSE.headingRad);
     assertFalse(initialPair(moved, odometry, 3100).accepted);
   }
 
   @Test public void coincidentPairAndMovingPairCannotUseTemporalBootstrap() {
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 8; i++) {
       assertFalse(initialPair(TRUE_POSE, odometry, 100 + i * 500, 0, 30, 30).accepted);
     }
@@ -812,8 +813,8 @@ public class VisionCorrectorTest {
     for (int i = 0; i < samples.length; i++) {
       double[] row = samples[i];
       long now = (long) row[0], frame = (long) row[1];
-      Pose atFrame = new Pose(row[2], row[3], row[4]);
-      Pose odometry = new Pose(row[5], row[6], row[7]);
+      FieldPose atFrame = new FieldPose(row[2], row[3], row[4]);
+      FieldPose odometry = new FieldPose(row[5], row[6], row[7]);
       PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
       history.add(frame - MS, atFrame); history.add(frame + MS, atFrame);
       result = corrector.process(list(new TagObservation(36, RIGHT, row[11], row[12], row[13], row[14], frame),
@@ -839,8 +840,8 @@ public class VisionCorrectorTest {
     for (int i = 0; i < samples.length; i++) {
       double[] row = samples[i];
       long now = (long) row[0], frame = (long) row[1];
-      Pose atFrame = new Pose(row[2], row[3], row[4]);
-      Pose odometry = new Pose(row[5], row[6], row[7]);
+      FieldPose atFrame = new FieldPose(row[2], row[3], row[4]);
+      FieldPose odometry = new FieldPose(row[5], row[6], row[7]);
       PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);
       history.add(frame - MS, atFrame); history.add(frame + MS, atFrame);
       result = corrector.process(list(new TagObservation(35, LEFT, row[11], row[12], row[13], row[14], frame),
@@ -854,14 +855,14 @@ public class VisionCorrectorTest {
   }
 
   @Test public void adjacentPairsNeedFourFramesAndDoNotChangeTrustedHeadingRules() {
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 3; i++) {
       assertFalse(initialPair(TRUE_POSE, odometry, 100 + i * 500, 0, 30, 31).accepted);
     }
     VisionResult fixed = initialPair(TRUE_POSE, odometry, 1600, 0, 30, 31);
     assertEquals(Reason.ACCEPTED, fixed.reason);
     assertEquals(TRUE_POSE.headingRad, fixed.newPose.headingRad, 1e-6);
-    Pose trusted = new Pose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
+    FieldPose trusted = new FieldPose(TRUE_POSE.xM, TRUE_POSE.yM, TRUE_POSE.headingRad + Math.toRadians(3));
     for (int i = 0; i < 8; i++) {
       VisionResult trim = runHeading(list(observe(30, Cell.AUDIENCE, TRUE_POSE),
           observe(31, Cell.AUDIENCE, TRUE_POSE)), trusted, true);
@@ -872,12 +873,12 @@ public class VisionCorrectorTest {
   @Test public void temporalBootstrapHonorsDisabledVisionHeading() {
     ShootOnTheMoveConstants.VISION_HEADING = false;
     for (int i = 0; i < 8; i++) {
-      assertFalse(initialPair(TRUE_POSE, new Pose(0, 0, 0), 100 + i * 500).accepted);
+      assertFalse(initialPair(TRUE_POSE, new FieldPose(0, 0, 0), 100 + i * 500).accepted);
     }
   }
 
   @Test public void aClosePairWithInconsistentRangeCannotBootstrapEvenWhenRepeated() {
-    Pose odometry = new Pose(0, 0, 0);
+    FieldPose odometry = new FieldPose(0, 0, 0);
     for (int i = 0; i < 8; i++) {
       long frame = T0 + (100 + i * 500) * MS;
       PoseHistory history = new PoseHistory(ShootOnTheMoveConstants.POSE_HISTORY_SIZE);

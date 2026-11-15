@@ -39,7 +39,7 @@ import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.utils.HeadingHold;
 import org.firstinspires.ftc.teamcode.utils.LoopWatchdog;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
-import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.utils.PoseHistory;
 import org.firstinspires.ftc.teamcode.utils.RpmTrend;
 import org.firstinspires.ftc.teamcode.utils.OneBallFeedGate;
@@ -287,7 +287,7 @@ public class Robot {
   static final double INTAKE_LOCK_REMIND_S = 2.0;
   private final HeadingHold headingHold = new HeadingHold();
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
-  private Pose lastPose = new Pose(0, 0, 0);
+  private FieldPose lastPose = new FieldPose(0, 0, 0);
   private double[] lastVelocity = {0, 0, 0};
   private double[] aimVelocity; // Low-passed {x, y} the aim uses; null until the first loop
   private double aimVelocityS;
@@ -534,7 +534,7 @@ public class Robot {
     watchdog.feed();
     refreshDriver();
     Pose2D pinpointPose = odometry.getPose(); // PsiKit has already updated the Pinpoint this loop
-    Pose pose = new Pose(pinpointPose.getX(DistanceUnit.METER), pinpointPose.getY(DistanceUnit.METER),
+    FieldPose pose = new FieldPose(pinpointPose.getX(DistanceUnit.METER), pinpointPose.getY(DistanceUnit.METER),
         pinpointPose.getHeading(AngleUnit.RADIANS));
     double[] velocity = odometry.getVelocityMetersPerSec(); // {x, y, turn rate}
     long nowNanos = vision.getCaptureNanos(); // Logged, so replay gives the same result
@@ -551,12 +551,12 @@ public class Robot {
       headingValid = true; // The driver says this is right, so vision only trims it from here
       headingHold.clear();
       poseHistory.clear();
-      pose = new Pose(pose.xM, pose.yM, placedHeadingRad());
+      pose = new FieldPose(pose.xM, pose.yM, placedHeadingRad());
     }
 
     long tVision = System.nanoTime();
     if (odometry.isReadGood()) { // A correction from a bad read would write that read back into the Pinpoint
-      Pose uncorrected = pose;
+      FieldPose uncorrected = pose;
       pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
       // The robot didn't move: only where it thinks it is did, so the held spot moves with it
       holdAnchorX += pose.xM - uncorrected.xM;
@@ -732,7 +732,7 @@ public class Robot {
    * Corrects the pose from the Hive tags, and moves the tracker's stored Cell and poses by the same
    * amount so the aim does not jump. Returns the pose to use this loop.
    */
-  private Pose correctPoseFromVision(Pose pose, double[] velocity, long nowNanos) {
+  private FieldPose correctPoseFromVision(FieldPose pose, double[] velocity, long nowNanos) {
     List<TagObservation> observations = vision.takeNewTagObservations();
     noteHiveTags(observations);
     visionCorrector.setHeadingSeeded(poseSeeded);
@@ -764,7 +764,7 @@ public class Robot {
   }
 
   /** Records this loop's pose against this loop's capture time, so later frames can be matched to it. */
-  private void stampPoseHistory(Pose pose) {
+  private void stampPoseHistory(FieldPose pose) {
     long stampNanos = vision.getCaptureNanos();
     if (stampNanos > lastHistoryNanos && stampNanos > 0) { // Not before the first capture, or twice for one
       poseHistory.add(stampNanos, pose);
@@ -801,7 +801,7 @@ public class Robot {
    * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
    * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
    */
-  private Aim aimAtCell(Pose pose, double[] velocity, long nowNanos, boolean aiming) {
+  private Aim aimAtCell(FieldPose pose, double[] velocity, long nowNanos, boolean aiming) {
     tracker.recordPose(nowNanos, pose);
     // Every loop, aiming or not, so it has settled by the time RT is pressed. Only the aim uses it
     // Loop clock, not the frame's capture time: that only moves when a camera frame arrives
@@ -1092,7 +1092,7 @@ public class Robot {
   private boolean isHolding() { return !Double.isNaN(holdAnchorX); }
 
   /** {forward, right} power back to RB's held spot, damped by the speed. Not curved as a stick is. */
-  private double[] holdTranslation(Pose pose, double minPower) {
+  private double[] holdTranslation(FieldPose pose, double minPower) {
     double ex = holdAnchorX - pose.xM;
     double ey = holdAnchorY - pose.yM;
     double away = Math.hypot(ex, ey);
@@ -1114,7 +1114,7 @@ public class Robot {
   }
 
   /** {@link #holdTranslation} for a scripted hold point: nothing near it, and back to it once pushed off. */
-  private double[] holdPointTranslation(Pose pose) {
+  private double[] holdPointTranslation(FieldPose pose) {
     double nowS = clock.seconds();
     double away = Math.hypot(holdAnchorX - pose.xM, holdAnchorY - pose.yM);
     if (!holdPointReturning && away > HOLD_POINT_RETURN_M) {
@@ -1134,7 +1134,7 @@ public class Robot {
     return holdTranslation(pose, HOLD_MIN_POWER + HOLD_POINT_BOOST_PER_S * (nowS - holdPointStuckSinceS));
   }
 
-  private void updateDrive(boolean aiming, Aim aim, double lockRateRadPerSec, Pose pose, double turnRateRadPerSec) {
+  private void updateDrive(boolean aiming, Aim aim, double lockRateRadPerSec, FieldPose pose, double turnRateRadPerSec) {
     // Slower while shooting, so the shot's lead for the robot's speed stays small and the aim keeps up
     double maxPower = aiming ? ShootOnTheMoveConstants.AIM_DRIVE_MAX_POWER : 1.0;
     double[] translation = !isHolding() ? stickTranslation(maxPower)
@@ -1187,7 +1187,7 @@ public class Robot {
    * the driver frame the drive takes. While aiming the heading lock does the turning, as it does for the driver.
    * Straight to the drive: no stick curve, so Pedro's powers are the motors' powers.
    */
-  private void driveAuto(boolean aiming, Aim aim, double lockRateRadPerSec, Pose pose, double[] velocity) {
+  private void driveAuto(boolean aiming, Aim aim, double lockRateRadPerSec, FieldPose pose, double[] velocity) {
     double[] powers = autoDriver.drive(pose, velocity); // {forward, left, counterclockwise}
     if (powers == null) { // Hold still: no aim turn either
       drive.drive(0, 0, 0, true, pose.headingRad - driverForwardHeadingRad());
@@ -1574,7 +1574,7 @@ public class Robot {
    * centre at the origin, x toward the audience Cells. Panels sends it at most every 100 ms. Off with
    * Main.PANELS_ENABLED.
    */
-  private void drawField(Pose pose, Aim aim) {
+  private void drawField(FieldPose pose, Aim aim) {
     if (!Main.PANELS_ENABLED) {
       return;
     }
@@ -1618,7 +1618,7 @@ public class Robot {
    * The flywheels, hood and aim on the Panels Telemetry tab, after any lines added with {@link #addPanelsLine}.
    * Sent from the field's thread for the same reason as the field, and skipped while a send is still blocked.
    */
-  private void sendPanelsTelemetry(Aim aim, Pose pose) {
+  private void sendPanelsTelemetry(Aim aim, FieldPose pose) {
     double nowS = clock.seconds();
     if (!Main.PANELS_ENABLED || nowS - lastPanelsSendS < PANELS_TELEMETRY_PERIOD_S) {
       panelsLines.clear();
@@ -1754,7 +1754,7 @@ public class Robot {
     return tuningMode || ShootOnTheMoveConstants.TELEMETRY_DETAIL;
   }
 
-  private void addTelemetry(Aim aim, Pose pose) {
+  private void addTelemetry(Aim aim, FieldPose pose) {
     if (isTelemetryDetail()) {
       addDetailTelemetry(aim, pose);
     } else {
@@ -1763,7 +1763,7 @@ public class Robot {
   }
 
   /** The driver's lines: which shot, whether it's ready and what it waits for, and only the problems to act on. */
-  private void addDriverTelemetry(Aim aim, Pose pose) {
+  private void addDriverTelemetry(Aim aim, FieldPose pose) {
     if (aim == null) {
       telemetry.addData("Shot", Double.isInfinite(cellSeenAgoS) ? "no Cell yet: point the cameras at the tags"
           : "Cell lost: point the cameras at the tags");
@@ -1804,7 +1804,7 @@ public class Robot {
         : ramp.isDeployed() ? "DEPLOYED  (D-pad up stows)" : "stowed  (D-pad up deploys)");
   }
 
-  private void addDetailTelemetry(Aim aim, Pose pose) {
+  private void addDetailTelemetry(Aim aim, FieldPose pose) {
     telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet")
         + (headingValid ? ", heading set" : ", heading from start"));
     telemetry.addData("Aim", aimState);
@@ -1910,7 +1910,7 @@ public class Robot {
   }
 
   /** The pose this loop aimed from, after the vision correction. */
-  public Pose getPose() { return lastPose; }
+  public FieldPose getPose() { return lastPose; }
   /** Field velocity {x, y, turn rate} this loop, m/s and rad/s. */
   public double[] getVelocity() { return lastVelocity.clone(); }
   public boolean isPoseValid() { return poseValid; }
@@ -2107,7 +2107,7 @@ public class Robot {
   /** Powers for the Scoring Auto's drive, from this loop's pose (vision corrected) and field-frame velocity. */
   public interface AutoDriver {
     /** @return robot-frame {forward, left, counterclockwise}, each -1..1; null to stand still, not even aiming */
-    double[] drive(Pose pose, double[] velocity);
+    double[] drive(FieldPose pose, double[] velocity);
   }
 
   /**
@@ -2127,7 +2127,7 @@ public class Robot {
    * The pose counts as placed, so field-centric driving and the aim are right from the first loop.
    */
   public boolean startFromAuto() {
-    Pose handoff = PoseHandoff.take(System.nanoTime());
+    FieldPose handoff = PoseHandoff.take(System.nanoTime());
     if (handoff == null) {
       start();
       startedFromAuto = false;
@@ -2169,7 +2169,7 @@ public class Robot {
     odometry.setPose(xM, yM, headingRad);
     poseValid = true;
     headingValid = true;
-    lastPose = new Pose(xM, yM, headingRad);
+    lastPose = new FieldPose(xM, yM, headingRad);
   }
 
   /** Gamepad 1 merged with the Panels gamepad, as this loop's controls read it. */
