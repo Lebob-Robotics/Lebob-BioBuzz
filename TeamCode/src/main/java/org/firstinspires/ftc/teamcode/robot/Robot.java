@@ -11,8 +11,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.field.Angles;
-import org.firstinspires.ftc.teamcode.field.Units;
-import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
@@ -27,8 +25,6 @@ import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
-import com.bylazar.field.FieldManager;
-import com.bylazar.field.PanelsField;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
@@ -64,9 +60,6 @@ import org.psilynx.psikit.core.wpi.math.Pose2d;
 import org.psilynx.psikit.core.wpi.math.Rotation2d;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.opmodes.Main;
@@ -105,6 +98,7 @@ import org.firstinspires.ftc.teamcode.opmodes.Main;
  */
 public class Robot {
   private final Telemetry telemetry;
+  private final RobotTelemetry display;
   /** The real gamepad 1, kept for rumble. */
   private final Gamepad physicalDriver;
   /** What the code reads: gamepad 1, plus the browser gamepad from Panels when Panels is on. Rebuilt each loop. */
@@ -135,10 +129,10 @@ public class Robot {
 
   /** Null if the config has no voltage sensor. */
   private final VoltageSensor battery;
-  private final ElapsedTime clock = new ElapsedTime();
+  final ElapsedTime clock = new ElapsedTime();
   private double lastBatterySampleS = Double.NEGATIVE_INFINITY;
-  private double batteryVolts = Double.NaN;
-  private double batteryMinVolts = Double.NaN;
+  double batteryVolts = Double.NaN;
+  double batteryMinVolts = Double.NaN;
 
   /** Where shoot on the move is up to. Shown to the driver and logged. */
   public enum AimState {
@@ -149,28 +143,28 @@ public class Robot {
     READY // A ball fed now should score
   }
 
-  private Alliance alliance = Alliance.BLUE;
+  Alliance alliance = Alliance.BLUE;
   private boolean driverOnFarSide = false;
   private final TargetTracker tracker = new TargetTracker(VisionConstants.POSE_HISTORY_SIZE);
   // Vision pose correction. The history holds each loop's odometry pose with the time of that loop's
   // camera capture, so a frame can be matched to where the robot was. It is separate from the tracker's.
   private final PoseHistory poseHistory = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
-  private final VisionCorrector visionCorrector = new VisionCorrector();
+  final VisionCorrector visionCorrector = new VisionCorrector();
   private long lastHistoryNanos = Long.MIN_VALUE;
-  private boolean poseValid = false; // True once a tag fix has placed the robot on the field
+  boolean poseValid = false; // True once a tag fix has placed the robot on the field
   // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
-  private boolean headingValid = false;
+  boolean headingValid = false;
   private Cell frontCell = null; // Our Cell on the robot's side of the Hive
   private boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
-  private VisionResult lastVision = null; // Last update that looked at tags, for telemetry
-  private long lastVisionNanos = 0;
+  VisionResult lastVision = null; // Last update that looked at tags, for telemetry
+  long lastVisionNanos = 0;
   private int positionFixes; // Tag fixes applied to the position so far
 
-  private AimState aimState = AimState.OFF;
+  AimState aimState = AimState.OFF;
   private double aimRpm = DriverConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private final HoodStepControl hoodSteps = new HoodStepControl();
   private double hoodLiftTrimDeg = 0;
-  private double rpmTrim = 0; // Driver's, for the rest of the match
+  double rpmTrim = 0; // Driver's, for the rest of the match
   private double headingTrimDeg = 0; // Anticlockwise, the tuning tools' aim trim (TeleOp uses aimTrimDeg's)
   // Shot Tuning: the driver's RPM, hood and direction replace the tables', and the buttons they use do nothing else
   private boolean tuningMode = false;
@@ -208,12 +202,6 @@ public class Robot {
   private static final double HOLD_POINT_MOVING_MPS = 0.05;
   private boolean holdPointReturning = false;
   private double holdPointStuckSinceS;
-  private final java.util.List<String[]> panelsLines = new java.util.ArrayList<>();
-  private final AtomicBoolean panelsBusy = new AtomicBoolean();
-  private double lastPanelsSendS = Double.NEGATIVE_INFINITY;
-  private static final double PANELS_TELEMETRY_PERIOD_S = 0.1;
-  private static final double DS_TELEMETRY_PERIOD_S = 0.1;
-  private double lastTelemetryS = Double.NEGATIVE_INFINITY;
   private final IndexerRetry indexerRetry = new IndexerRetry();
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private final LoopWatchdog watchdog = new LoopWatchdog();
@@ -225,17 +213,17 @@ public class Robot {
   // Volley mode (Lebot Teleop, Volley Tuning): RB's hooded aimed shot, held still, fires as a burst, each ball at
   // the matched wheel speed (VolleyConstants). RT stays the one-at-a-time shoot on the move. Off,
   // RB is a plain held shot as RT's
-  private boolean volleyMode = false;
+  boolean volleyMode = false;
   private boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
   private boolean hoodedOnly = false;
   private boolean backwardOnly = false;
   private double volleyHeadingTrimDeg = Double.NaN;
-  private final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
+  final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
       FireConstants.AIMED_FEED_STOP_UNREADY_S, VolleyConstants.VOLLEY_FEED_PULSE_S,
       VolleyConstants.VOLLEY_FEED_PAUSE_S,
       VolleyConstants.VOLLEY_MIN_GAP_S, true);
   private OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
-  private boolean volleyShot = false; // This loop's shot is a volley
+  boolean volleyShot = false; // This loop's shot is a volley
   // Volley Tuning's settings in place of the constants; NaN (null) for the constant
   private double volleyFirstTrimDeg = Double.NaN;
   private double volleyLaterTrimDeg = Double.NaN;
@@ -248,10 +236,10 @@ public class Robot {
   // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
   private boolean buttonsReserved = false;
-  private double cellSeenAgoS = Double.POSITIVE_INFINITY;
-  private boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
-  private double aimCellX = 0; // The point aimed at this loop, field metres
-  private double aimCellY = 0;
+  double cellSeenAgoS = Double.POSITIVE_INFINITY;
+  boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
+  double aimCellX = 0; // The point aimed at this loop, field metres
+  double aimCellY = 0;
   private boolean intakeOn = true;
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
@@ -277,7 +265,7 @@ public class Robot {
   private boolean handsOffPose = false;
   private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
   private boolean swapBatteryRumbled = false;
-  private String stopHint; // What the driver must change for the shot to fire; null when it's not how they drive
+  String stopHint; // What the driver must change for the shot to fire; null when it's not how they drive
   private double stopHintSinceS = Double.NaN;
   private boolean stopHintRumbled = false;
   private static final double STOP_HINT_RUMBLE_AFTER_S = 0.4;
@@ -319,10 +307,11 @@ public class Robot {
   private double steadyStickSinceS = Double.NEGATIVE_INFINITY;
   private final java.util.ArrayDeque<double[]> velocityHistory = new java.util.ArrayDeque<>(); // {t, x, y}
 
-  private boolean mechanismsWaitForStart;
+  boolean mechanismsWaitForStart;
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, Gamepad driver) {
     this.telemetry = telemetry;
+    this.display = new RobotTelemetry(this, telemetry);
     this.physicalDriver = driver;
     this.driver = driver;
 
@@ -420,17 +409,7 @@ public class Robot {
       }
     }
     noteHiveTags(vision.takeNewTagObservations());
-    String allianceWarning = allianceWarning();
-    if (allianceWarning != null) {
-      telemetry.addLine(allianceWarning);
-    }
-    telemetry.addData("Alliance", alliance + "  (X = BLUE, B = RED)");
-    telemetry.addData("Shooter stall", shooter.getStallStatus());
-    telemetry.addData("Hood", mechanismsWaitForStart ? "homes at START (nothing moves in INIT)" : hood.getHomeResult());
-    telemetry.addData("Hood encoders", hood.getEncoderFaultText());
-    telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
-    telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
-    telemetry.update();
+    display.addInitTelemetry();
   }
 
   /**
@@ -709,22 +688,15 @@ public class Robot {
     }
 
     long tLog = System.nanoTime();
-    // The Driver Station shows it at 4 Hz at most, and its formatting cost 10-18 ms a loop (7 Nov, 080123)
-    boolean telemetryDue = clock.seconds() - lastTelemetryS >= DS_TELEMETRY_PERIOD_S;
+    boolean telemetryDue = display.due();
     updateBattery(telemetryDue);
     logAim(aim);
     if (volleyMode) {
       logVolley();
     }
-    drawField(pose, aim);
-    if (telemetryDue) {
-      lastTelemetryS = clock.seconds();
-      addTelemetry(aim, pose);
-      telemetry.update();
-    } else {
-      telemetry.clear(); // The OpMode's lines for this loop, so they don't pile up until the next update
-    }
-    sendPanelsTelemetry(aim, pose);
+    display.drawField(pose, aim);
+    display.update(telemetryDue, aim, pose);
+    display.sendPanelsTelemetry(aim, pose);
     long tEnd = System.nanoTime();
     Logger.recordOutput("Loop/StartMs", (tVision - t0) * 1e-6);
     Logger.recordOutput("Loop/VisionAndControlMs", (tRun - tVision) * 1e-6);
@@ -797,7 +769,7 @@ public class Robot {
   }
 
   /** The Cell aimed at: the one in front ({@link #frontCell}), or the tags' up Cell with AIM_AT_FRONT_CELL off. */
-  private Cell aimCell() {
+  Cell aimCell() {
     return AimConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
   }
 
@@ -1565,109 +1537,8 @@ public class Robot {
     return (int) Math.round(FireConstants.HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
   }
 
-  /**
-   * Panels writes to every connected browser on the calling thread, and that write blocks for good once a
-   * client stops reading (5 Nov: the OpMode thread hung in field.update(), the robot stopped responding
-   * and the app restarted from "stuck in stop()"). So the field is sent from this thread instead.
-   */
-  private final ExecutorService fieldSender = Executors.newSingleThreadExecutor(r -> {
-    Thread t = new Thread(r, "PanelsField");
-    t.setDaemon(true);
-    return t;
-  });
-  private final AtomicBoolean fieldBusy = new AtomicBoolean();
-  private int fieldSkips;
-
-  /**
-   * The robot, where it points, and the Cell it is aiming at, on the Panels Field tab. Inches, field
-   * centre at the origin, x toward the audience Cells. Panels sends it at most every 100 ms. Off with
-   * Main.PANELS_ENABLED.
-   */
-  private void drawField(FieldPose pose, Aim aim) {
-    if (!Main.PANELS_ENABLED) {
-      return;
-    }
-    Logger.recordOutput("Panels/FieldSkips", fieldSkips);
-    // A send still blocked on a client that stopped reading: skip this frame rather than queue behind it
-    if (!fieldBusy.compareAndSet(false, true)) {
-      fieldSkips++;
-      return;
-    }
-    double x = pose.xM / Units.M_PER_IN;
-    double y = pose.yM / Units.M_PER_IN;
-    double heading = pose.headingRad;
-    String colour = alliance == Alliance.RED ? "red" : "blue";
-    boolean aiming = aim != null;
-    double cellX = aimCellX / Units.M_PER_IN;
-    double cellY = aimCellY / Units.M_PER_IN;
-    fieldSender.execute(() -> {
-      try {
-        FieldManager field = PanelsField.INSTANCE.getField();
-        field.setOffsets(PanelsField.INSTANCE.getPresets().getDEFAULT_FTC());
-        if (aiming) {
-          field.setStyle("transparent", "yellow", 0.5);
-          field.moveCursor(x, y);
-          field.line(cellX, cellY);
-          field.setStyle("yellow", "black", 0.5);
-          field.moveCursor(cellX, cellY);
-          field.circle(3);
-        }
-        field.setStyle("transparent", colour, 1.5); // Robot: 18 in square, drawn as its 9 in circle
-        field.moveCursor(x, y);
-        field.circle(9);
-        field.line(x + 12 * Math.cos(heading), y + 12 * Math.sin(heading)); // Front
-        field.update();
-      } finally {
-        fieldBusy.set(false);
-      }
-    });
-  }
-
-  /**
-   * The flywheels, hood and aim on the Panels Telemetry tab, after any lines added with {@link #addPanelsLine}.
-   * Sent from the field's thread for the same reason as the field, and skipped while a send is still blocked.
-   */
-  private void sendPanelsTelemetry(Aim aim, FieldPose pose) {
-    double nowS = clock.seconds();
-    if (!Main.PANELS_ENABLED || nowS - lastPanelsSendS < PANELS_TELEMETRY_PERIOD_S) {
-      panelsLines.clear();
-      return;
-    }
-    final java.util.List<String[]> lines = new java.util.ArrayList<>(panelsLines);
-    panelsLines.clear();
-    lines.add(new String[] {"Flywheel rpm", String.format("%.0f target / %.0f actual", shooter.getTargetRpm(),
-        shooter.getRpm())});
-    lines.add(new String[] {"Hood launch deg", String.format("%.1f target / %.1f actual  (lift %.1f / %.1f)",
-        HoodSubsystem.ticksToAngle(hood.getTarget()), HoodSubsystem.ticksToAngle(hood.getPosition()),
-        hood.getTargetLiftDegrees(), hood.getLiftDegrees())});
-    lines.add(new String[] {"Aim", aim == null ? aimState + ", Cell not known"
-        : String.format("%s  %s  %.2f m to lip  heading err %.1f deg", aimState,
-            aim.backward ? "BACKWARD" : "HOODED", aim.shot.distanceToLipM,
-            Math.toDegrees(aim.headingErrorRad(pose.headingRad)))});
-    lines.add(new String[] {"Pose", String.format("%.2f, %.2f m  %.0f deg%s", pose.xM, pose.yM,
-        Math.toDegrees(pose.headingRad), poseValid ? "" : "  (not placed by tags yet)")});
-    lines.add(new String[] {"Battery", String.format("%.2f V", batteryVolts)});
-    if (!panelsBusy.compareAndSet(false, true)) {
-      return;
-    }
-    lastPanelsSendS = nowS;
-    fieldSender.execute(() -> {
-      try {
-        com.bylazar.telemetry.TelemetryManager panels = com.bylazar.telemetry.PanelsTelemetry.INSTANCE.getTelemetry();
-        for (String[] line : lines) {
-          panels.addData(line[0], line[1]);
-        }
-        panels.update();
-      } catch (RuntimeException e) {
-        // Telemetry only: a failed send must not reach the loop
-      } finally {
-        panelsBusy.set(false);
-      }
-    });
-  }
-
   /** Shown on the Panels Telemetry tab this loop, above the robot's own lines. */
-  public void addPanelsLine(String key, String value) { panelsLines.add(new String[] {key, value}); }
+  public void addPanelsLine(String key, String value) { display.addPanelsLine(key, value); }
 
   /** Everything shoot on the move worked out this loop, for AdvantageScope. */
   private void logAim(Aim aim) {
@@ -1739,155 +1610,14 @@ public class Robot {
     Logger.recordOutput("Vision/Correction/HeadingPairs", result.headingPairs);
   }
 
-  /** For example "✓ 6 tags Δ3cm (0.1s ago) | up AUDIENCE", or the reason the last tags were not used. */
-  private String visionLine() {
-    String upCell = "up " + visionCorrector.upCell(alliance);
-    VisionResult result = lastVision;
-    if (result == null) {
-      return "no tags yet | " + upCell;
-    }
-    String text;
-    if (result.accepted) {
-      text = String.format("✓ %d tags Δ%.0fcm", result.tagsUsed, Math.hypot(result.dxM, result.dyM) * 100);
-    } else if (result.reason == VisionResult.Reason.NO_VALID_TAGS) {
-      text = "✗ " + result.firstTagReject;
-    } else {
-      text = "✗ " + result.reason;
-    }
-    double sinceS = (vision.getCaptureNanos() - lastVisionNanos) * 1e-9;
-    return text + String.format(" (%.1fs ago) | ", sinceS) + upCell;
-  }
-
   /** Every subsystem's state on the Driver Station: the tuning OpModes, or TELEMETRY_DETAIL from Panels. */
   public boolean isTelemetryDetail() {
     return tuningMode || DriverConstants.TELEMETRY_DETAIL;
   }
 
-  private void addTelemetry(Aim aim, FieldPose pose) {
-    if (isTelemetryDetail()) {
-      addDetailTelemetry(aim, pose);
-    } else {
-      addDriverTelemetry(aim, pose);
-    }
-  }
-
-  /** The driver's lines: which shot, whether it's ready and what it waits for, and only the problems to act on. */
-  private void addDriverTelemetry(Aim aim, FieldPose pose) {
-    if (aim == null) {
-      telemetry.addData("Shot", Double.isInfinite(cellSeenAgoS) ? "no Cell yet: point the cameras at the tags"
-          : "Cell lost: point the cameras at the tags");
-    } else {
-      telemetry.addData("Shot", String.format("%s  %.2f m  %s", aimingAtFieldCell ? alliance + " " + aimCell()
-          : "camera's Cell", aim.shot.distanceToLipM, aim.backward ? "BACKWARD" : "HOODED"));
-      String state;
-      if (stopHint != null) {
-        state = stopHint;
-      } else if (aimState == AimState.LINING_UP) {
-        state = String.format("lining up  wheels %.0f/%.0f  hood %.1f/%.1f  turn %.0f deg", shooter.getRpm(),
-            shooter.getTargetRpm(), HoodSubsystem.ticksToAngle(hood.getPosition()),
-            HoodSubsystem.ticksToAngle(hood.getTarget()), Math.toDegrees(aim.headingErrorRad(pose.headingRad)));
-      } else if (aimState == AimState.NO_SAFE_SHOT) {
-        state = "no safe shot: " + aim.shot.reason;
-      } else {
-        state = aimState == AimState.OFF ? "RT to aim" : aimState.toString();
-      }
-      telemetry.addData("Aim", state + (rpmTrim != 0 ? String.format("  (trim %+.0f)", rpmTrim) : ""));
-    }
-    if (volleyMode && volleyShot) {
-      telemetry.addData("Volley", "balls out %d", volleyFeedGate.ballsLeft());
-    }
-    if (!poseValid) {
-      telemetry.addLine("! Pose not placed: point the cameras at the tags");
-    }
-    if (shooter.isStalled()) {
-      telemetry.addLine("! Flywheels " + shooter.getStallStatus());
-    }
-    if (hood.hasEncoderFault()) {
-      telemetry.addLine("! Hood " + hood.getEncoderFaultText());
-    }
-    String deadCameras = vision.deadCameras();
-    if (deadCameras != null) {
-      telemetry.addLine("! CAM " + deadCameras + " DEAD: fewer tag fixes");
-    }
-    telemetry.addData("Ramp", !ramp.isPresent() ? "! no " + HardwareNames.RAMP_SERVO + " in the configuration"
-        : ramp.isDeployed() ? "DEPLOYED  (D-pad up stows)" : "stowed  (D-pad up deploys)");
-  }
-
-  private void addDetailTelemetry(Aim aim, FieldPose pose) {
-    telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet")
-        + (headingValid ? ", heading set" : ", heading from start"));
-    telemetry.addData("Aim", aimState);
-    if (volleyMode) {
-      telemetry.addData("Volley", volleyShot ? String.format("balls out %d  (fed %d)  feed %.2f  boost %+.0f",
-          volleyFeedGate.ballsLeft(), volleyFeedGate.feedStarts(), volleyFeedPower(), volleyBoostRpm())
-          : "RB for a standing volley (RT shoots on the move; none without the Cell)");
-    }
-    if (aim == null) {
-      telemetry.addData("Distance", Double.isInfinite(cellSeenAgoS)
-          ? "Cell not seen yet: point the cameras at it"
-          : String.format("Cell forgotten (seen %.0f s ago): point the cameras at it", cellSeenAgoS));
-    } else {
-      telemetry.addData("Distance", String.format("%.2f m to lip  %s  (%s)", aim.shot.distanceToLipM,
-          aim.backward ? "BACKWARD, hood down" : "FRONT, hooded",
-          aimingAtFieldCell ? alliance + " " + aimCell() + (AimConstants.AIM_AT_FRONT_CELL ? " (in front)" : " up, from tags")
-              : cellSeenAgoS < 0.5 ? "camera sees Cell" : String.format("odometry, seen %.1f s ago", cellSeenAgoS)));
-      telemetry.addData("Shot", aim.shot.valid ? "OK" : aim.shot.reason);
-      telemetry.addData("Dist", String.format("%.2f m  toward %.2f  sideways %.2f m/s",
-          aim.shot.distanceToLipM, aim.shot.speedTowardCellMps, aim.shot.sidewaysSpeedMps));
-      telemetry.addData("RPM", String.format("%.0f target / %.0f actual  (trim %+.0f)",
-          shooter.getTargetRpm(), shooter.getRpm(), rpmTrim));
-      telemetry.addData("Hood", String.format("%.1f target / %.1f actual deg",
-          HoodSubsystem.ticksToAngle(hood.getTarget()), HoodSubsystem.ticksToAngle(hood.getPosition())));
-      telemetry.addData("Heading err", String.format("%.1f deg (allowed %.1f)",
-          Math.toDegrees(aim.headingErrorRad(pose.headingRad)), Math.toDegrees(aim.headingToleranceRad)));
-    }
-    telemetry.addData("Pose", String.format("%.2f %.2f m  %.0f deg  (driver %.0f)",
-        pose.xM, pose.yM, Math.toDegrees(pose.headingRad),
-        Math.toDegrees(pose.headingRad - driverForwardHeadingRad())));
-    telemetry.addData("Vision", visionLine());
-    telemetry.addData("Hood lift (deg)", "target %.1f, actual %.1f", hood.getTargetLiftDegrees(), hood.getLiftDegrees());
-    telemetry.addData("Shooter", shooter.getShooterState());
-    telemetry.addData("Shooter stall", shooter.getStallStatus());
-    telemetry.addData("Hood encoders", hood.getEncoderFaultText());
-    telemetry.addData("Intake", intake.getIntakeState());
-    telemetry.addData("Intake overload", intake.getOverloadStatus());
-    telemetry.addData("Indexer", indexer.getIndexerState());
-    telemetry.addData("Feeder", feeder.getFeederState());
-    telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken()
-        + (intake.isFull() ? "  FULL" : ""));
-    telemetry.addData("Camera L", vision.describe(VisionSubsystem.Side.LEFT));
-    telemetry.addData("Camera R", vision.describe(VisionSubsystem.Side.RIGHT));
-  }
-
-  /**
-   * Power summary for the co-driver, first on the Driver Station (Main adds it before anything else): intake current
-   * and how much of its overload budget is used, the flywheels' current, and the battery. The intake is the one that
-   * overheats (13 Nov: 5-6 A for most of a match; ~9 A is a stall).
-   */
+  /** Power summary for the co-driver, first on the Driver Station (Main adds it before anything else). */
   public void addPowerTelemetry() {
-    String allianceWarning = allianceWarning();
-    if (allianceWarning != null) {
-      telemetry.addLine(allianceWarning);
-    }
-    double a = intake.getAmps();
-    double load = intake.getLoadFraction();
-    String intakeFlag = intake.isOverloaded() ? "TRIPPED - LB to restart"
-        : a >= 7 || load >= 0.7 ? "!! HOT - let it rest"
-        : a >= 5 || load >= 0.35 ? "! warm"
-        : "ok";
-    telemetry.addData("INTAKE", String.format("%.1f A  load %.0f%%  %s", a, 100 * load, intakeFlag));
-    if (!isTelemetryDetail()) { // Battery on one line, its flag only when it needs doing something about
-      String batteryFlag = batteryMinVolts < 11.0 ? "  !! LOW - swap" : batteryVolts < 12.0 ? "  ! low" : "";
-      telemetry.addData("Battery", String.format("%.1f V%s%s", batteryVolts, batteryFlag,
-          shooter.isStalled() ? "   FLYWHEELS STALLED" : ""));
-      return;
-    }
-    String shooterFlag = shooter.isStalled() ? "STALLED" : "ok";
-    telemetry.addData("FLYWHEELS", String.format("L %.1f  R %.1f A  %s",
-        shooter.getLeftAmps(), shooter.getRightAmps(), shooterFlag));
-    String batteryFlag = batteryMinVolts < 11.0 ? "!! LOW - swap" : batteryVolts < 12.0 ? "! low" : "ok";
-    telemetry.addData("BATTERY", String.format("%.2f V  (lowest %.2f)  %s", batteryVolts, batteryMinVolts,
-        batteryFlag));
+    display.addPowerTelemetry();
   }
 
   /**
@@ -2363,7 +2093,7 @@ public class Robot {
     if (handsOffPose) {
       PoseHandoff.save(isPoseKnown() && !odometry.isFaulted() ? lastPose : null, alliance, System.nanoTime());
     }
-    fieldSender.shutdownNow();
+    display.stop();
     hood.disable(); // Its loop thread would otherwise hold the hood until it misses the heartbeat
     vision.close();
     CommandScheduler.getInstance().cancelAll();
