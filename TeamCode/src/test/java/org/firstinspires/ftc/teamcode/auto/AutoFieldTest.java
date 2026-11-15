@@ -193,7 +193,7 @@ public class AutoFieldTest {
   }
 
   @Test
-  public void parksInTheLoadingZoneTouchingOurWallBackToTheCell() {
+  public void parksInTheLoadingZoneOffOurWallBackToTheCell() {
     for (Alliance alliance : Alliance.values()) {
       for (Cell cell : Cell.values()) {
         double[] p = AutoField.parkSpot(alliance, cell);
@@ -202,7 +202,8 @@ public class AutoFieldTest {
         assertTrue(alliance + " " + cell + " in the loading zone", red[0] > zone[0] && red[0] < zone[1]
             && red[1] > zone[2] && red[1] < zone[3]);
         double reach = AutoField.ROBOT_HALF_M * (Math.abs(Math.sin(p[2])) + Math.abs(Math.cos(p[2])));
-        assertEquals(alliance + " " + cell + " corner on the wall", AutoField.FIELD_HALF_M, Math.abs(p[1]) + reach, 1e-3);
+        assertEquals(alliance + " " + cell + " corner 10 cm off the wall", AutoField.FIELD_HALF_M - 0.10,
+            Math.abs(p[1]) + reach, 1e-3);
         double[] aim = AutoField.autoAimPoint(alliance, cell);
         assertEquals("back to the Cell", Math.atan2(p[1] - aim[1], p[0] - aim[0]), p[2], 1e-3);
       }

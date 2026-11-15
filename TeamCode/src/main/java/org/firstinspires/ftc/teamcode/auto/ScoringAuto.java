@@ -202,11 +202,6 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
     robot.setAutoIntake(sequence.intake());
     robot.ramp.setDeployed(sequence.armDown());
     AutoSequence.Step step = sequence.step();
-    if (step == AutoSequence.Step.PARKED) { // Touching the wall, whatever the turn to the Cell
-      double[] push = AutoField.wallPush(alliance, robot.getPose().headingRad, AutoField.PARK_PUSH);
-      drivetrain.setForwardBias(push[0]);
-      drivetrain.setStrafeBias(push[1]);
-    }
     double inFlowerS = sequence.arrivedForS(t);
     if ((step == AutoSequence.Step.INTAKE_WALL_FLOWER || step == AutoSequence.Step.INTAKE_REAR_FLOWER)
         && !Double.isNaN(inFlowerS)) {
@@ -348,7 +343,7 @@ public abstract class ScoringAuto extends PsiKitIterativeOpMode {
         shotSpotCell = AutoSequence.plannedCell(firstCell, AutoSequence.Step.PARKED);
         turningLine(here, AutoField.pedroParkSpot(alliance, shotSpotCell), true);
         break;
-      case PARKED: // Against our wall, turned to the Cell, shooting until the end
+      case PARKED: // Held off our wall, turned to the Cell, shooting until the end
         shotSpotCell = AutoSequence.plannedCell(firstCell, step);
         follower.hold(AutoField.pedroParkSpot(alliance, shotSpotCell));
         break;

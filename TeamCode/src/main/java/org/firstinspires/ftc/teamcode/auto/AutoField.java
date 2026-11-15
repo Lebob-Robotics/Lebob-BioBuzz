@@ -90,13 +90,16 @@ public final class AutoField {
   public static final double[] REAR_CONTROL = {-1.30, -1.50, 0};
   /** In the middle of the loading zone, camera side toward the Hive as at the start, so the TeleOp's placed heading holds. */
   public static final double[] PARK = {-0.915, -1.52, -Math.PI / 2};
-  /** Pushed against our wall once parked, as power toward it. */
-  public static double PARK_PUSH = 0.15;
+  /**
+   * Parked this far off our wall, never touching it (15 Nov: not allowed to touch the wall on PARK). The centre stays
+   * in the loading zone (PARK needs the robot partly in it): at most 0.33 + 0.10 m from the wall, the zone 0.61 m deep.
+   */
+  public static final double PARK_WALL_GAP_M = 0.10;
 
   /**
    * Where to park, for the alliance (field coordinates, as {@link #shotSpot}): {@link #PARK}'s x, back (shooter) to
-   * this Cell so the leftovers can be shot, and as close to our wall as the turned robot's corner allows: it then
-   * touches the wall, pushed by {@link #PARK_PUSH}.
+   * this Cell so the leftovers can be shot, with the turned robot's nearest corner {@link #PARK_WALL_GAP_M} off our
+   * wall.
    */
   public static double[] parkSpot(Alliance alliance, Cell cell) {
     double[] base = forAlliance(PARK, alliance);
@@ -107,7 +110,7 @@ public final class AutoField {
     for (int i = 0; i < 3; i++) { // The turn sets the corner's reach, which moves the spot, which moves the turn
       heading = Math.atan2(y - aim[1], base[0] - aim[0]);
       double reach = ROBOT_HALF_M * (Math.abs(Math.sin(heading)) + Math.abs(Math.cos(heading)));
-      y = ourWall * (FIELD_HALF_M - reach);
+      y = ourWall * (FIELD_HALF_M - reach - PARK_WALL_GAP_M);
     }
     return new double[] {base[0], y, heading};
   }
