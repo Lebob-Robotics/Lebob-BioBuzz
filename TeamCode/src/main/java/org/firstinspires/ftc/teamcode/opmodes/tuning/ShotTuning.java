@@ -48,7 +48,7 @@ import org.firstinspires.ftc.teamcode.robot.Robot;
  * for the next one: out from the first scoring angle until a ball goes long, then short, halving the gap until both
  * edges are known, then {@link ShotTuningSettings#CONFIRM_BALLS} at the middle. Where the table's hood is on a stop,
  * and for every backward shot, it searches the RPM instead at the table's launch angle. Left and right misses move the aim trim ({@link AimTrimSearch}). The report
- * (sotm-tools/tuning_report.py) turns the ranges into table rows.
+ * (tools/analysis/tuning_report.py) turns the ranges into table rows.
  *
  * <p>Controls (gamepad 1), otherwise as Lebot Teleop:
  * <ul>

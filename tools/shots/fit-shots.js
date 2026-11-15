@@ -4,7 +4,7 @@
 // for the best and for inputs.json, each shot's predicted chance of what was seen.
 //   [NO_CAL=1] node tools/shots/fit-shots.js [grid_shots.csv | judged_shots.csv ...]   (NO_CAL: grid shots only)
 // Shots come from front-calibration.json (fired/scored counts at a set distance, hood and RPM) and from the
-// grid CSVs that sotm-tools/gridreport.py writes, once their result column is filled in. Grid results: in,
+// grid CSVs that tools/analysis/gridreport.py writes, once their result column is filled in. Grid results: in,
 // rattle (in after hitting the walls), out (went in and bounced out), over, short, miss (way not seen);
 // left/right are sideways and carry no range information, so they are left out.
 'use strict';

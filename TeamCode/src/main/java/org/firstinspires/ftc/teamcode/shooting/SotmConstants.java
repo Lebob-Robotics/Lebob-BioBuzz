@@ -7,7 +7,7 @@ import com.bylazar.configurables.annotations.Configurable;
 public final class SotmConstants {
   private SotmConstants() {}
 
-  // Moving-shot corrections, scaled for fitting them to SOTM Tuning's balls (sotm-tools/sotm_report.py). 1 is the
+  // Moving-shot corrections, scaled for fitting them to SOTM Tuning's balls (tools/analysis/sotm_report.py). 1 is the
   // model as built: the sideways speed the shooter turns to cancel, and the speed toward the Cell the table looks up
   public static double SOTM_SIDEWAYS_GAIN = 1.0;
   public static double SOTM_TOWARD_GAIN = 1.0;

@@ -53,7 +53,7 @@ import org.firstinspires.ftc.teamcode.tuning.SotmPath;
  * and confirmed, and the aim as a heading trim from the left and right misses. The passes that change speed or
  * direction come after them, one ball each, as checks. Every ball is written to {@link #CSV_PATH} with the robot's
  * state as the feed started and as the ball left (the flywheels' dip), every mark, and each spot's result (FOUND);
- * sotm-tools/sotm_report.py fits SotmConstants' moving corrections from them.
+ * tools/analysis/sotm_report.py fits SotmConstants' moving corrections from them.
  *
  * <p>Controls (gamepad 1):
  * <ul>

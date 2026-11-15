@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+logs/
+robotcam/
+autodual.log
+autodual_state.json
+camera.json
+*.jpg
+*.mp4
+tuning_*_fit.csv
+grid_shots.csv
