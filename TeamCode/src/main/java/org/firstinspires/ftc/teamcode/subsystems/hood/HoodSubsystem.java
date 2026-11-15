@@ -41,35 +41,34 @@ public class HoodSubsystem extends SubsystemBase {
   /** Off: the hub's RUN_TO_POSITION drives the hood instead. */
   public static boolean FAST_LOOP = true;
   // Every step is a REV bulk read on the Control Hub plus writes to the Expansion Hub over RS485, on the same
-  // serial link as the main loop: at 5 ms the main loop ran 65 ms against 40 without it (7 Nov, 092936)
+  // serial link as the main loop, so a shorter period slows the main loop
   public static double FAST_PERIOD_MS = 8;
   /** Power changes smaller than this are not re-sent: at 0.002 nearly every step wrote. */
   public static double FAST_POWER_DEADBAND = 0.01;
   public static double FAST_MAX_VEL_DEG_S = 200;
   public static double FAST_ACCEL_DEG_S2 = 4000;
   public static double FAST_DECEL_DEG_S2 = 3000;
-  // Fitted to open-loop pulses (Hood Tune CHARACTERISE, 5 Nov): free speed about 250 deg/s at 12 V,
+  // Fitted to open-loop pulses (Hood Tune CHARACTERISE): free speed about 250 deg/s at 12 V,
   // 7000+ deg/s^2 at high power, gravity too small to measure.
   public static double FAST_KS = 0.06;
   public static double FAST_KV = 0.0037;
   public static double FAST_KA = 0.00002;
   public static double FAST_KA_DECEL = 0.00015;
   public static double FAST_KG = 0.0;
-  // 0.2 hunted 2-3 degrees either side of 38-41 at 12 Hz, powered throughout, for seconds at a time (6 Nov: G8
-  // shots, and 2 of 10 Hood Tune holds). 0.12: no hunting in 10 holds, settles in 0.25 s mean, overshoot under 0.8.
+  // A higher KP hunted a few degrees either side of the target, powered throughout, for seconds at a time. This
+  // one holds without hunting and settles in about a quarter of a second.
   public static double FAST_KP = 0.12;
   public static double FAST_KD = 0.003;
   /**
-   * Settles (unpowered, the brake holds) inside this, tighter than DEADBAND_TICKS so the hood rests
-   * nearer the target than "at target" needs; driven again once the error grows past the re-engage.
-   * 0.1 / 0.2 hunted: each 0.2-degree correction's take-up kick overshot by a degree, and the aimed goal's
-   * +-0.4 degree noise standing kept starting them; the hood swung 31-34 at 8 Hz (5 Nov, 084004). The ready
-   * gate allows 1.
+   * Settles (unpowered, the brake holds) inside this, well inside the ready gate's 1 degree
+   * (FireConstants.HOOD_TOLERANCE_DEG); driven again once the error grows past the re-engage.
+   * Tighter values hunted: each small correction's take-up kick overshot by a degree, and the aimed goal's
+   * +-0.4 degree noise standing kept starting them.
    */
   public static double FAST_DEADBAND_DEG = 0.3;
   /**
    * Ready to shoot only once the lift has stayed within tolerance this long: one reading passed the gate with
-   * the hood swinging 2.5 degrees either side of its goal at 12 Hz, and that ball hit the top lip (6 Nov, G8).
+   * the hood swinging either side of its goal, and that ball hit the top lip.
    */
   public static double STEADY_S = 0.1;
   public static double FAST_REENGAGE_DEG = 0.5;
@@ -85,7 +84,7 @@ public class HoodSubsystem extends SubsystemBase {
   public static double FAST_TAKE_UP_MAX_S = 0.12;
   /** Read-to-drive delay the loop predicts across (see HoodController.Gains.latencyS). */
   public static double FAST_LATENCY_S = 0.005;
-  /** Off: a moving target is followed in steps, as each new target arrives (the 5 Nov behaviour). */
+  /** Off: a moving target is followed in steps, as each new target arrives. */
   public static boolean FAST_TRACK_RATE = true;
   /** Targets moving slower than this count as still, so pose noise doesn't keep the hood driven. */
   public static double FAST_TRACK_MIN_RATE_DEG_S = 1.0;
@@ -139,11 +138,10 @@ public class HoodSubsystem extends SubsystemBase {
   public static double HOME_STILL_S = 0.3; // Stalled this long on the stop counts as down
   public static double HOME_TIMEOUT_S = 3.0; // Zeroes where it is after this, in case it never reads still
   // Homing stops once the motor has run this far past the hood's whole travel: the hood is on the stop by
-  // then, and a motor still turning is skipping the pinion over the hood's gear. On 5 Nov (093943) it ran
-  // 1785 ticks, over 3x the travel, for the full timeout without stalling.
+  // then, and a motor still turning is skipping the pinion over the hood's gear.
   public static int HOME_OVERTRAVEL_TICKS = 100;
   // After a cut that was not a stall, the zero waits for the motor to stop (or this long): zeroed while it
-  // still coasted, the zero sat 820 REV ticks (3.6 degrees) off the stop (093943).
+  // still coasted, the zero sat a few degrees off the stop.
   public static double HOME_SETTLE_MAX_S = 0.5;
   /** Re-homes after a latched belt fault before the hood stays faulted until the next INIT. */
   private static final int MAX_REHOMES = 3;
@@ -263,8 +261,8 @@ public class HoodSubsystem extends SubsystemBase {
 
   /**
    * The fast loop cuts power and ends its thread when the main loop misses heartbeats for 0.5 s. Nothing
-   * here told it to stop, so the hood went on "driving" a dead loop and never moved again: Volley Tuning
-   * stalled 0.59 s on Circle (15 Nov, 074849), the hood stayed at 56.7 of 74.2 degrees and no ball fed.
+   * here told it to stop, so after a main loop stall the hood went on "driving" a dead loop, never moved again
+   * and no ball fed.
    */
   static boolean fastLoopStoppedItself(boolean drivingFast, boolean loopActive) {
     return drivingFast && !loopActive;

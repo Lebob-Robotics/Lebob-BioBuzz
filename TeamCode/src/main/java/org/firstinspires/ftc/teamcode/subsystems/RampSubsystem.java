@@ -15,8 +15,8 @@ import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
  * two positions with the Ramp Servo Check OpMode.
  */
 public class RampSubsystem extends SubsystemBase {
-  /** The pulse the Hub sends for each, found with Ramp Servo Check (14 Nov, arm refitted on the spline). */
-  public static double STOWED_US = 1490; // 1430 on 14 Nov; 60 us (~8 degrees) further back, 15 Nov
+  /** The pulse the Hub sends for each, found with Ramp Servo Check after the arm was refitted on the spline. */
+  public static double STOWED_US = 1490;
   public static double DEPLOYED_US = 490; // Just past the REV servo's rated 500-2500 us
   /**
    * The pulse that setPosition's 0 and 1 send. Wider than the SDK's default 600-2400, which can't reach deployed, and

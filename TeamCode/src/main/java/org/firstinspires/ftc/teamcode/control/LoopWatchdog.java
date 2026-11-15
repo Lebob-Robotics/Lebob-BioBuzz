@@ -12,8 +12,8 @@ import java.util.Locale;
  * Writes where the robot loop is stuck once it has gone {@link #STALL_S} without a feed: the loop thread's stack,
  * to the robot log and to {@link #FILE}, which survives the app restart that follows a hung OpMode.
  *
- * <p>Twice on 6 Nov (091421, 093333) the loop stopped in INIT with the right camera opening, and the SDK restarted
- * the app when the OpMode would not stop; the log ended at that loop and gave no clue to the call that hung.
+ * <p>The loop has stopped in INIT with the right camera opening, and the SDK restarted the app when the OpMode
+ * would not stop; the log ended at that loop and gave no clue to the call that hung.
  */
 public final class LoopWatchdog {
   public static double STALL_S = 2.0;

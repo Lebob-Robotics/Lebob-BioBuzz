@@ -17,11 +17,11 @@ package org.firstinspires.ftc.teamcode.subsystems.hood;
  *
  * <p>A target that moves steadily (driving toward or away from the Cell) is followed with its rate: the profile
  * is planned relative to the moving target and its speed fed forward, and the hood never settles while the
- * target moves. Without the rate it settled, waited for the target to get 0.2 degrees away, took up the slack
- * and jumped: it swung 1-1.5 degrees either side of the target every 0.12 s (5 Nov, 094733).
+ * target moves. Without the rate it settled, waited for the target to get away, took up the slack and jumped,
+ * so it swung either side of the target.
  *
- * <p>The hub's own RUN_TO_POSITION could not do this: its speed loop either swung 3-6 degrees around
- * the target or crept and stopped short (Hood Tune sweeps, 5 Nov).
+ * <p>The hub's own RUN_TO_POSITION could not do this: its speed loop either swung around the target
+ * or crept and stopped short.
  */
 public final class HoodController {
   /** Tuning, in lift degrees, seconds and motor power (-1..1 at 12 V). */

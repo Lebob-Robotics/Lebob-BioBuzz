@@ -65,8 +65,8 @@ final class HoodMotorTargeting {
 
   /**
    * As above. While the motor is still moving the direction is held: the REV error changes sign during
-   * an overshoot, and switching offsets mid-move sent the motor 1.4 degrees back the other way, which
-   * set up a back-and-forth that ended up to 1.9 degrees off (Hood Tune, 5 Nov).
+   * an overshoot, and switching offsets mid-move sent the motor back the other way, which set up a
+   * back-and-forth that ended off target.
    */
   int motorTargetFor(int revTargetTicks, int revTicks, int deadbandTicks, boolean motorMoving) {
     int error = revTargetTicks - revTicks;

@@ -34,7 +34,7 @@ public class FeederSubsystem extends StatePowerSubsystem<FeederSubsystem.FeederS
   public FeederSubsystem(HardwareMap hardwareMap) {
     super(FEED_POWER); // A volley's (Lebot Teleop RB) feed power can be lower
     // R is the original feeder servo. Reversed: on Mark 3 a positive raw power
-    // runs the tunnel backward (Servo Check and driving, 27 Oct).
+    // runs the tunnel backward.
     // Current three-servo robot uses the legacy FeederServo name on Control Hub port 1.
     CrServo r = find(hardwareMap, HardwareNames.FEEDER_SERVO_RIGHT, true);
     feederServoR = r != null ? r : find(hardwareMap, HardwareNames.FEEDER_SERVO, true);

@@ -45,7 +45,7 @@ public final class MotorReversalGuard {
     }
     if (direction != 0 && requestedDirection != direction) {
       if (Double.isNaN(coastStart)) {
-        // Already stopped a while: that was coasting too, so a stopped intake reverses at once (14 Nov)
+        // Already stopped a while: that was coasting too, so a stopped intake reverses at once
         coastStart = Double.isNaN(unpoweredSince) ? now : unpoweredSince;
       }
       if (now - coastStart < coastSeconds || !Double.isFinite(speed) || speed > stoppedSpeed) {

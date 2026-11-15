@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 /** Current-only intake protection: its encoder is not reliable enough for stall detection. */
 public final class IntakeOverloadGuard {
-  // 9 Nov loading logs: tolerate 3-4 A running and brief 5-7 A ball-handling bursts.
+  // Tolerate 3-4 A running and brief 5-7 A ball-handling bursts.
   // These are overload limits, not a measurement of winding temperature.
   public static final double SEVERE_AMPS = 8.0;
   public static final double SEVERE_SECONDS = 0.25;
@@ -11,9 +11,9 @@ public final class IntakeOverloadGuard {
   public static final double COOLDOWN_SECONDS = 10.0;
   public static final int MAX_TRIPS = 3;
   // LB re-arms a trip at once and clears the load, with no cooldown and no lockout: the drivers' call, at their own
-  // risk (13 Nov). Today's TeleOp ran the intake at a median 5-5.7 A (balls held against it), which spent the load
-  // budget in ~8 s, and three trips locked it out for the rest of the run (175517 at 136 s). False: the cooldown,
-  // recovered load and MAX_TRIPS lockout as before
+  // risk. Balls held against the intake keep it above LOAD_BASELINE_AMPS, which spent the load budget in seconds,
+  // and three trips locked it out for the rest of the run. False: the cooldown, recovered load and MAX_TRIPS
+  // lockout as before
   public static boolean INSTANT_RESET = true;
   private static final double RECOVERY_PER_SECOND = 10.0;
   private static final double RESET_BUDGET = 5.0;

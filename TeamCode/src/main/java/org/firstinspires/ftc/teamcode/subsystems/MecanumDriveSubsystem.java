@@ -22,50 +22,42 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   // Heading lock gains. The rotate sign is to be verified on the robot.
   // Picked in a simulation of the robot's turning fitted to TeleOp logs: turn rate settles 0.12 s after a power
   // change, 6.3 rad/s per unit turn power, and the power lands 60-120 ms after the heading it was worked out
-  // from. KP 3 with KD 0.18 swung 40-70 degrees either side of a still target at about 1 Hz, as the model
-  // predicts with that delay (5 Nov, 093250). KP 1 overshot by 10-20 degrees; judging the error
-  // HEADING_LATENCY_S ahead held a still target within 8 degrees throughout the simulation.
+  // from. With that delay a higher KP swung either side of a still target and KP 1 alone overshot; judging the
+  // error HEADING_LATENCY_S ahead held a still target in the simulation.
   public static double HEADING_KP = 1.0;
   public static double HEADING_KD = 0.06; // On the error's rate, so it doesn't brake a turn that follows the target
   public static double HEADING_LATENCY_S = 0.08; // The error is judged this far ahead, where the power will act
-  // Turn power per rad/s the target heading moves. Strafing near the Cell swings the aimed heading by up to
-  // ~80 deg/s, and P alone trailed it by 10-20 degrees (5 Nov, 084358).
+  // Turn power per rad/s the target heading moves. Strafing near the Cell swings the aimed heading, and P alone
+  // trailed it.
   public static double HEADING_KV = 0.16;
   // Least turn power while off by more than HEADING_KS_ABOVE_RAD. Standing still, 0.10 didn't turn the robot
-  // and 0.15 did, so 0.12 left it stuck 7-9 degrees off, outside the shot tolerance (5 Nov, 084358).
+  // and 0.15 did; too little left it stuck outside the shot tolerance.
   public static double HEADING_KS = 0.16;
-  // At 2.5 the lock stalled 1.8-2.7 degrees short, always the same way, and standing shots at 1.3-1.6 m went in
-  // under half the time, missing to the right (5 Nov, 084758-091609): KP alone gives 0.035 there, under friction
+  // Larger, the lock stalled a few degrees short, always the same way, and standing shots missed: KP alone gives
+  // about 0.035 at 2 degrees, under friction
   public static double HEADING_KS_ABOVE_RAD = Math.toRadians(1.0);
   // While the robot pushes at the least power and doesn't turn, that power grows at this rate, up to HEADING_KS
-  // plus HEADING_KS_BOOST_MAX, and drops back once it turns. 0.16 left it 8.6 degrees off for 4.5 s, wheels at
-  // 0.16 and 12.2 V, where 0.15 had turned it the run before (5 Nov, 083302). At 0.2/s the last 8.6 degrees
-  // still took 1 s standing (5 Nov, 084933)
+  // plus HEADING_KS_BOOST_MAX, and drops back once it turns. A least power that turned the robot one run left it
+  // stuck the next, and at a slower rate the last few degrees still took a second standing
   public static double HEADING_KS_BOOST_PER_S = 0.8;
-  // 0.15 (0.31 in all) sat 5.2 degrees off a 4 degree tolerance for over 2 s, wheels pushing, robot still, no shot
-  // (13 Nov 185305; 6.5 s that day, 7.9 s on 8 Nov). The boost drops back to 0 as soon as the robot turns
+  // A lower cap left the robot stuck just outside the shot tolerance for seconds, wheels pushing, robot still, no
+  // shot. The boost drops back to 0 as soon as the robot turns
   public static double HEADING_KS_BOOST_MAX = 0.25;
-  // Turning slower than this counts as stuck. At 5 the robot crept the last 15 degrees at 10-15 deg/s on 0.16-0.23
-  // power, never counted as stuck, and took 2.1 s to line up standing (5 Nov, 083228)
+  // Turning slower than this counts as stuck. The robot can creep the last degrees at 10-15 deg/s, which a lower
+  // value never counted as stuck, so it was slow to line up standing
   public static double HEADING_STUCK_RATE_RAD_S = Math.toRadians(15);
   public static double HEADING_MAX_ROTATE = 0.8;
-  // With the wheels already rolling there is no friction to break: turning while strafing hard gave 10.6 rad/s per
-  // unit turn power, against 6.3 standing. The gains above, picked standing, then overshot and the least power
-  // kicked back each time, so the turn rate swung 0-2.4 rad/s around a 0.6-1.0 rad/s target and the aim was
-  // 10-20 degrees off (5 Nov, 081829). So with the drive at or above HEADING_MOVING_FULL_AT the turn power is
-  // scaled by HEADING_MOVING_SCALE and has no least power, blending in from standing; in the same turning model
-  // that cut the error from 8.6 to 2.9 degrees rms. On the field at 0.6, strafing at full stick the robot turned
-  // only 4-7 rad/s per unit (the wheels saturate) and trailed the aim by a steady 8-10 degrees, just outside the
-  // 8-degree tolerance (5 Nov, 084933), so the scale is back to 1 and only the least power is dropped.
+  // With the wheels already rolling there is no friction to break: the gains above, picked standing, overshot and
+  // the least power kicked back each time, so the turn rate swung around the target. So with the drive at or above
+  // HEADING_MOVING_FULL_AT the turn power is scaled by HEADING_MOVING_SCALE and has no least power, blending in from
+  // standing. At full stick the wheels saturate, and a lower scale left the aim trailing just outside the tolerance,
+  // so the scale is back to 1 and only the least power is dropped.
   public static double HEADING_MOVING_SCALE = 1.0;
   public static double HEADING_MOVING_FULL_AT = 0.5;
-  // Driving twists the robot: per unit of robot-frame drive power, forward turned it CCW at +0.35 rad/s and
-  // strafing right turned it CW at -0.77, against 2.6 rad/s per unit of turn power while rolling (34k loops of
-  // 7 Nov passes; same within 10% for 0.05-0.25 s response models). Backing away-left at 0.45 m/s it turned CCW at
-  // 10-30 deg/s while the lock asked 0.14 CW, and sat 5-9 degrees off for the whole window: never fired, five runs
-  // (7 Nov, 080429). The lock and hold add the turn that cancels it, CCW per unit forward and right power. The fit
-  // gives -0.13 and +0.30, but at 90% of that the same pass sat 8 degrees off the other way (7 Nov, 082329): the
-  // fit's turn gain reads low. Half lands between the two; the integral below takes the rest
+  // Driving twists the robot, forward CCW and strafing right CW, enough that the lock sat off target and never
+  // fired. The lock and hold add the turn that cancels it, CCW per unit forward and right power. A fit to logged
+  // passes gives -0.13 and +0.30, but at 90% of that the robot sat off the other way: the fit's turn gain reads
+  // low. Half lands between the two; the integral below takes the rest
   public static double TWIST_FF_FORWARD = -0.06;
   public static double TWIST_FF_RIGHT = 0.15;
   // Integral on the lock's error while the robot drives, for the twist the feedforward misses: nothing else in the
@@ -79,25 +71,24 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   // the shared scale-down left the lock 0.28 of the 0.48 it asked for, and the aim trailed by 15 degrees.
   public static double LOCK_MIN_TRANSLATION_SHARE = 0.4;
   // Off by more than this, the lock keeps turning the way it already was: right at 180 degrees the shorter
-  // way flips with each reading, and the robot wiggled in place for 0.7 s instead of turning (5 Nov, 092433).
+  // way flips with each reading, and the robot wiggled in place instead of turning.
   private static final double KEEP_TURN_DIRECTION_ABOVE_RAD = Math.toRadians(150);
   // Stick response. Inside STICK_DEADBAND the output is 0. Past it the output starts at STICK_MIN_POWER,
   // about where the wheels start to turn, and curves up to 1 by STICK_EXPONENT. Without the start power,
-  // stick^2 stayed under the ~0.2-0.3 the wheels need until about half stick, then lurched (4 Nov logs:
-  // wheels mostly still below 0.25 power).
+  // stick^2 stayed under the ~0.2-0.3 the wheels need until about half stick, then lurched.
   public static double STICK_EXPONENT = 2.0;
   public static double STICK_DEADBAND = 0.05;
   public static double STICK_MIN_POWER = 0.18;
   // The turn stick's deadband. With the drive stick pushed hard, the turn stick read 0.06-0.11 untouched,
-  // which STICK_DEADBAND turned into STICK_MIN_POWER: with the wheels already rolling that spun the robot at
-  // 60-115 deg/s while the driver went straight (5 Nov, 093520).
+  // which STICK_DEADBAND turned into STICK_MIN_POWER: with the wheels already rolling that spun the robot
+  // while the driver went straight.
   public static double TURN_STICK_DEADBAND = 0.15;
   // Least turn power of the heading hold. 0: it only acts while the robot translates, when the wheels are
   // already rolling, and a least power there made it overshoot back and forth.
   public static double HEADING_HOLD_KS = 0.0;
   /**
-   * Speed control needs every drive encoder counting the same way as its motor. On 27 Oct DriveFL's
-   * counted backward, which under speed control makes the wheel run away at full speed. Set true
+   * Speed control needs every drive encoder counting the same way as its motor. DriveFL's counted
+   * backward, which under speed control makes the wheel run away at full speed. Set true
    * once Drive Check shows all four encoders count forward when the robot drives forward.
    */
   private static final boolean DRIVE_USES_ENCODERS = false;
@@ -129,11 +120,10 @@ public class MecanumDriveSubsystem extends SubsystemBase {
 
   public MecanumDriveSubsystem(HardwareMap hardwareMap) {
     // Set so that a positive power on every motor drives the robot forward.
-    // From the Mark 3 log of 27 Oct 17:51: with the left side forward and the
-    // right side reversed, a forward stick spun the robot counterclockwise and
-    // a clockwise rotate drove it backward (Pinpoint pods), so the left side
-    // was inverted. DriveFL's encoder counts against its motor, so it reads
-    // backward while the wheel drives forward.
+    // With the left side forward and the right side reversed, a forward stick
+    // spun the robot counterclockwise and a clockwise rotate drove it backward,
+    // so the left side was inverted. DriveFL's encoder counts against its
+    // motor, so it reads backward while the wheel drives forward.
     frontLeft = createDriveMotor(hardwareMap, HardwareNames.DRIVE_FRONT_LEFT, true);
     frontRight = createDriveMotor(hardwareMap, HardwareNames.DRIVE_FRONT_RIGHT, true);
     backLeft = createDriveMotor(hardwareMap, HardwareNames.DRIVE_BACK_LEFT, false);

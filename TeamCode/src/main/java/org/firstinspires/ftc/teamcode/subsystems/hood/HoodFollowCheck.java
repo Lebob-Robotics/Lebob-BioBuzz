@@ -5,10 +5,9 @@ package org.firstinspires.ftc.teamcode.subsystems.hood;
  * travel the REV must move at least {@link #SHARE} as far, the same way. Both are on the pinion, 1:1
  * through the belt, so a REV that falls behind this far is unplugged, loose on its shaft, or the belt is
  * skipping wholesale. Either way the REV no longer says where the hood is, and driving on it ran the hood
- * past its top (085313).
+ * past its top.
  *
- * <p>Sized on the logs of 5 Nov: 60 ticks clears reversal backlash (16) and cross-hub read skew; only the
- * real failures (085313, and 081558 where the REV stood still while the motor ran 260 ticks) fall short.
+ * <p>60 ticks clears reversal backlash (16) and cross-hub read skew; only real failures fall short.
  */
 final class HoodFollowCheck {
   static final int WINDOW_MOTOR_TICKS = 60;

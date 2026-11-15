@@ -23,15 +23,15 @@ import org.psilynx.psikit.core.wpi.math.Rotation2d;
  *
  * <p>
  * The forward pod must be on the Pinpoint's X port and the strafe pod on its Y
- * port. On 27 Oct Mark 3 had them the other way round: pushing the robot
- * forward raised Y and pushing it left raised X. The heading comes from the
+ * port. With them the other way round, pushing the robot forward raised Y
+ * and pushing it left raised X. The heading comes from the
  * Pinpoint's IMU, so field-centric driving still works with the pods swapped,
  * but X and Y are wrong once the robot turns.
  */
 public class OdometrySubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   // The SDK javadoc only says "X (forward) velocity".
-  private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // Checked 4 Nov: facing 180, field-frame velocity matched the pose change to 4 in/s, robot frame was 30 out
+  private static final boolean PINPOINT_VELOCITY_IS_FIELD_FRAME = true; // Checked facing 180: matched the pose change
 
   private static final Pose2D ZERO_POSE =
       new Pose2D(DistanceUnit.MM, 0, 0, AngleUnit.DEGREES, 0);
@@ -43,15 +43,15 @@ public class OdometrySubsystem extends SubsystemBase {
   /**
    * Field pose = the Pinpoint's pose turned by offsetHeadingRad, then shifted by (offsetXM, offsetYM). Corrections
    * change these, never the Pinpoint: writing a pose into it threw away whatever it turned between the loop's read
-   * and the write, 1.1 degrees a write turning, and the heading was 23 degrees out after 21 corrections (5 Nov, 081521).
+   * and the write, and the heading drifted further out with each correction.
    */
   private double offsetXM;
   private double offsetYM;
   private double offsetHeadingRad;
   /**
-   * Bad reads for this long and the pose is no longer trusted. Single bad reads clear within a loop or two (60 ms,
-   * 5 Nov); after a reset the Pinpoint stayed on FAULT_BAD_READ, the pose froze while the robot drove on, and the
-   * field test, seeing no progress, pushed it off the field (5 Nov, 085633).
+   * Bad reads for this long and the pose is no longer trusted. Single bad reads clear within a loop or two; after a
+   * reset the Pinpoint stayed on FAULT_BAD_READ, the pose froze while the robot drove on, and the field test, seeing
+   * no progress, pushed it off the field.
    */
   private static final double FAULT_AFTER_S = 0.3;
   /** While faulted, the configuration and the last good pose are written again this often. */
@@ -62,7 +62,7 @@ public class OdometrySubsystem extends SubsystemBase {
   private int resetsCaught;
   /**
    * A good read this near zero, after bad reads and a jump from the read before them, is the Pinpoint having reset.
-   * Loose, as the robot may already be moving: 223434's first read after the reset was 3 degrees turned.
+   * Loose, as the robot may already be moving.
    */
   static final double RESET_NEAR_ZERO_M = 0.10;
   static final double RESET_NEAR_ZERO_RAD = Math.toRadians(10);
@@ -159,8 +159,7 @@ public class OdometrySubsystem extends SubsystemBase {
 
   /**
    * The pose. When the Pinpoint's last read was bad this is the last good pose instead: a NOT_READY read
-   * comes back as all zeros, and writing a correction based on it into the Pinpoint loses the heading
-   * (4 Nov, 357 s: heading -172 went to 0).
+   * comes back as all zeros, and writing a correction based on it into the Pinpoint loses the heading.
    */
   public Pose2D getPose() {
     if (pinpoint == null) {
@@ -173,9 +172,8 @@ public class OdometrySubsystem extends SubsystemBase {
   /**
    * Takes a good read as the last good pose. If the Pinpoint came back from bad reads at zero, it reset (the
    * reset init() asks for lands late, or power dipped): the offset is redone so the field pose carries on where it
-   * was. The robot holds still while the Pinpoint calibrates. 13 Nov 223434: the reset from INIT finished 0.17 s
-   * after START, the start pose had been set against the old reading, and the pose jumped 0.45 m and 32 degrees,
-   * so the Scoring Auto drove off the field.
+   * was. The robot holds still while the Pinpoint calibrates. A reset from INIT has finished after START, with the
+   * start pose set against the old reading, and the pose jumped so the Scoring Auto drove off the field.
    */
   private void readDevice() {
     if (!isReadGood()) {

@@ -29,7 +29,7 @@ public final class HardwareNames {
   /** The Pollen ramp, Expansion Hub servo port 1. */
   public static final String RAMP_SERVO = "RampServo";
 
-  /** Unused since 13 Nov (IntakeSubsystem.BEAM_BREAKS_WIRED is false), so not needed in the configuration. */
+  /** Unused while IntakeSubsystem.BEAM_BREAKS_WIRED is false, so not needed in the configuration. */
   public static final String BEAM_BREAK_TOP = "BeamBreakT";
   public static final String BEAM_BREAK_BOTTOM = "BeamBreakB";
 

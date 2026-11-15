@@ -50,12 +50,11 @@ public class ShooterSubsystem extends SubsystemBase {
    * The speed command leads a moving target (driving toward or away from the Cell) by its rate times this,
    * making up for the wheels' lag behind the command so they are at the target itself.
    */
-  public static double LEAD_S = 0.1; // The lag behind 300-600 RPM/s ramps at P 150 (Flywheel Tune, 5 Nov)
+  public static double LEAD_S = 0.1; // The lag behind 300-600 RPM/s ramps at P 150
   public static double IDLE_RPM = 2500; // Middle of the shot table, so any aimed shot is a short spin-up away
   // Further below the target than this, AIM spins the wheels up at full power open loop. Back within HANDBACK_RPM
-  // of it, after being further than this either way, the hub's speed control starts afresh. Spinning up 0 to 7281
-  // RPM under speed control wound up the hub's integral, and the wheels then ran 100-340 RPM fast at 3300 for 20 s,
-  // so no shot was ever ready (7 Nov, 094905)
+  // of it, after being further than this either way, the hub's speed control starts afresh. Spinning up under speed
+  // control wound up the hub's integral, and the wheels then ran fast for so long that no shot was ever ready
   public static double OPEN_LOOP_BELOW_RPM = 400;
   public static double HANDBACK_RPM = 150;
   private static final double SHOOTER_VELOCITY = 4000;
@@ -65,7 +64,7 @@ public class ShooterSubsystem extends SubsystemBase {
   private static final double MOTOR_REVS_PER_WHEEL_REV = 23.0 / 33.0;
   /**
    * Target changes smaller than this (RPM) are not re-sent to the motors. Re-sending the few-RPM wobble a
-   * standing aim has every loop kept the wheels ~75 RPM low, where a held target settles on it (5 Nov, 080236).
+   * standing aim has every loop kept the wheels low, where a held target settles on it.
    */
   private static final double TARGET_RESEND_RPM = 20.0;
   /** Current and velocity are separate hub reads, so sample them this often. */
@@ -117,10 +116,9 @@ public class ShooterSubsystem extends SubsystemBase {
 
     PIDFCoefficients sdk = shooterRight.getVelocityPidf();
     if (Double.isNaN(VELOCITY_P)) {
-      // The SDK's 10 cut only ~2% power for 170 RPM too fast, so the wheels took 2-3 s to coast down to a
-      // lower target and held aimed shots back (5 Nov, 084358). At 30 they still took 1.6 s to fall 600 RPM and
-      // ran 145 RPM fast following a target falling 600 RPM/s while driving at the Cell; 150 took 0.4 s and held
-      // as steady, 250 began to oscillate (Flywheel Tune, 5 Nov).
+      // A lower P barely brakes wheels running fast, so they were slow to coast down to a lower target and held
+      // aimed shots back, and ran fast following a falling target while driving at the Cell; 250 began to
+      // oscillate.
       VELOCITY_P = 150.0;
     }
     if (Double.isNaN(VELOCITY_I)) {
@@ -131,7 +129,7 @@ public class ShooterSubsystem extends SubsystemBase {
     }
     if (Double.isNaN(VELOCITY_F)) {
       // Feedforward so the I term doesn't have to hold the speed. 32767 / max velocity (13.8) settled
-      // 7% fast (4058 for 3780) and drifted back slowly, so scaled down to match.
+      // 7% fast and drifted back slowly, so scaled down to match.
       VELOCITY_F = 12.9;
     }
     applyVelocityPidf();

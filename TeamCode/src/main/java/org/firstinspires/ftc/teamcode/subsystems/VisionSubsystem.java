@@ -58,14 +58,9 @@ public class VisionSubsystem extends SubsystemBase {
   public static int HOME_EXPOSURE_MS = 5; // Matches the working home Shot/SOTM camera capture
   public static int HOME_GAIN = 60;
   /**
-   * The 15 Nov competition venue. At the home 5 ms / gain 60, camera R's frames there averaged 181 of 255 with 22%
-   * clipped white and tag blacks lifted to ~90, and tag decision margins fell to about half of home (R 77, L 41 at
-   * 1-1.5 m, against ~140 at home). 3 ms / gain 30 lets in about a third of the light.
-   * At 3 ms / gain 30 the 10:05-10:11 runs were still washed out: camera L frames averaged 241-250 with 84-93%
-   * clipped and its near margins fell to 62, camera R 206-244 with 27-67% clipped. 2 ms / gain 15.
-   * At 2 ms / gain 15 (10:14-10:27) the clipping was background: tags under 2 m read better in the brighter frames
-   * (L margins 101-104 at 15-45% clipped, 119-129 at 45-75%; R 88-91 under 30%, 115-123 over 45%). Gain 20 moves
-   * toward that, still well short of 3 ms / gain 30.
+   * The regionals venue. The home settings washed the frames out and tag decision margins fell to about half of
+   * home, and 3 ms / gain 30 was still washed out. At 2 ms / gain 15 the clipping was background: tags under 2 m
+   * read better in the brighter frames. Gain 20 moves toward that, still well short of 3 ms / gain 30.
    */
   public static int COMP_EXPOSURE_MS = 2;
   public static int COMP_GAIN = 20;
@@ -96,14 +91,14 @@ public class VisionSubsystem extends SubsystemBase {
   public static boolean CLUSTERS_FROM_TAGS = true;
   /**
    * The cameras' frame threads, and the AprilTag workers they start, run at this nice value (0 normal, higher
-   * yields). At 0 they took half the hub's CPU and the robot loop ran 77 ms; at 10 it ran 54 ms and the cameras
-   * lost under 1 FPS (7 Nov, 092018). Kept under 10, where Android also caps the threads as background. Read
-   * when a camera starts.
+   * yields). At 0 they took half the hub's CPU and slowed the robot loop; raising it sped the loop up for under 1
+   * FPS of camera rate. Kept under 10, where Android also caps the threads as background. Read when a camera
+   * starts.
    */
   public static int VISION_THREAD_NICE = 8;
   /**
    * Draws the cameras on the Control Hub's own screen, which nobody sees in a match. Its render thread runs at
-   * high priority and took as much CPU as the robot loop (7 Nov). Applied live.
+   * high priority and took as much CPU as the robot loop. Applied live.
    */
   public static boolean LIVE_VIEW = false;
   private boolean clustersFromTags;
@@ -117,11 +112,10 @@ public class VisionSubsystem extends SubsystemBase {
   private static final Size RESOLUTION = new Size(1280, 720);
   /**
    * Lens calibration {fx, fy, cx, cy} in pixels at RESOLUTION, per physical camera, from
-   * tools/camera-calibration (results/*.json, 1 Nov). Recalibrate if a lens is refocused or swapped.
+   * tools/camera-calibration (results/*.json). Recalibrate if a lens is refocused or swapped.
    */
   // The replacement left camera read tag distances 1% short of the right camera with the old left camera's
-  // calibration, so its focal lengths are scaled up 1% (fitted with the mount, 6 Nov). Recalibrate it to
-  // replace this.
+  // calibration, so its focal lengths are scaled up 1% (fitted with the mount). Recalibrate it to replace this.
   private static final double[] LENS_LEFT = {901.198, 901.116, 632.589, 355.601};
   private static final double[] LENS_RIGHT = {885.382, 885.080, 677.418, 365.001};
 
@@ -138,24 +132,24 @@ public class VisionSubsystem extends SubsystemBase {
   private final float[] appliedDecimation = {Float.NaN, Float.NaN};
   private final int[] appliedLiveView = {-1, -1}; // -1 not yet set, else 0 off or 1 on
   /**
-   * A camera that says it is streaming but gives no frames this long is stopped and started again. On
-   * 4 Nov camera R hit a USB error starting its stream and sat at 0 FPS for a whole match.
+   * A camera that says it is streaming but gives no frames this long is stopped and started again. Camera R
+   * once hit a USB error starting its stream and sat at 0 FPS for a whole match.
    */
   public static double RESTART_AFTER_NO_FRAMES_S = 2.0;
   private final long[] noFramesSinceNanos = {Long.MIN_VALUE, Long.MIN_VALUE};
   private final int[] restarts = new int[2];
   /**
-   * Restarts and camera controls run here, never on the robot loop: when the camera dropped off USB six times
-   * in 3 s, stopStreaming() never returned and the loop froze with the flywheel on for 4 minutes (5 Nov, 080143).
+   * Restarts and camera controls run here, never on the robot loop: when the camera dropped off USB repeatedly,
+   * stopStreaming() never returned and the loop froze with the flywheel on.
    */
   // One per camera, so a call that never returns on one camera doesn't hold up the other's
   private final ExecutorService[] cameraWorkers = {newWorker(0), newWorker(1)};
   private final long[] workerSinceNanos = new long[2]; // When the running job was handed to the worker
   private final int[] workerGeneration = new int[2]; // Bumped on a rebuild, so the old worker's job can't clear workerBusy
   /**
-   * A camera call running longer than this has hung: the camera is closed and opened again from scratch. 13 Nov
-   * 165003: camera R's restart never returned, so its worker stayed busy, nothing about it was checked again and it
-   * gave no frames for the whole 109 s. A restart waits at most 3 s for the camera.
+   * A camera call running longer than this has hung: the camera is closed and opened again from scratch. A restart
+   * that never returned kept the worker busy, nothing about the camera was checked again and it gave no frames for
+   * the rest of the run. A restart waits at most 3 s for the camera.
    */
   public static double WORKER_STUCK_S = 5.0;
   /** At most this many rebuilds per camera per OpMode, 5 s, 10 s, then 20 s apart: each leaks ~36 MB of detector. */
@@ -185,8 +179,8 @@ public class VisionSubsystem extends SubsystemBase {
   private final FrameBrightness[] brightness = new FrameBrightness[2]; // Null when the camera didn't open
 
   /**
-   * Notes when each frame arrives. A frozen stream kept reporting its last FPS (9.2), so the no-frames restart
-   * never ran and the robot drove 10 s blind, then searched with a dead camera (5 Nov, 082057).
+   * Notes when each frame arrives. A frozen stream kept reporting its last FPS, so the no-frames restart never ran
+   * and the robot drove blind, then searched with a dead camera.
    */
   private static final class FrameClock implements VisionProcessor {
     volatile long lastFrameNanos = System.nanoTime();
@@ -672,9 +666,8 @@ public class VisionSubsystem extends SubsystemBase {
   public static double MIN_TRUSTED_FPS = 5.0;
 
   /**
-   * A stream that has just (re)started can hand over a frame taken well before its time stamp. Camera R's first
-   * frame after a restart (4.4 fps) was taken before a 36 degree turn but placed after it, which put the Cell 0.7 m
-   * off; TeleOp then aimed 0.34-0.69 m from the lip when it was nearer 1 m and every ball fell short (15 Nov, 080649).
+   * A stream that has just (re)started can hand over a frame taken well before its time stamp. Such a frame, taken
+   * before a turn but placed after it, put the Cell well off, and every ball TeleOp aimed from it fell short.
    */
   static boolean frameTimesTrusted(double fps) {
     return fps >= MIN_TRUSTED_FPS;
@@ -759,7 +752,7 @@ public class VisionSubsystem extends SubsystemBase {
    * Takes processors off the SDK's list of every processor ever added to a portal (VisionPortal.Builder's static
    * attachedProcessors, never emptied), so a closed portal's can be collected. Each AprilTag processor holds a native
    * detector of about 36 MB, freed only when finalized: kept on that list, every run added 36 MB per camera (missing
-   * ones too) until Android killed the app at 1 GB (6 Nov, 10:12).
+   * ones too) until Android killed the app.
    */
   private static void detach(VisionProcessor... gone) {
     try {

@@ -5,13 +5,10 @@ package org.firstinspires.ftc.teamcode.subsystems;
  * it can be unit tested.
  *
  * <p>
- * Measured on Mark 3 on 25 Oct, when the shooter pulleys were on backwards and
- * two motors burnt out: at full power both motors drew 6.4 to 7 A while turning
- * only 480 to 700 ticks/s, for about 3 minutes across several runs. Once one
- * motor died, the other drew 7 to 9.6 A at 0 ticks/s. Running freely the same
- * motors drew 0.3 to 0.5 A at 2300 to 2460 ticks/s. So the overload was slow
- * but still moving, and a zero-speed check would have missed it: a motor
- * counts as stalled above {@link #STALL_CURRENT_AMPS} while below
+ * Two motors burnt out on Mark 3 when the shooter pulleys were on backwards: at
+ * full power both drew 6.4 to 7 A while still turning 480 to 700 ticks/s. So the
+ * overload was slow but still moving, and a zero-speed check would have missed
+ * it: a motor counts as stalled above {@link #STALL_CURRENT_AMPS} while below
  * {@link #STALL_VELOCITY}.
  *
  * <p>
@@ -23,8 +20,8 @@ package org.firstinspires.ftc.teamcode.subsystems;
 public class ShooterStallGuard {
   public static final double STALL_CURRENT_AMPS = 4.0;
   /**
-   * Ticks per second. Above the 480-700 of the burnout; 1200 was within normal running: a far shot holds
-   * the wheels at 3700 RPM, 1180 ticks/s, drawing 4-5 A, and that tripped the guard (5 Nov, 082111).
+   * Ticks per second. Above the 480-700 of the burnout and below normal running: a far shot holds the wheels
+   * at 3700 RPM, 1180 ticks/s, drawing 4-5 A.
    */
   public static final double STALL_VELOCITY = 750;
   /**

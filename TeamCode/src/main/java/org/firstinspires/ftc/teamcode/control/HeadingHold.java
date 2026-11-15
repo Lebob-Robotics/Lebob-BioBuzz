@@ -4,16 +4,16 @@ import com.bylazar.configurables.annotations.Configurable;
 import org.firstinspires.ftc.teamcode.field.Angles;
 
 /**
- * Picks the heading to hold while the driver translates without turning. Open loop, the base swings up to
- * 10-15 deg/s on its own while strafing at full stick (5 Nov, 093520), so a straight drive curved.
+ * Picks the heading to hold while the driver translates without turning. Open loop, the base swings on its own
+ * while strafing at full stick, so a straight drive curved.
  * The heading is taken once a turn the driver let go of has slowed down; it is dropped while turning and
  * while the drive stick is centred, so starting to drive again holds wherever the robot then points.
  */
 @Configurable
 public final class HeadingHold {
   public static boolean ENABLED = true;
-  // A released turn coasts on for about 0.3 s (100 deg/s to 0, 5 Nov, 093520). Taking the heading mid-coast
-  // would pull the robot back against it, so it waits for the turn to slow below this, or CAPTURE_AFTER_S.
+  // A released turn coasts on for about 0.3 s. Taking the heading mid-coast would pull the robot back against
+  // it, so it waits for the turn to slow below this, or CAPTURE_AFTER_S.
   public static double CAPTURE_BELOW_RATE_RAD_S = Math.toRadians(15);
   public static double CAPTURE_AFTER_S = 0.5;
 

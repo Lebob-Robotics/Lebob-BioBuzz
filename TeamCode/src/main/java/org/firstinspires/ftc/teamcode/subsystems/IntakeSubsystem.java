@@ -17,12 +17,12 @@ import org.psilynx.psikit.core.Logger;
  */
 public class IntakeSubsystem extends SubsystemBase {
   /**
-   * The beam breaks are no longer used (13 Nov): never read, so they need not be in the configuration. The
-   * robot tells it is full by a loading ball touching the flywheels instead ({@code WheelContact}).
+   * The beam breaks are no longer used: never read, so they need not be in the configuration. The robot tells
+   * it is full by a loading ball touching the flywheels instead ({@code WheelContact}).
    */
   private static final boolean BEAM_BREAKS_WIRED = false;
   /**
-   * The intake has run in power mode since 27 Oct: under speed control it surged on and off, because
+   * The intake runs in power mode: under speed control it surged on and off, because
    * its encoder was unplugged or counted the wrong way. Set true once the log shows its velocity
    * rising when it intakes.
    */
@@ -41,8 +41,8 @@ public class IntakeSubsystem extends SubsystemBase {
   private IntakeState intakeState;
   private double intakePower = 1.0; // INTAKE only; eject always runs at full
   private final ElapsedTime clock = new ElapsedTime();
-  // Intake encoder is untrusted: allow 0.3 s to coast, then ramp for 0.2 s. Was 0.75 + 0.75, so a tap of B never
-  // reversed it (13 Nov 191420); quicker at the gearbox's risk, accepted 14 Nov
+  // Intake encoder is untrusted: allow 0.3 s to coast, then ramp for 0.2 s. Longer times meant a tap of B never
+  // reversed it; quicker at the gearbox's risk, accepted
   public static final double REVERSE_COAST_S = 0.3;
   public static final double REVERSE_RAMP_S = 0.2;
   private final MotorReversalGuard reversal = new MotorReversalGuard(REVERSE_COAST_S, REVERSE_RAMP_S, 0);

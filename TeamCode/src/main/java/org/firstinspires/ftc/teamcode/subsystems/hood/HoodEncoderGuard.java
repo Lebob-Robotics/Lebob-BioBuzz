@@ -3,15 +3,14 @@ package org.firstinspires.ftc.teamcode.subsystems.hood;
 /**
  * Cross-checks the independent REV and motor encoders on the same 1:1 pinion shaft.
  *
- * <p>The belt between them can skip a tooth (TeleOp 4 Nov: the motor reached full lift, the REV stopped
- * 9 degrees short). The REV is on the pinion, so it is the hood's true position: a disagreement asks the
- * caller to re-zero the motor to the REV ({@link #takeRebase()}) instead of cutting power. Only one that
- * keeps coming back (MAX_REBASES within REBASE_WINDOW_S: an unplugged, reversed or wrongly scaled
+ * <p>The belt between them can skip a tooth. The REV is on the pinion, so it is the hood's true position: a
+ * disagreement asks the caller to re-zero the motor to the REV ({@link #takeRebase()}) instead of cutting power.
+ * Only one that keeps coming back (MAX_REBASES within REBASE_WINDOW_S: an unplugged, reversed or wrongly scaled
  * encoder) trips the guard, as does power with no motion.
  *
  * <p>A REV that does not follow the motor at all trips the guard at once, without a rebase: rebasing to a
- * frozen REV tells the hood it is back at the bottom, and it is driven up again from wherever it really is
- * (085313: three rebases to a dead REV drove the hood past its top).
+ * frozen REV tells the hood it is back at the bottom, and it is driven up again from wherever it really is: rebases
+ * to a dead REV have driven the hood past its top.
  */
 public final class HoodEncoderGuard {
   // Measured at rest: about 16 motor ticks (15 pinion degrees) of belt lost motion on reversal, plus a
