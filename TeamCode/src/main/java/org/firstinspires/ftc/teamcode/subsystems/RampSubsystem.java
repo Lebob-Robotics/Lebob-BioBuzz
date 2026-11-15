@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.psilynx.psikit.core.Logger;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 
 /**
  * The Pollen ramp: one REV servo, RampServo on Expansion Hub servo port 1, stowed or deployed. It is stowed when an
@@ -30,7 +31,7 @@ public class RampSubsystem extends SubsystemBase {
   private double written = Double.NaN;
 
   public RampSubsystem(HardwareMap hardwareMap) {
-    servo = hardwareMap.tryGet(Servo.class, HardwareNames.RAMP_SERVO);
+    servo = OptionalHardware.find(hardwareMap, Servo.class, HardwareNames.RAMP_SERVO);
     widenRange(servo);
   }
 

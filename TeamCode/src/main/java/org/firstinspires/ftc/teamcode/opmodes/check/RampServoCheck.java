@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 
 /**
@@ -24,7 +25,7 @@ public class RampServoCheck extends OpMode {
 
   @Override
   public void init() {
-    servo = hardwareMap.tryGet(Servo.class, HardwareNames.RAMP_SERVO);
+    servo = OptionalHardware.find(hardwareMap, Servo.class, HardwareNames.RAMP_SERVO);
     if (servo instanceof PwmControl) {
       ((PwmControl) servo).setPwmRange(new PwmControl.PwmRange(LOWER_US, UPPER_US));
     }

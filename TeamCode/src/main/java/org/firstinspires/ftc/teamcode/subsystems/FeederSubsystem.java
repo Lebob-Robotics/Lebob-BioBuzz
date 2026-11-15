@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.hardware.CrServo;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.psilynx.psikit.core.Logger;
 
 /**
@@ -48,7 +49,8 @@ public class FeederSubsystem extends SubsystemBase {
 
   /** The servo named name, or null if the robot configuration has none. */
   private static CrServo find(HardwareMap hardwareMap, String name, boolean reversed) {
-    return hardwareMap.tryGet(CRServo.class, name) == null ? null : new CrServo(hardwareMap, name, reversed);
+    return OptionalHardware.find(hardwareMap, CRServo.class, name) == null
+        ? null : new CrServo(hardwareMap, name, reversed);
   }
 
   static double powerFor(FeederState state, double feed) {

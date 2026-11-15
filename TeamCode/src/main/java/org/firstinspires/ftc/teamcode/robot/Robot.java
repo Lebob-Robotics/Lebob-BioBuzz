@@ -9,6 +9,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
@@ -171,8 +172,7 @@ public class Robot {
     vision = new VisionSubsystem(hardwareMap);
 
     // Both hubs read the same battery, so one sensor is enough.
-    batteryMonitor = new BatteryMonitor(this, hardwareMap.voltageSensor.iterator().hasNext()
-        ? hardwareMap.voltageSensor.iterator().next() : null);
+    batteryMonitor = new BatteryMonitor(this, OptionalHardware.first(hardwareMap.voltageSensor));
   }
 
   /** Called once when the OpMode enters INIT. */

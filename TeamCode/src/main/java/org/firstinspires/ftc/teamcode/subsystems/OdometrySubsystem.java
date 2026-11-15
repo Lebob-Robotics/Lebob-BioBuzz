@@ -11,6 +11,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.firstinspires.ftc.teamcode.hardware.PinpointSettings;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.core.wpi.math.Pose2d;
@@ -71,13 +72,7 @@ public class OdometrySubsystem extends SubsystemBase {
   private int reconfigures;
 
   public OdometrySubsystem(HardwareMap hardwareMap) {
-    GoBildaPinpointDriver found = null;
-    try {
-      found = hardwareMap.get(GoBildaPinpointDriver.class, HardwareNames.PINPOINT);
-    } catch (IllegalArgumentException e) {
-      // Not configured; run without odometry.
-    }
-    pinpoint = found;
+    pinpoint = OptionalHardware.find(hardwareMap, GoBildaPinpointDriver.class, HardwareNames.PINPOINT);
   }
 
   /**
