@@ -56,8 +56,6 @@ import org.firstinspires.ftc.teamcode.vision.TargetTracker;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.vision.VisionResult;
 import org.psilynx.psikit.core.Logger;
-import org.psilynx.psikit.core.wpi.math.Pose2d;
-import org.psilynx.psikit.core.wpi.math.Rotation2d;
 
 import java.util.List;
 import org.firstinspires.ftc.teamcode.field.Cell;
@@ -99,10 +97,12 @@ import org.firstinspires.ftc.teamcode.opmodes.Main;
 public class Robot {
   private final Telemetry telemetry;
   private final RobotTelemetry display;
+  private final RobotLogger log = new RobotLogger(this);
+  private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   private final Gamepad physicalDriver;
   /** What the code reads: gamepad 1, plus the browser gamepad from Panels when Panels is on. Rebuilt each loop. */
-  private Gamepad driver;
+  Gamepad driver;
 
   public final IntakeSubsystem intake;
   public final MecanumDriveSubsystem drive;
@@ -145,7 +145,7 @@ public class Robot {
 
   Alliance alliance = Alliance.BLUE;
   private boolean driverOnFarSide = false;
-  private final TargetTracker tracker = new TargetTracker(VisionConstants.POSE_HISTORY_SIZE);
+  final TargetTracker tracker = new TargetTracker(VisionConstants.POSE_HISTORY_SIZE);
   // Vision pose correction. The history holds each loop's odometry pose with the time of that loop's
   // camera capture, so a frame can be matched to where the robot was. It is separate from the tracker's.
   private final PoseHistory poseHistory = new PoseHistory(VisionConstants.POSE_HISTORY_SIZE);
@@ -163,20 +163,20 @@ public class Robot {
   AimState aimState = AimState.OFF;
   private double aimRpm = DriverConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private final HoodStepControl hoodSteps = new HoodStepControl();
-  private double hoodLiftTrimDeg = 0;
+  double hoodLiftTrimDeg = 0;
   double rpmTrim = 0; // Driver's, for the rest of the match
-  private double headingTrimDeg = 0; // Anticlockwise, the tuning tools' aim trim (TeleOp uses aimTrimDeg's)
+  double headingTrimDeg = 0; // Anticlockwise, the tuning tools' aim trim (TeleOp uses aimTrimDeg's)
   // Shot Tuning: the driver's RPM, hood and direction replace the tables', and the buttons they use do nothing else
-  private boolean tuningMode = false;
+  boolean tuningMode = false;
   private static final double TUNING_HEADING_TOLERANCE_DEG = 1.5;
   private boolean tuningBackward = false;
   private double tuningRpm = 3400;
   private double tuningHoodDeg = HoodSubsystem.ZERO_ANGLE_DEG;
-  private boolean tuningLive = false; // Shot Tuning's moving pass: the tables' shot, moving corrections and all
+  boolean tuningLive = false; // Shot Tuning's moving pass: the tables' shot, moving corrections and all
   private boolean steadyGateBypassed = false; // SOTM Tuning's passes that fire mid-change
   private boolean closeMovingGateBypassed = false; // SOTM Tuning's passes that fire moving close to the lip
   private double[] steadyStickReference; // SOTM Tuning: the plan's stick size, without its tracking corrections
-  private boolean scriptedOneBall = false; // As RB held in Shot Tuning, from a script
+  boolean scriptedOneBall = false; // As RB held in Shot Tuning, from a script
   private boolean scriptedVolley = false; // As RB held in Lebot Teleop, from a script (autonomous)
   private Aim lastAim = null;
   private double[] driveOverride = null; // Field-frame stick {+x, +y} for a scripted drive; null for the driver's
@@ -232,7 +232,7 @@ public class Robot {
   private double volleyFeedPower = Double.NaN;
   private double volleyBoostRpm = Double.NaN;
   private Boolean volleyFastRecovery = null;
-  private double volleyHoodDeg = 0; // Launch angle the volley added this loop, for the log
+  double volleyHoodDeg = 0; // Launch angle the volley added this loop, for the log
   // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
   private boolean buttonsReserved = false;
@@ -240,7 +240,7 @@ public class Robot {
   boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
   double aimCellX = 0; // The point aimed at this loop, field metres
   double aimCellY = 0;
-  private boolean intakeOn = true;
+  boolean intakeOn = true;
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
   private double backwardBlockedSinceS = Double.NaN;
@@ -518,7 +518,7 @@ public class Robot {
 
   /** Called repeatedly while the OpMode is running. */
   public void periodic() {
-    long t0 = System.nanoTime(); // Section times, logged under Loop/, to find what slows the loop
+    times.start = System.nanoTime();
     watchdog.feed();
     refreshDriver();
     Pose2D pinpointPose = odometry.getPose(); // PsiKit has already updated the Pinpoint this loop
@@ -542,7 +542,7 @@ public class Robot {
       pose = new FieldPose(pose.xM, pose.yM, placedHeadingRad());
     }
 
-    long tVision = System.nanoTime();
+    times.vision = System.nanoTime();
     if (odometry.isReadGood()) { // A correction from a bad read would write that read back into the Pinpoint
       FieldPose uncorrected = pose;
       pose = correctPoseFromVision(pose, velocity, nowNanos); // Before aiming, so this loop aims from the corrected pose
@@ -570,9 +570,9 @@ public class Robot {
       holdAnchorX = holdPoint[0];
       holdAnchorY = holdPoint[1];
     }
-    long tAim = System.nanoTime();
+    times.aim = System.nanoTime();
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
-    long tAimed = System.nanoTime();
+    times.aimed = System.nanoTime();
     double turnDeg = aimTrimDeg(tuningMode, headingTrimDeg, aim != null && aim.backward) + movingHeadingDeg(aim);
     if (volleyAim(aim) && !Double.isNaN(volleyHeadingTrimDeg)) { turnDeg += volleyHeadingTrimDeg; }
     if (aim != null && turnDeg != 0) {
@@ -584,7 +584,7 @@ public class Robot {
     updateToggles(aiming);
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
     // that had just moved 3 degrees (the robot stopped) was judged against the old one, and the ball missed (5 Nov, 095605)
-    long tShooter = System.nanoTime();
+    times.shooter = System.nanoTime();
     volleyShot = volleyAim(aim);
     feedGate = volleyShot ? volleyFeedGate : aimedFeedGate;
     loadingShooter.update(clock.seconds(), spinOnlyOnFire, shotRequested() && !holdFire,
@@ -593,7 +593,7 @@ public class Robot {
     Logger.recordOutput("Shooter/Loading/SpinBlocked", loadingShooter.blocksSpin());
     Logger.recordOutput("Shooter/Loading/CanLoad", loadingShooter.canLoad());
     updateShooterAndHood(aiming, aim);
-    long tShooterSet = System.nanoTime();
+    times.shooterSet = System.nanoTime();
     rpmTrend.update(clock.seconds(), shooter.getRpm());
     double predictedRpmError = rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm();
     Logger.recordOutput("Shooter/PredictedRpmError", predictedRpmError);
@@ -628,13 +628,13 @@ public class Robot {
         || !hood.atTarget(feedStopHoodTicks()));
     updateAimState(aiming, aim, ready);
 
-    long tDrive = System.nanoTime();
+    times.drive = System.nanoTime();
     if (autoDriver != null) {
       driveAuto(aiming, aim, lockRateRadPerSec, pose, velocity);
     } else {
       updateDrive(aiming, aim, lockRateRadPerSec, pose, velocity[2]);
     }
-    long tDriveSet = System.nanoTime();
+    times.driveSet = System.nanoTime();
     // Without the Cell in view there is nothing to aim at, so RT shoots at full flywheel speed and the
     // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
     // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
@@ -662,16 +662,16 @@ public class Robot {
     }
     Logger.recordOutput("Feeder/Gate", feedGate.stateName());
     Logger.recordOutput("Feeder/BallLeft", feedGate.ballLeft());
-    long tFeed = System.nanoTime();
+    times.feed = System.nanoTime();
     updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
-    long tFeedSet = System.nanoTime();
+    times.feedSet = System.nanoTime();
     if (aimedFeed) {
       feedCommitUntilS = clock.seconds() + FireConstants.FEED_COMMIT_S;
     }
     lastPose = pose;
     lastVelocity = velocity;
 
-    long tRun = System.nanoTime();
+    times.run = System.nanoTime();
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's
     stampPoseHistory(pose); // After the run, which is when vision takes this loop's capture
 
@@ -687,26 +687,18 @@ public class Robot {
       intakeLockRumbleS = Double.NaN;
     }
 
-    long tLog = System.nanoTime();
+    times.log = System.nanoTime();
     boolean telemetryDue = display.due();
     updateBattery(telemetryDue);
-    logAim(aim);
+    log.logAim(aim);
     if (volleyMode) {
-      logVolley();
+      log.logVolley();
     }
     display.drawField(pose, aim);
     display.update(telemetryDue, aim, pose);
     display.sendPanelsTelemetry(aim, pose);
-    long tEnd = System.nanoTime();
-    Logger.recordOutput("Loop/StartMs", (tVision - t0) * 1e-6);
-    Logger.recordOutput("Loop/VisionAndControlMs", (tRun - tVision) * 1e-6);
-    Logger.recordOutput("Loop/PoseFromVisionMs", (tAim - tVision) * 1e-6);
-    Logger.recordOutput("Loop/AimMs", (tAimed - tAim) * 1e-6);
-    Logger.recordOutput("Loop/ShooterHoodMs", (tShooterSet - tShooter) * 1e-6);
-    Logger.recordOutput("Loop/DriveMs", (tDriveSet - tDrive) * 1e-6);
-    Logger.recordOutput("Loop/IntakeFeederMs", (tFeedSet - tFeed) * 1e-6);
-    Logger.recordOutput("Loop/SubsystemsMs", (tLog - tRun) * 1e-6);
-    Logger.recordOutput("Loop/TelemetryMs", (tEnd - tLog) * 1e-6);
+    times.end = System.nanoTime();
+    times.record();
   }
 
   /**
@@ -740,7 +732,7 @@ public class Robot {
       double ageS = (nowNanos - observation.frameTimeNanos) * 1e-9;
       frameAgeS = Double.isNaN(frameAgeS) ? ageS : Math.min(frameAgeS, ageS);
     }
-    logVision(result, frameAgeS, observations.size());
+    log.logVision(result, frameAgeS, observations.size());
     return pose;
   }
 
@@ -1070,7 +1062,7 @@ public class Robot {
     return MecanumDriveSubsystem.shapeTranslation(forward, right, maxPower);
   }
 
-  private boolean isHolding() { return !Double.isNaN(holdAnchorX); }
+  boolean isHolding() { return !Double.isNaN(holdAnchorX); }
 
   /** {forward, right} power back to RB's held spot, damped by the speed. Not curved as a stick is. */
   private double[] holdTranslation(FieldPose pose, double minPower) {
@@ -1540,76 +1532,6 @@ public class Robot {
   /** Shown on the Panels Telemetry tab this loop, above the robot's own lines. */
   public void addPanelsLine(String key, String value) { display.addPanelsLine(key, value); }
 
-  /** Everything shoot on the move worked out this loop, for AdvantageScope. */
-  private void logAim(Aim aim) {
-    Logger.recordOutput("SOTM/State", aimState.name());
-    Logger.recordOutput("SOTM/Alliance", alliance.name());
-    Logger.recordOutput("SOTM/KnowsCell", aim != null);
-    Logger.recordOutput("SOTM/CellX", aimCellX);
-    Logger.recordOutput("SOTM/CellY", aimCellY);
-    Logger.recordOutput("SOTM/AimingAtFieldCell", aimingAtFieldCell);
-    Logger.recordOutput("SOTM/UpCell", visionCorrector.upCell(alliance).name());
-    Logger.recordOutput("SOTM/AimCell", aimCell().name());
-    Logger.recordOutput("SOTM/TrackerCellX", tracker.getCellX()); // To compare with the field Cell
-    Logger.recordOutput("SOTM/TrackerCellY", tracker.getCellY());
-    // For AdvantageScope's field views: a line from the robot to the Cell it is aiming at, none when unknown
-    Logger.recordOutput("SOTM/Cell", aim == null ? new Pose2d[0]
-        : new Pose2d[] {new Pose2d(aimCellX, aimCellY, new Rotation2d())});
-    Logger.recordOutput("SOTM/CellSeenAgoS", cellSeenAgoS);
-    Logger.recordOutput("SOTM/RpmTrim", rpmTrim);
-    Logger.recordOutput("SOTM/HeadingTrimDeg", headingTrimDeg);
-    Logger.recordOutput("SOTM/TableRpmOffset", tableRpmOffset(aim));
-    Logger.recordOutput("SOTM/HoodLiftTrimDeg", hoodLiftTrimDeg);
-    Logger.recordOutput("Robot/OneBallShot", tuningMode && (driver.right_bumper || scriptedOneBall)
-        && driver.right_trigger <= TRIGGER_PRESSED);
-    Logger.recordOutput("Robot/TuningLive", tuningLive);
-    Logger.recordOutput("Robot/PositionHold", isHolding());
-    Logger.recordOutput("Robot/IntakeOn", intakeOn);
-    if (aim == null) {
-      return;
-    }
-    Logger.recordOutput("SOTM/Valid", aim.shot.valid);
-    Logger.recordOutput("SOTM/Backward", aim.backward);
-    Logger.recordOutput("SOTM/Reason", aim.shot.reason.name());
-    Logger.recordOutput("SOTM/DistanceToLipM", aim.shot.distanceToLipM);
-    Logger.recordOutput("SOTM/SpeedTowardCellMps", aim.shot.speedTowardCellMps);
-    Logger.recordOutput("SOTM/SidewaysSpeedMps", aim.shot.sidewaysSpeedMps);
-    Logger.recordOutput("SOTM/TargetRpm", aim.shot.targetRpm);
-    Logger.recordOutput("SOTM/HoodDeg", aim.shot.hoodDeg);
-    Logger.recordOutput("SOTM/TimeOfFlightS", aim.shot.timeOfFlightS);
-    Logger.recordOutput("SOTM/TurningRad", aim.shot.turningRad);
-    Logger.recordOutput("SOTM/TargetHeadingRad", aim.targetHeadingRad);
-    Logger.recordOutput("SOTM/LockHeadingRad", aim.lockHeadingRad);
-    Logger.recordOutput("SOTM/HeadingToleranceRad", aim.headingToleranceRad);
-  }
-
-  /** Everything the pose correction worked out this loop. */
-  private void logVision(VisionResult result, double frameAgeS, int newTags) {
-    Logger.recordOutput("Vision/Correction/Accepted", result.accepted);
-    Logger.recordOutput("Vision/Correction/Reason", result.reason.name());
-    Logger.recordOutput("Vision/Correction/TagReject", result.firstTagReject.name());
-    Logger.recordOutput("Vision/Correction/NewTags", newTags);
-    Logger.recordOutput("Vision/Correction/DxM", result.dxM);
-    Logger.recordOutput("Vision/Correction/DyM", result.dyM);
-    Logger.recordOutput("Vision/Correction/Gain", result.gain);
-    Logger.recordOutput("Vision/Correction/TagsUsed", result.tagsUsed);
-    Logger.recordOutput("Vision/Correction/TagsRejected", result.tagsRejected);
-    Logger.recordOutput("Vision/Correction/SpreadM", result.spreadM);
-    Logger.recordOutput("Vision/Correction/UsedIds", result.usedIds);
-    Logger.recordOutput("Vision/Correction/UsedDxM", result.usedDxM);
-    Logger.recordOutput("Vision/Correction/UsedDyM", result.usedDyM);
-    Logger.recordOutput("Vision/Correction/FrameAgeS", frameAgeS);
-    Logger.recordOutput("Vision/Correction/UpCellRed", visionCorrector.upCell(Alliance.RED).name());
-    Logger.recordOutput("Vision/Correction/UpCellBlue", visionCorrector.upCell(Alliance.BLUE).name());
-    Logger.recordOutput("Vision/Correction/RedFlipped", result.redFlipped);
-    Logger.recordOutput("Vision/Correction/BlueFlipped", result.blueFlipped);
-    Logger.recordOutput("Vision/Correction/PoseValid", poseValid);
-    Logger.recordOutput("Vision/Correction/HeadingValid", headingValid);
-    Logger.recordOutput("Vision/Correction/DHeadingDeg", Math.toDegrees(result.dHeadingRad));
-    Logger.recordOutput("Vision/Correction/HeadingGain", result.headingGain);
-    Logger.recordOutput("Vision/Correction/HeadingPairs", result.headingPairs);
-  }
-
   /** Every subsystem's state on the Driver Station: the tuning OpModes, or TELEMETRY_DETAIL from Panels. */
   public boolean isTelemetryDetail() {
     return tuningMode || DriverConstants.TELEMETRY_DETAIL;
@@ -1663,7 +1585,7 @@ public class Robot {
   /** Heading/hood may track while filling, but flywheels start only for an enabled shot. */
   public void setSpinOnlyOnFire(boolean enabled) { spinOnlyOnFire = enabled; }
 
-  private double tableRpmOffset(Aim aim) {
+  double tableRpmOffset(Aim aim) {
     if (aim == null || (tuningMode && !tuningLive)) {
       return 0;
     }
@@ -2070,21 +1992,6 @@ public class Robot {
   private double volleyBackwardRpm(Aim aim) {
     return volleyAim(aim) && aim.backward
         ? -VolleyConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * volleyTrimDeg(true) : 0;
-  }
-
-  private void logVolley() {
-    Logger.recordOutput("Volley/Shot", volleyShot);
-    Logger.recordOutput("Volley/FeedStarts", volleyFeedGate.feedStarts());
-    Logger.recordOutput("Volley/BallsLeft", volleyFeedGate.ballsLeft());
-    Logger.recordOutput("Volley/LeftAtRpm", volleyFeedGate.peakAtLeaveRpm());
-    Logger.recordOutput("Volley/DipDepthRpm", volleyFeedGate.lastDipDepthRpm());
-    Logger.recordOutput("Volley/DoubleBall",
-        volleyFeedGate.lastDipDepthRpm() > VolleyConstants.VOLLEY_DOUBLE_DIP_RPM);
-    Logger.recordOutput("Volley/HoodDeg", volleyHoodDeg);
-    Logger.recordOutput("Volley/BoostRpm", volleyBoostRpm());
-    Logger.recordOutput("Volley/FeedPower", volleyFeedPower());
-    Logger.recordOutput("Volley/IndexerPower", volleyIndexerPower());
-    Logger.recordOutput("Volley/FastRecovery", volleyFastRecovery());
   }
 
   /** Called once when the OpMode stops. */
