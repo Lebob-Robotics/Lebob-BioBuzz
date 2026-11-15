@@ -25,7 +25,6 @@ import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
@@ -43,6 +42,7 @@ import org.firstinspires.ftc.teamcode.field.FieldRoute;
 import org.firstinspires.ftc.teamcode.opmodes.Main;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 import org.firstinspires.ftc.teamcode.tuning.SotmPath;
+import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 
 /**
  * Shoot-on-the-move tuning: drives planned passes ({@link SotmPath#plan}) past the Cell and fires one ball during
@@ -289,7 +289,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
    * carrying on its search.
    */
   private void readCsv() {
-    File file = new File(CSV_PATH);
+    File file = TuningCsv.file(CSV_PATH);
     if (!file.exists()) {
       return;
     }
@@ -348,7 +348,7 @@ public class SotmTuning extends PsiKitIterativeOpMode {
 
   /** The aim trims Shot Tuning found standing, where each spot's aim search starts. */
   private void readStandingTrims() {
-    File file = new File(STANDING_CSV_PATH);
+    File file = TuningCsv.file(STANDING_CSV_PATH);
     if (!file.exists()) {
       return;
     }
@@ -953,17 +953,10 @@ public class SotmTuning extends PsiKitIterativeOpMode {
   }
 
   private void append(String row) {
-    if (Logger.isReplay()) {
-      return;
-    }
-    File file = new File(CSV_PATH);
-    boolean isNew = !file.exists();
-    try (FileWriter out = new FileWriter(file, true)) {
-      if (isNew) {
-        out.write(CSV_HEADER + "\n");
+    try {
+      if (TuningCsv.append(CSV_PATH, CSV_HEADER, row)) {
+        fileError = null;
       }
-      out.write(row + "\n");
-      fileError = null;
     } catch (IOException e) {
       fileError = "not saved: " + e.getMessage();
       RobotLog.ee("SotmTuning", e, "Can't write %s", CSV_PATH);

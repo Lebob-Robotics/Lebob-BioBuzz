@@ -20,13 +20,13 @@ import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.tuning.ShotSearch;
 import org.firstinspires.ftc.teamcode.tuning.ShotTuningSettings;
 import org.firstinspires.ftc.teamcode.tuning.TuningResume;
+import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -268,7 +268,7 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   private static TuningResume readLastSession() {
-    File file = new File(CSV_PATH);
+    File file = TuningCsv.file(CSV_PATH);
     if (!file.exists()) {
       return null;
     }
@@ -1182,17 +1182,10 @@ public class ShotTuning extends PsiKitIterativeOpMode {
   }
 
   private void append(String row) {
-    if (Logger.isReplay()) {
-      return;
-    }
-    File file = new File(CSV_PATH);
-    boolean isNew = !file.exists();
-    try (FileWriter out = new FileWriter(file, true)) {
-      if (isNew) {
-        out.write(CSV_HEADER + "\n");
+    try {
+      if (TuningCsv.append(CSV_PATH, CSV_HEADER, row)) {
+        fileError = null;
       }
-      out.write(row + "\n");
-      fileError = null;
     } catch (IOException e) {
       fileError = "not saved: " + e.getMessage();
       RobotLog.ee("ShotTuning", e, "Can't write %s", CSV_PATH);
