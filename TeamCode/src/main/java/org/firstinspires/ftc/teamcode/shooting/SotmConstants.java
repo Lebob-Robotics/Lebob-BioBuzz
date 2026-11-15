@@ -13,18 +13,12 @@ public final class SotmConstants {
   public static double SOTM_TOWARD_GAIN = 1.0;
   // Straight corrections per m/s of the speed the shot was looked up with, from SOTM Tuning's spot searches: launch
   // angle added for speed toward the Cell, RPM added for it, and aim turned anticlockwise for sideways speed (left +).
-  // Fitted 7 Nov to 16 finished hooded spots (0.3-0.7 m/s, 0.8-1.6 m), all left at 0 as within noise:
-  //   hood -1.22 +/- 1.02 deg per m/s toward (scatter 1.35 deg; standing error by band far +0.8, mid +0.75, near -1.6)
-  //   aim -0.13 +/- 0.32 deg per m/s sideways (scatter 0.41 deg), release delay 0.292 +/- 0.031 s against FEED_DELAY_S
-  //   0.30: the moving model is right as built. Left out: F ARC left 0.60 at 0.98 m, whose aim (-5.25) came from 8
-  //   balls left in a row at a +6 deg hood trim while the aim step was stuck at 0.25 deg
+  // All left at 0 as within noise, and the release delay matched FEED_DELAY_S: the moving model is right as built
   public static double SOTM_HOOD_DEG_PER_TOWARD_MPS = 0;
   // Launch angle added to a moving hooded shot by its distance to the lip, in TeleOp only (the tuning tools measure
   // against the bare table). Straight between the points, held past the ends; full from MOVING_SHOT_SPEED_MPS, none at
-  // rest. All 17 found spots' hood centres run with distance, not speed: -0.88 +/- 0.18 deg at 1.2 m, +5.53 +/- 0.76
-  // deg per m (scatter 1.29 deg; adding toward -0.64 +/- 0.52, adding |sideways| -1.92 +/- 1.37: noise). Standing balls don't show it (Shot Tuning 085918 centres -2.5..+2.4 deg either side of
-  // the table at every distance). With it all 16 spots' scoring windows hold the shot (worst 0.57 deg inside); without
-  // it, toward-right 0.50 at 0.91 m (window -3.7..-1.5) and field -y 0.70 at 1.14 m (-4.0..-0.5) miss
+  // rest. The found spots' hood centres run with distance, not speed, and standing balls don't show it. With it all the
+  // spots' scoring windows hold the shot; without it some miss
   public static final double[] SOTM_HOOD_TRIM_DIST_M = {0.95, 1.48};
   public static final double[] SOTM_HOOD_TRIM_DEG = {-2.3, 0.7};
   public static double SOTM_RPM_PER_TOWARD_MPS = 0;

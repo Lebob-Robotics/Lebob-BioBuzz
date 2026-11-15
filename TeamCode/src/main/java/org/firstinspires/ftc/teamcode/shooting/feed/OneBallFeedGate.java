@@ -15,8 +15,8 @@ public final class OneBallFeedGate {
   public static double READY_SECONDS = 0.10;
   public static double DIP_RPM = 200;
   // A ball also counts as gone once the wheels fall this far below their highest reading since the feed began.
-  // Below target alone missed balls fed with the wheels above it: 312 RPM had to go first, the feed ran on
-  // 0.45 s and pushed a second ball out (5 Nov, 085458). The reading steps by about 60 RPM
+  // Below target alone missed balls fed with the wheels above it, so the feed ran on and pushed a second ball out.
+  // The reading steps by about 60 RPM
   public static double DIP_FROM_PEAK_RPM = 150;
   // Each pulse after a pause with no ball out runs this much longer, so a ball sitting further back still goes
   public static double PULSE_GROWTH_S = 0.10;
@@ -32,12 +32,9 @@ public final class OneBallFeedGate {
   private final double minGapS;
   private final boolean confirmedDip;
   // A volley's ball counts once the wheels are this far below target and have fallen this far from their highest
-  // reading in the feed. Volley 9 Nov 203128: 153 RPM falls 152-183 under target counted dry pulses as the third and
-  // fourth balls, under the old ringing recovery. Under speed control a ball's fall is 216-368 (12 Nov, 213719) and
-  // the wheels at rest wander 60 under to 66 over, but 300 missed two of the four balls, which cost a pause and a
-  // retry each and let a second ball follow the first unseen. 200 from the peak still missed 52 of 276 balls on
-  // 13 Nov, most of them the last: real balls fell 154-200. The wheels at rest wander 60 under to 66 over, so 170
-  // can't come from wandering
+  // reading in the feed. Under target alone counted dry pulses as balls; a bigger fall from the peak missed real
+  // balls, mostly the last, costing a pause and a retry and letting a second ball follow unseen. The wheels at rest
+  // wander 60 under to 66 over, so 170 can't come from wandering
   public static double VOLLEY_DIP_RPM = 150;
   public static double VOLLEY_PEAK_DROP_RPM = 170;
   private double minFeedSpacingS = 0;
@@ -71,7 +68,7 @@ public final class OneBallFeedGate {
   /**
    * @param stopUnreadyAfterS a feed that has gone this long without a ball leaving stops once no longer
    *                          ready, and waits for ready again. Otherwise an empty feeder kept running, and
-   *                          the next ball loaded went straight out whatever the aim (5 Nov, 094738: 11 s)
+   *                          the next ball loaded went straight out whatever the aim
    */
   public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS) {
     this(readySeconds, stopUnreadyAfterS, Double.POSITIVE_INFINITY, 0, 0);
@@ -81,8 +78,8 @@ public final class OneBallFeedGate {
    * @param pulseS  the longest a feed runs before a ball is seen leaving; it then stops and waits up to
    *                {@code pauseS} for the dip of a ball already on its way, and otherwise feeds again once ready.
    *                The speed reading shows a ball 0.1-0.17 s after it left, by when the feeder had pushed the
-   *                next one into the wheels (5 Nov video: second balls 0.13-0.4 s behind the first)
-   * @param minGapS the shortest time from one ball leaving to the next feed (5 Nov, 084355: refed after 0.08 s)
+   *                next one into the wheels
+   * @param minGapS the shortest time from one ball leaving to the next feed
    */
   public OneBallFeedGate(double readySeconds, double stopUnreadyAfterS, double pulseS, double pauseS,
       double minGapS) {
@@ -206,8 +203,7 @@ public final class OneBallFeedGate {
   /**
    * The next ball may start while the wheels recover from the last: they are back within the lead of the target and
    * rising, so the 0.26 s the ball takes from its held-back spot to the wheels overlaps their last climb. Waiting for
-   * the band first made each later ball of a volley take 0.58 s against 0.39 s before (13 Nov), and the 13 balls fed
-   * early when a dip was missed left at the same speeds as the rest.
+   * the band first slowed each later ball of a volley, and balls fed early left at the same speeds as the rest.
    */
   private boolean lead(boolean readyButWheels, double rpm, double targetRpm) {
     return state == State.RECOVERING && leadBelowRpm > 0 && readyButWheels && ballsLeft > 0
@@ -261,8 +257,8 @@ public final class OneBallFeedGate {
 
   /**
    * True once a pulse and its pause have passed with no ball out, until one leaves: the next ball is further back,
-   * so the feeder should stop between pulses rather than hold backward and pull it back each time (6 Nov, 081243:
-   * the last ball rocked at the bottom of the indexer for 10 s).
+   * so the feeder should stop between pulses rather than hold backward and pull it back each time, which rocked the
+   * last ball at the bottom of the indexer.
    */
   public boolean feederEmpty() {
     return emptyPulses > 0;

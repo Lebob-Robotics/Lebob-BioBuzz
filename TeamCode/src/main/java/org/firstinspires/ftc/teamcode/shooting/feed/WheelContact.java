@@ -7,22 +7,22 @@ import java.util.ArrayDeque;
 /**
  * Tells when a loading ball reaches the spinning flywheels: their speed falls sharply while the target holds
  * still. With the beam breaks gone, that touch is the sign the stack is full. Loading on after it pushed the
- * first ball past the backward-held feeder and shot it (13 Nov: 79 such dips over 917 s of loading).
+ * first ball past the backward-held feeder and shot it.
  */
 @Configurable
 public class WheelContact {
   public static double WINDOW_S = 0.25;
-  /** A fall this big within the window is a ball, not speed control. Shots fed at speed dip a median 307 RPM. */
+  /** A fall this big within the window is a ball, not speed control. Shots fed at speed dip about this much. */
   public static double DIP_RPM = 300;
   /**
    * The window's fastest speed must be this near the target either way, so spinning up, or settling back from an
-   * overshoot (191420 at 10.1 s: 3874 on a 3563 target), isn't a touch.
+   * overshoot, isn't a touch.
    */
   public static double NEAR_TARGET_RPM = 250;
   /**
    * Nor may it be more than this over the target: wheels coming down from above it aren't touched by a ball. The
-   * Scoring Auto's target stepped from 3942 to 3733 while it drove, the wheels fell from 3996 to 3689, and that read
-   * as a full stack, so it ejected at the rear Flower for 3.2 s (13 Nov 224556). At rest they wander up to 66 over
+   * Scoring Auto's target stepped down while it drove, and the wheels' fall read as a full stack, so it ejected. At
+   * rest they wander up to 66 over
    */
   public static double ABOVE_TARGET_RPM = 100;
   /** A target moving more than this within the window isn't held still. */

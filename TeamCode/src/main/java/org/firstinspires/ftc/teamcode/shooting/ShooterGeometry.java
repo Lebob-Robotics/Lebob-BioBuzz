@@ -16,6 +16,6 @@ public final class ShooterGeometry {
 
   // Launch angle on the hood's upper hard stop (Hood Tune RANGE). The hood's soft limit and the shots both come
   // from it, so a shot flatter than the hood can reach is no shot rather than one fired at the stop's angle.
-  // 54.3: the second hard stop, 5 Nov (HoodTune 083632, lift 44.7); 58.5 the first; 51 before stops
+  // 54.3: the second hard stop
   public static double HOOD_TOP_STOP_DEG = 54.3;
 }

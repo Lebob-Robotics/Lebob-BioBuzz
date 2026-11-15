@@ -104,7 +104,7 @@ public final class ShootOnTheMove {
 
   /**
    * The turn for a shot the table can't make, from its nearest shot, so the robot keeps lining up through a
-   * moment without one. Turning 0 then jumped the aim heading 25 degrees and back while strafing (5 Nov, 094211).
+   * moment without one. Turning 0 then jumped the aim heading away and back while strafing.
    */
   static double approximateTurningRad(double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
     double[] distances = ShotTable.DIST_M;
@@ -172,7 +172,7 @@ public final class ShootOnTheMove {
     Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps * SOTM_TOWARD_GAIN,
         g.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     // Calculated rather than taken back off the shot by its rate: rate noise times the feed delay swung the
-    // hood target 6 degrees loop to loop (5 Nov, 082111)
+    // hood target loop to loop
     Shot shotNow = calculate(now.distanceToLipM, now.speedTowardCellMps * SOTM_TOWARD_GAIN,
         now.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     boolean both = shot.valid && shotNow.valid;
@@ -229,9 +229,7 @@ public final class ShootOnTheMove {
 
   /**
    * Whether the robot is straight in front of the Cell, within halfAngleDeg either side of its axis (along field x,
-   * out from the Hive's middle: a Cell at +x opens toward +x). Until 14 Nov it took out as toward the field's
-   * middle, from Cells once thought to be on the walls, so the wedge never held and TeleOp shot hooded from
-   * straight in front (230333: 11.5 degrees off the axis, the balls bounced out).
+   * out from the Hive's middle: a Cell at +x opens toward +x, not toward the field's middle).
    */
   public static boolean inFrontOfCell(FieldPose robot, double cellX, double cellY, double halfAngleDeg) {
     if (!(halfAngleDeg > 0)) {
@@ -369,8 +367,8 @@ public final class ShootOnTheMove {
   }
 
   /**
-   * What the driver must change for this shot to fire, when it is how they drive, else null. On 13 Nov 8 presses
-   * (17 s) never fired, strafing at 0.5-1 m/s 0.35-0.7 m from the lip, with only "lining up" on the screen.
+   * What the driver must change for this shot to fire, when it is how they drive, else null. Presses strafing close
+   * to the lip otherwise never fired, with only "lining up" on the screen.
    */
   public static String stopHint(Shot shot, boolean closeMovingAllowed) {
     if (shot.valid) {
@@ -385,8 +383,8 @@ public final class ShootOnTheMove {
   }
 
   /**
-   * True when the robot moves too fast this close to the lip to fire (MIN_MOVING_SHOT_LIP_M): such shots missed
-   * on 5 Nov, with the heading error growing during the feed. The match's fire gate refuses them.
+   * True when the robot moves too fast this close to the lip to fire (MIN_MOVING_SHOT_LIP_M): such shots missed,
+   * with the heading error growing during the feed. The match's fire gate refuses them.
    */
   public static boolean tooCloseToShootMoving(Shot shot) {
     return Math.hypot(shot.speedTowardCellMps, shot.sidewaysSpeedMps) >= MOVING_SHOT_SPEED_MPS

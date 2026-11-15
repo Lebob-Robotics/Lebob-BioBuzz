@@ -5,7 +5,7 @@ import java.util.ArrayDeque;
 /**
  * Where the flywheels' speed is heading: the slope over the last {@code windowS}, carried forward. A wheel
  * recovering from the last ball passes through the target still speeding up and overshoots it by 100-150 RPM,
- * which the speed now does not show (5 Nov, 080706: fed at +17 RPM, left at +130).
+ * which the speed now does not show.
  */
 public final class RpmTrend {
   private final double windowS;

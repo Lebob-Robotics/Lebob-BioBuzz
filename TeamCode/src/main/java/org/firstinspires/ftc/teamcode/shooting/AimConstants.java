@@ -11,23 +11,22 @@ import com.bylazar.configurables.annotations.Configurable;
 public final class AimConstants {
   private AimConstants() {}
 
-  // Fire command to ball leaving the shooter. The flywheels' RPM dips 0.12-0.30 s after the command, mostly
-  // about 0.2 s (nine feeds, 4-5 Nov logs). One ball per pulse, the dip came 0.20-0.35 s after it, and the pose
-  // acted on is a loop (about 55 ms) old: at 0.20 two strafing shots clipped the Cell's edge on the side the robot
-  // was moving toward (6 Nov, 080732)
+  // Fire command to ball leaving the shooter. The flywheels' RPM dips as late as 0.30-0.35 s after the command, and
+  // the pose acted on is a loop (about 55 ms) old. Shorter, strafing shots clipped the Cell's edge on the side the
+  // robot was moving toward
   public static double FEED_DELAY_S = 0.30;
   public static double FEED_DELAY_MAX_S = 0.30; // Latest a ball leaves: the heading must still be on target then
   // Time constant of the low-pass on the velocity the aim uses. The ball leaves FEED_DELAY_S after the decision, so
-  // it needs the mean velocity over that time, not one loop's Pinpoint sample. Unsmoothed, the sideways speed's noise
-  // swung the aim heading 2.4-3.4 degrees rms during passes and the lock chased it (7 Nov, 100030). Cost: through a
-  // steady 0.4 m/s^2 sideways change the aim lags about 2.5 degrees; the steady gate refuses faster changes. 0 is off
+  // it needs the mean velocity over that time, not one loop's Pinpoint sample, whose sideways noise swung the aim
+  // heading and the lock chased it. Cost: through a steady 0.4 m/s^2 sideways change the aim lags about 2.5 degrees;
+  // the steady gate refuses faster changes. 0 is off
   public static double AIM_VELOCITY_SMOOTHING_S = 0.12;
 
   // Aim at the up Cell's field position once the tags have placed the robot; the tracker's Cell before that
   public static boolean AIM_AT_FIELD_CELL = true;
   // Aim at our Cell on the robot's side of the Hive (x > 0 AUDIENCE, x < 0 SCORING), not the one the tags vote up:
-  // the vote flipped 2-7 times a run on 13 Nov, and the far volleys went to the far Cell, past and right of the
-  // near one the driver meant. Which Cell is right is the driver's call (14 Nov). False: the voted up Cell
+  // the vote flipped during runs, and the far volleys went to the far Cell, not the near one the driver meant. Which
+  // Cell is right is the driver's call. False: the voted up Cell
   public static boolean AIM_AT_FRONT_CELL = true;
   public static double FRONT_CELL_SWITCH_M = 0.15; // Past x = 0 by this much before the Cell changes sides
 
@@ -44,11 +43,11 @@ public final class AimConstants {
    */
   public static double MAX_HOOD_DIFFERENCE_TO_BLEND_DEG = 7;
 
-  // Added to every hooded shot from the table. -75 (6 Nov) made up for the model's ball being too slow; the model
-  // refitted to Shot Tuning's 224 hooded balls (7 Nov) fires what they found without it
+  // Added to every hooded shot from the table. 0: the model, refitted to Shot Tuning's hooded balls, fires what they
+  // found without one
   public static double HOODED_RPM_OFFSET = 0;
-  // Aim turned anticlockwise on every shot outside the tuning tools, which set their own. Shot Tuning's aim search
-  // settled at these (session 085918) and both tuning tools fire with them; SOTM Tuning's 16 finished hooded spots
-  // (7 Nov) put the hooded one at +1.92 far, +2.01 mid, +1.85 near. TeleOp had none and aimed ~2 deg right of them
+  // Aim turned anticlockwise on every shot outside the tuning tools, which set their own. Where Shot Tuning's aim
+  // search and SOTM Tuning's hooded spots settled, and both tuning tools fire with it. Without it TeleOp aimed ~2 deg
+  // right
   public static double HOODED_HEADING_TRIM_DEG = 2.0;
 }
