@@ -9,6 +9,8 @@ import org.firstinspires.ftc.teamcode.subsystems.hood.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.tuning.BallMark;
+import org.firstinspires.ftc.teamcode.tuning.Buttons;
+import org.firstinspires.ftc.teamcode.tuning.Buttons.Button;
 import org.firstinspires.ftc.teamcode.tuning.MarkKeys;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
@@ -159,11 +161,7 @@ public class SotmTuning extends TuningOpMode {
   private final ArrayDeque<double[]> velocityHistory = new ArrayDeque<>(); // {t, vx, vy}
   private double[] accel = {0, 0};
 
-  private boolean wasB;
-  private boolean wasY;
-  private boolean wasStart;
-  private boolean wasBack;
-  private boolean wasLeftBumper;
+  private final Buttons buttons = new Buttons();
 
   private static String prefixed(String p) {
     StringBuilder s = new StringBuilder();
@@ -213,10 +211,10 @@ public class SotmTuning extends TuningOpMode {
       return;
     }
     Gamepad pad = robot.getDriver();
-    if (pad.y && !wasY) {
+    buttons.update(pad, Button.Y);
+    if (buttons.pressed(Button.Y)) {
       carryOn = !carryOn;
     }
-    wasY = pad.y;
     telemetry.addData("Plan", planError != null ? "FAILED: " + planError : !planned() ? "planning the passes..."
         : String.format(Locale.US, "hooded: %d spots + %d checks, backward: %d spots + %d checks",
             spotCount(hoodedPlan), hoodedPlan.size() - spotCount(hoodedPlan), spotCount(backwardPlan),
@@ -460,11 +458,12 @@ public class SotmTuning extends TuningOpMode {
     double nowS = clock.seconds();
     resumeSpots();
     Gamepad pad = robot.getDriver();
+    buttons.update(pad);
     FieldPose pose = robot.getPose();
     BallMark mark = keys.update(pad.x, pad.a, pad.dpad_up, pad.dpad_down, pad.dpad_left, pad.dpad_right);
     updateAccel(nowS);
     boolean between = stage == Stage.IDLE || stage == Stage.END || stage == Stage.TO_RELOAD;
-    boolean pressB = pad.b && !wasB || SotmTuningSettings.PRESS_B;
+    boolean pressB = buttons.pressed(Button.B) || SotmTuningSettings.PRESS_B;
     SotmTuningSettings.PRESS_B = false;
     if (pressB) {
       if (between) {
@@ -473,17 +472,17 @@ public class SotmTuning extends TuningOpMode {
         stop("stopped (B)");
       }
     }
-    if (pad.start && !wasStart && between) {
+    if (buttons.pressed(Button.START) && between) {
       start(nowS, pose, entry);
     }
-    if (pad.y && !wasY && between && lastShotRow != null && !lastShotMarked) {
+    if (buttons.pressed(Button.Y) && between && lastShotRow != null && !lastShotMarked) {
       // Nobody saw where it went: written down as unseen and left out of the spot's search, which runs the spot again.
       // Before, a spot's unmarked ball held B up and Y skipped a pass instead, so there was no way on
       lastShotMarked = true;
       lastMark = "UNSEEN";
       append(String.format(Locale.US, "%s,%d,UNSEEN,%s", session, shots, lastShotRow));
       status = "last ball written down as not seen: B for the next";
-    } else if (pad.y && !wasY) {
+    } else if (buttons.pressed(Button.Y)) {
       SotmPath.Entry skip = between ? nextEntry() : entry;
       if (!between) {
         stop("skipped");
@@ -495,20 +494,15 @@ public class SotmTuning extends TuningOpMode {
         status = "skipped " + skip.key;
       }
     }
-    if (pad.back && !wasBack) {
+    if (buttons.pressed(Button.BACK)) {
       SotmTuningSettings.GATES = (SotmTuningSettings.GATES + 1) % 3;
     }
-    if (pad.left_bumper && !wasLeftBumper && between) {
+    if (buttons.pressed(Button.LEFT_BUMPER) && between) {
       backward = !backward;
       stage = Stage.IDLE;
       entry = null;
       spot = null;
     }
-    wasB = pad.b;
-    wasY = pad.y;
-    wasStart = pad.start;
-    wasBack = pad.back;
-    wasLeftBumper = pad.left_bumper;
     if (stage != Stage.IDLE && FieldRoute.driverTookOver(pad)) {
       stop("stopped: the driver took over");
     }

@@ -10,6 +10,8 @@ import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.tuning.AimTrimSearch;
 import org.firstinspires.ftc.teamcode.tuning.BackwardShotSearch;
 import org.firstinspires.ftc.teamcode.tuning.BallMark;
+import org.firstinspires.ftc.teamcode.tuning.Buttons;
+import org.firstinspires.ftc.teamcode.tuning.Buttons.Button;
 import org.firstinspires.ftc.teamcode.tuning.MarkKeys;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
@@ -192,10 +194,7 @@ public class ShotTuning extends TuningOpMode {
   private boolean resumeSpotPending = false; // Holds the resumed spot once the Cell and pose are known
   private String resumeNote = "";
 
-  private boolean wasLeftBumper;
-  private boolean wasB;
-  private boolean wasY;
-  private boolean wasStart;
+  private final Buttons buttons = new Buttons();
 
   public ShotTuning() {
     super("Shot Tuning");
@@ -216,10 +215,10 @@ public class ShotTuning extends TuningOpMode {
   protected void onPsiKitInitLoop() {
     if (robot != null) {
       Gamepad pad = robot.getDriver();
-      if (justPressed(pad.y, wasY)) {
+      buttons.update(pad, Button.Y);
+      if (buttons.pressed(Button.Y)) {
         resume = !resume;
       }
-      wasY = pad.y;
       telemetry.addData("Session", resumeData == null ? "new (no earlier balls in the CSV)"
           : resume ? String.format(Locale.US, "CARRY ON %s at %s, %d balls so far (Y: start a new one)",
               resumeData.session, TuningResume.key(resumeData.backward, resumeData.spot), resumeData.balls.size())
@@ -354,14 +353,15 @@ public class ShotTuning extends TuningOpMode {
   protected void onPsiKitLoop() {
     double nowS = clock.seconds();
     Gamepad pad = robot.getDriver();
+    buttons.update(pad);
     FieldPose pose = robot.getPose();
     BallMark mark = keys.update(pad.x, pad.a, pad.dpad_up, pad.dpad_down, pad.dpad_left, pad.dpad_right);
-    if (justPressed(pad.left_bumper, wasLeftBumper)) {
+    if (buttons.pressed(Button.LEFT_BUMPER)) {
       backward = !backward;
       tableLoaded = false; // The other direction's table, as soon as the distance is known
       restartSearch = true;
     }
-    if (justPressed(pad.y, wasY)) {
+    if (buttons.pressed(Button.Y)) {
       findTagsSinceS = Double.NaN;
       tableLoaded = false;
       restartSearch = true;
@@ -370,14 +370,14 @@ public class ShotTuning extends TuningOpMode {
     if (!tableLoaded) {
       loadTable();
     }
-    if (justPressed(pad.b, wasB)) {
+    if (buttons.pressed(Button.B)) {
       if (driving || looking || passStage != PassStage.NONE) {
         stopDriving("stopped (B)");
       } else {
         startDrivingToNextSpot(nowS, pose);
       }
     }
-    if (justPressed(pad.start, wasStart)) {
+    if (buttons.pressed(Button.START)) {
       if (passStage != PassStage.NONE) {
         stopDriving("pass stopped (Start)");
       } else if (!driving) {
@@ -385,10 +385,6 @@ public class ShotTuning extends TuningOpMode {
       }
     }
     holdResumedSpot(nowS, pose);
-    wasLeftBumper = pad.left_bumper;
-    wasB = pad.b;
-    wasY = pad.y;
-    wasStart = pad.start;
     autoDrive(nowS, pose);
     pushShot();
     addTelemetry(nowS, pose);
@@ -1155,9 +1151,5 @@ public class ShotTuning extends TuningOpMode {
       fileError = "not saved: " + e.getMessage();
       RobotLog.ee("ShotTuning", e, "Can't write %s", CSV_PATH);
     }
-  }
-
-  private static boolean justPressed(boolean pressedNow, boolean pressedLastLoop) {
-    return pressedNow && !pressedLastLoop;
   }
 }

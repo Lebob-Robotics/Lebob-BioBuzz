@@ -11,6 +11,8 @@ import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.CellGeometry;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.tuning.BallDipDetector;
+import org.firstinspires.ftc.teamcode.tuning.Buttons;
+import org.firstinspires.ftc.teamcode.tuning.Buttons.Button;
 import org.firstinspires.ftc.teamcode.tuning.TuningCsv;
 import org.psilynx.psikit.core.Logger;
 
@@ -112,18 +114,7 @@ public class SpecialShotCalibration extends TuningOpMode {
   private double orientUntilS = Double.NaN;
   private String driveStatus = "";
 
-  private boolean wasLeftBumper;
-  private boolean wasLeftStick;
-  private boolean wasRightStick;
-  private boolean wasBack;
-  private boolean wasB;
-  private boolean wasX;
-  private boolean wasA;
-  private boolean wasY;
-  private boolean wasDpadUp;
-  private boolean wasDpadDown;
-  private boolean wasDpadLeft;
-  private boolean wasDpadRight;
+  private final Buttons buttons = new Buttons();
 
   public SpecialShotCalibration() {
     super("Special Shot Calibration");
@@ -141,10 +132,10 @@ public class SpecialShotCalibration extends TuningOpMode {
       telemetry.addData("Driving from", robot.isDriverOnFarSide() ? "FAR side of the field (Share to change)"
           : "alliance wall (Share to change)");
       Gamepad pad = robot.getDriver();
-      if (justPressed(pad.back, wasBack)) {
+      buttons.update(pad, Button.BACK);
+      if (buttons.pressed(Button.BACK)) {
         robot.setDriverOnFarSide(!robot.isDriverOnFarSide());
       }
-      wasBack = pad.back;
       robot.initLoop();
     }
   }
@@ -161,20 +152,21 @@ public class SpecialShotCalibration extends TuningOpMode {
   protected void onPsiKitLoop() {
     double nowS = clock.seconds();
     Gamepad pad = robot.getDriver();
+    buttons.update(pad);
     FieldPose pose = robot.getPose();
     Cell far = farCell != null ? farCell : farEndFrom(pose);
-    if (justPressed(pad.back, wasBack)) {
+    if (buttons.pressed(Button.BACK)) {
       robot.setDriverOnFarSide(!robot.isDriverOnFarSide());
     }
-    if (justPressed(pad.left_bumper, wasLeftBumper)) {
+    if (buttons.pressed(Button.LEFT_BUMPER)) {
       boolean down = robot.getUpCell() != far;
       rpm = down ? START_RPM_FAR_DOWN : START_RPM_FAR_UP;
       launchDeg = down ? START_LAUNCH_DEG_FAR_DOWN : START_LAUNCH_DEG_FAR_UP;
     }
-    if (justPressed(pad.y, wasY)) {
+    if (buttons.pressed(Button.Y)) {
       orientUntilS = nowS + ORIENT_TIMEOUT_S;
     }
-    if (justPressed(pad.b, wasB)) {
+    if (buttons.pressed(Button.B)) {
       if (driving) {
         stopDriving("stopped (B)");
       } else {
@@ -182,33 +174,21 @@ public class SpecialShotCalibration extends TuningOpMode {
         far = farCell != null ? farCell : far;
       }
     }
-    if (justPressed(pad.dpad_up, wasDpadUp)) {
+    if (buttons.pressed(Button.DPAD_UP)) {
       rpm = Math.min(robot.shooter.getMaxRpm(), rpm + RPM_STEP);
     }
-    if (justPressed(pad.dpad_down, wasDpadDown)) {
+    if (buttons.pressed(Button.DPAD_DOWN)) {
       rpm = Math.max(MIN_RPM, rpm - RPM_STEP);
     }
-    if (justPressed(pad.dpad_right, wasDpadRight)) {
+    if (buttons.pressed(Button.DPAD_RIGHT)) {
       launchDeg = Math.max(HoodGeometry.MIN_ANGLE_DEG, launchDeg - HOOD_STEP_DEG);
     }
-    if (justPressed(pad.dpad_left, wasDpadLeft)) {
+    if (buttons.pressed(Button.DPAD_LEFT)) {
       launchDeg = Math.min(HoodGeometry.ZERO_ANGLE_DEG, launchDeg + HOOD_STEP_DEG);
     }
-    trimDeg += (justPressed(pad.left_stick_button, wasLeftStick) ? HEADING_TRIM_STEP_DEG : 0)
-        - (justPressed(pad.right_stick_button, wasRightStick) ? HEADING_TRIM_STEP_DEG : 0);
-    String mark = justPressed(pad.x, wasX) ? "IN" : justPressed(pad.a, wasA) ? "RATTLED" : null;
-    wasBack = pad.back;
-    wasLeftStick = pad.left_stick_button;
-    wasRightStick = pad.right_stick_button;
-    wasLeftBumper = pad.left_bumper;
-    wasB = pad.b;
-    wasX = pad.x;
-    wasA = pad.a;
-    wasY = pad.y;
-    wasDpadUp = pad.dpad_up;
-    wasDpadDown = pad.dpad_down;
-    wasDpadLeft = pad.dpad_left;
-    wasDpadRight = pad.dpad_right;
+    trimDeg += (buttons.pressed(Button.LEFT_STICK) ? HEADING_TRIM_STEP_DEG : 0)
+        - (buttons.pressed(Button.RIGHT_STICK) ? HEADING_TRIM_STEP_DEG : 0);
+    String mark = buttons.pressed(Button.X) ? "IN" : buttons.pressed(Button.A) ? "RATTLED" : null;
     autoDrive(nowS, pose, pad);
     pushShot(far);
     addTelemetry(far);
@@ -436,9 +416,5 @@ public class SpecialShotCalibration extends TuningOpMode {
       fileError = "not saved: " + e.getMessage();
       RobotLog.ee("SpecialShot", e, "Can't write %s", CSV_PATH);
     }
-  }
-
-  private static boolean justPressed(boolean pressedNow, boolean pressedLastLoop) {
-    return pressedNow && !pressedLastLoop;
   }
 }
