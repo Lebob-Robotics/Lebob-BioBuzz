@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.auto;
 
-import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**

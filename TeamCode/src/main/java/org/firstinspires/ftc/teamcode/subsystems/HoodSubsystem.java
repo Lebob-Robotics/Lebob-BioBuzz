@@ -10,7 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.hardware.HubMotors;
-import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 
 /**

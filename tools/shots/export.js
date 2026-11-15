@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regenerates TeamCode/.../utils/ShotTable.java (hood angle and RPM table) from tools/shots/inputs.json.
+// Regenerates TeamCode/.../shooting/ShotTable.java (hood angle and RPM table) from tools/shots/inputs.json.
 // Run from any directory:
 //   node tools/shots/export.js
 const fs = require('fs');
@@ -17,7 +17,7 @@ if (fails.length) {
   process.exit(1);
 }
 
-const out = path.join(__dirname, '..', '..', 'TeamCode', 'src', 'main', 'java', 'org', 'firstinspires', 'ftc', 'teamcode', 'utils', 'ShotTable.java');
+const out = path.join(__dirname, '..', '..', 'TeamCode', 'src', 'main', 'java', 'org', 'firstinspires', 'ftc', 'teamcode', 'shooting', 'ShotTable.java');
 const table = Table.build(p);
 const blends = Table.blendCheck(table, p);
 if (blends.misses.length) {

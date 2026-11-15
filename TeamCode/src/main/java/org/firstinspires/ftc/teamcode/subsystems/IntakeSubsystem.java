@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
-import org.firstinspires.ftc.teamcode.utils.MotorReversalGuard;
+import org.firstinspires.ftc.teamcode.control.MotorReversalGuard;
 
 import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;

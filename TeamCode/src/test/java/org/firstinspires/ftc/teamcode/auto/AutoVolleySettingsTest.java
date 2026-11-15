@@ -6,12 +6,12 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.VolleySettings;
-import org.firstinspires.ftc.teamcode.VolleySettingsAccess;
+import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleySettings;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleySettingsAccess;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.Cell;
-import org.firstinspires.ftc.teamcode.utils.VolleyAutoTuner.Settings;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleyAutoTuner.Settings;
 import org.junit.Test;
 
 /** The scoring auto shoots with Volley Tuning's spots: the 15 Nov competition file. */

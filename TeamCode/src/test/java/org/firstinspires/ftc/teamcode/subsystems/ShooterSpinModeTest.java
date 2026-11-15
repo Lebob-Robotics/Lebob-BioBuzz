@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import static org.junit.Assert.assertEquals;
 
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.SpinMode;
-import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
+import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMoveConstants;
 import org.junit.Test;
 
 public class ShooterSpinModeTest {

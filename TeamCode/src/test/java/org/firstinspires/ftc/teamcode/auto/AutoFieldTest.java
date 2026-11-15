@@ -4,9 +4,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
+import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.junit.Test;
 
@@ -98,7 +98,7 @@ public class AutoFieldTest {
     for (Alliance alliance : Alliance.values()) {
       for (Cell cell : Cell.values()) {
         double[] spot = AutoField.shotSpot(alliance, cell);
-        double[] aim = org.firstinspires.ftc.teamcode.utils.VisionCorrector.upCellAimPoint(alliance, cell);
+        double[] aim = VisionCorrector.upCellAimPoint(alliance, cell);
         assertEquals("Volley Tuning's spot 4", 0.92, Math.hypot(aim[0] - spot[0], aim[1] - spot[1]), 0.01);
         assertEquals(1.00, Math.abs(spot[0]), 1e-9);
         assertEquals(1.05, Math.abs(spot[1]), 1e-9);

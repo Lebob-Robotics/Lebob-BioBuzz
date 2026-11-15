@@ -2,10 +2,10 @@ package org.firstinspires.ftc.teamcode.auto;
 
 import com.pedropathing.math.Pose;
 
-import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Units;
-import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
+import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**

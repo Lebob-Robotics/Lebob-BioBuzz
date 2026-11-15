@@ -8,7 +8,7 @@ import com.pedropathing.api.Paths;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 
-import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.CapturedDrivetrain;

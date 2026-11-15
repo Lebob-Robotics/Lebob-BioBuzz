@@ -10,6 +10,7 @@ import org.psilynx.psikit.core.LoggableInputs;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.vision.ClusterFromTags;
 
 /**
  * Everything one camera tells the robot, in a form PsiKit can log and replay.
@@ -122,7 +123,7 @@ public class VisionInputs implements LoggableInputs {
    * Adds Cells worked out from this capture's single tags (see ClusterFromTags), as cluster detections,
    * so they are logged and replayed like the SDK's. Live only, after capture.
    */
-  public void addClusters(List<org.firstinspires.ftc.teamcode.utils.ClusterFromTags.Cluster> clusters) {
+  public void addClusters(List<ClusterFromTags.Cluster> clusters) {
     if (clusters.isEmpty()) {
       return;
     }
@@ -144,7 +145,7 @@ public class VisionInputs implements LoggableInputs {
     decisionMargin = java.util.Arrays.copyOf(decisionMargin, total);
     frameNanos = java.util.Arrays.copyOf(frameNanos, total);
     for (int k = 0; k < clusters.size(); k++) {
-      org.firstinspires.ftc.teamcode.utils.ClusterFromTags.Cluster c = clusters.get(k);
+      ClusterFromTags.Cluster c = clusters.get(k);
       int i = n + k;
       tagIds[i] = CLUSTER_ID;
       clusterNames[i] = c.name;

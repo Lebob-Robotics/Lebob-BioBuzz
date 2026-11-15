@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.auto.CornerSequence.Step;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Cell;

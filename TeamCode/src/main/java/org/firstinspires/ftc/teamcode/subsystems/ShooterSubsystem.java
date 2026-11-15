@@ -12,7 +12,7 @@ import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
-import org.firstinspires.ftc.teamcode.utils.MotorReversalGuard;
+import org.firstinspires.ftc.teamcode.control.MotorReversalGuard;
 
 /**
  * Controls the two side-by-side shooter flywheels. Feeding balls into them is
