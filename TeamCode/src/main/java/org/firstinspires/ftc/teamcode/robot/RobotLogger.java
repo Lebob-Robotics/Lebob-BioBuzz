@@ -22,20 +22,20 @@ final class RobotLogger {
 
   /** Everything shoot on the move worked out this loop, for AdvantageScope. */
   void logAim(Aim aim) {
-    Logger.recordOutput("SOTM/State", robot.aimState.name());
+    Logger.recordOutput("SOTM/State", robot.aimSelector.aimState.name());
     Logger.recordOutput("SOTM/Alliance", robot.alliance.name());
     Logger.recordOutput("SOTM/KnowsCell", aim != null);
-    Logger.recordOutput("SOTM/CellX", robot.aimCellX);
-    Logger.recordOutput("SOTM/CellY", robot.aimCellY);
-    Logger.recordOutput("SOTM/AimingAtFieldCell", robot.aimingAtFieldCell);
+    Logger.recordOutput("SOTM/CellX", robot.aimSelector.aimCellX);
+    Logger.recordOutput("SOTM/CellY", robot.aimSelector.aimCellY);
+    Logger.recordOutput("SOTM/AimingAtFieldCell", robot.aimSelector.aimingAtFieldCell);
     Logger.recordOutput("SOTM/UpCell", robot.visionCorrector.upCell(robot.alliance).name());
-    Logger.recordOutput("SOTM/AimCell", robot.aimCell().name());
+    Logger.recordOutput("SOTM/AimCell", robot.aimSelector.aimCell().name());
     Logger.recordOutput("SOTM/TrackerCellX", robot.tracker.getCellX()); // To compare with the field Cell
     Logger.recordOutput("SOTM/TrackerCellY", robot.tracker.getCellY());
     // For AdvantageScope's field views: a line from the robot to the Cell it is aiming at, none when unknown
     Logger.recordOutput("SOTM/Cell", aim == null ? new Pose2d[0]
-        : new Pose2d[] {new Pose2d(robot.aimCellX, robot.aimCellY, new Rotation2d())});
-    Logger.recordOutput("SOTM/CellSeenAgoS", robot.cellSeenAgoS);
+        : new Pose2d[] {new Pose2d(robot.aimSelector.aimCellX, robot.aimSelector.aimCellY, new Rotation2d())});
+    Logger.recordOutput("SOTM/CellSeenAgoS", robot.aimSelector.cellSeenAgoS);
     Logger.recordOutput("SOTM/RpmTrim", robot.rpmTrim);
     Logger.recordOutput("SOTM/HeadingTrimDeg", robot.headingTrimDeg);
     Logger.recordOutput("SOTM/TableRpmOffset", robot.shooterControl.tableRpmOffset(aim));

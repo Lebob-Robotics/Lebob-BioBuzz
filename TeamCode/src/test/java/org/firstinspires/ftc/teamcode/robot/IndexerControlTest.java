@@ -80,11 +80,11 @@ public class IndexerControlTest {
   }
 
   @Test public void theWedgeForcesBackwardOnlyWhereTheBackwardTableWasShot() {
-    assertTrue("230333's 0.90 m volley", Robot.wedgeForcesBackward(true, 0.90));
-    assertTrue(Robot.wedgeForcesBackward(true, 0.41));
-    assertFalse("against the rear wall, 1.05 m: as before", Robot.wedgeForcesBackward(true, 1.05));
-    assertFalse(Robot.wedgeForcesBackward(true, Double.NaN));
-    assertFalse(Robot.wedgeForcesBackward(false, 0.60));
+    assertTrue("230333's 0.90 m volley", AimSelector.wedgeForcesBackward(true, 0.90));
+    assertTrue(AimSelector.wedgeForcesBackward(true, 0.41));
+    assertFalse("against the rear wall, 1.05 m: as before", AimSelector.wedgeForcesBackward(true, 1.05));
+    assertFalse(AimSelector.wedgeForcesBackward(true, Double.NaN));
+    assertFalse(AimSelector.wedgeForcesBackward(false, 0.60));
   }
 
   @Test public void theIntakesEaseEndsOnARealLtPressEvenWithTheWheelsSpinning() {

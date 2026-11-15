@@ -27,17 +27,13 @@ import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.field.PoseHandoff;
 import org.firstinspires.ftc.teamcode.shooting.feed.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
-import org.firstinspires.ftc.teamcode.vision.CellSighting;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.PoseHistory;
 import org.firstinspires.ftc.teamcode.shooting.feed.RpmTrend;
 import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
 import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
-import org.firstinspires.ftc.teamcode.shooting.AimConstants;
-import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
 import org.firstinspires.ftc.teamcode.shooting.FireConstants;
-import org.firstinspires.ftc.teamcode.shooting.ShotPickConstants;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionConstants;
 import org.firstinspires.ftc.teamcode.shooting.ShooterTuning;
@@ -91,6 +87,7 @@ public class Robot {
   final BallPath ballPath = new BallPath(this);
   final DriveControl driveControl = new DriveControl(this);
   final ShooterControl shooterControl = new ShooterControl(this);
+  final AimSelector aimSelector = new AimSelector(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -143,30 +140,22 @@ public class Robot {
   boolean poseValid = false; // True once a tag fix has placed the robot on the field
   // True once two tags have set the heading, or the driver reset it with A. Until then a heading fix may be any size
   boolean headingValid = false;
-  private Cell frontCell = null; // Our Cell on the robot's side of the Hive
-  private boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
+  boolean poseSeeded = false; // Shoot Auto's assumed start pose: aimed from until vision places the robot
   VisionResult lastVision = null; // Last update that looked at tags, for telemetry
   long lastVisionNanos = 0;
   private int positionFixes; // Tag fixes applied to the position so far
 
-  AimState aimState = AimState.OFF;
   double hoodLiftTrimDeg = 0;
   double rpmTrim = 0; // Driver's, for the rest of the match
   double headingTrimDeg = 0; // Anticlockwise, the tuning tools' aim trim (TeleOp uses aimTrimDeg's)
   // Shot Tuning: the driver's RPM, hood and direction replace the tables', and the buttons they use do nothing else
   boolean tuningMode = false;
-  private static final double TUNING_HEADING_TOLERANCE_DEG = 1.5;
-  private boolean tuningBackward = false;
-  private double tuningRpm = 3400;
-  private double tuningHoodDeg = HoodSubsystem.ZERO_ANGLE_DEG;
   boolean tuningLive = false; // Shot Tuning's moving pass: the tables' shot, moving corrections and all
-  private boolean closeMovingGateBypassed = false; // SOTM Tuning's passes that fire moving close to the lip
+  boolean closeMovingGateBypassed = false; // SOTM Tuning's passes that fire moving close to the lip
   boolean scriptedOneBall = false; // As RB held in Shot Tuning, from a script
   private boolean scriptedVolley = false; // As RB held in Lebot Teleop, from a script (autonomous)
   private Aim lastAim = null;
   private boolean forceAim = false; // Aims as RB does, without firing
-  private double[] aimPointOverride = null; // Field {x, y} aimed at instead of the Cell; needs the tags' pose
-  private boolean allianceFromTags = false; // Takes the alliance of the Cell seen while its own is unknown
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private final LoopWatchdog watchdog = new LoopWatchdog();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
@@ -179,8 +168,6 @@ public class Robot {
   // RB is a plain held shot as RT's
   boolean volleyMode = false;
   boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
-  private boolean hoodedOnly = false;
-  private boolean backwardOnly = false;
   final OneBallFeedGate volleyFeedGate
  = new OneBallFeedGate(0.0,
       FireConstants.AIMED_FEED_STOP_UNREADY_S, VolleyConstants.VOLLEY_FEED_PULSE_S,
@@ -194,25 +181,10 @@ public class Robot {
   // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
   private boolean buttonsReserved = false;
-  double cellSeenAgoS = Double.POSITIVE_INFINITY;
-  boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
-  double aimCellX = 0; // The point aimed at this loop, field metres
-  double aimCellY = 0;
-  /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
-  private Boolean aimBackwardLatched = null;
-  private double backwardBlockedSinceS = Double.NaN;
   final RpmTrend rpmTrend = new RpmTrend(FireConstants.RPM_TREND_WINDOW_S);
-  private static final double PREPOSITION_SETTLE_S = 0.5;
-  private boolean prepositionBackward = false;
-  private double prepositionSwitchSinceS = Double.NaN;
   private boolean handsOffPose = false;
   private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
   private boolean swapBatteryRumbled = false;
-  String stopHint; // What the driver must change for the shot to fire; null when it's not how they drive
-  private double stopHintSinceS = Double.NaN;
-  private boolean stopHintRumbled = false;
-  private static final double STOP_HINT_RUMBLE_AFTER_S = 0.4;
-  private static final int STOP_HINT_RUMBLE_MS = 400;
   private boolean startedFromAuto = false;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
   private boolean wasDpadUp = false;
@@ -227,8 +199,6 @@ public class Robot {
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
   private FieldPose lastPose = new FieldPose(0, 0, 0);
   double[] lastVelocity = {0, 0, 0};
-  private double[] aimVelocity; // Low-passed {x, y} the aim uses; null until the first loop
-  private double aimVelocityS;
   // Scoring Auto (6 Nov, feature/auto): no gamepad is read (G401); it drives, aims and intakes through these
   boolean autonomous = false;
   boolean autoIndexerPaused = false; // The auto's agitation: a loading indexer stops while true
@@ -490,7 +460,7 @@ public class Robot {
     boolean aiming = shootAll || oneBallHeld || forceAim;
     driveControl.updateHoldAnchor(holdShot, pose);
     times.aim = System.nanoTime();
-    Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
+    Aim aim = aimSelector.aimAtCell(pose, velocity, nowNanos, aiming);
     times.aimed = System.nanoTime();
     double turnDeg = ShooterControl.aimTrimDeg(tuningMode, headingTrimDeg, aim != null && aim.backward)
         + shooterControl.movingHeadingDeg(aim);
@@ -546,7 +516,7 @@ public class Robot {
     boolean shotLost = aim != null && (!aim.shot.valid
         || Math.abs(Angles.normalize(aim.lockHeadingRad - pose.headingRad)) > aim.headingToleranceRad
         || !hood.atTarget(feedStopHoodTicks()));
-    updateAimState(aiming, aim, ready);
+    aimSelector.updateAimState(aiming, aim, ready);
 
     times.drive = System.nanoTime();
     driveControl.update(aiming, aim, lockRateRadPerSec, pose, velocity);
@@ -661,196 +631,6 @@ public class Robot {
     }
   }
 
-  /** The Cell on the robot's side of the Hive, changing only once the robot is FRONT_CELL_SWITCH_M past the middle. */
-  static Cell frontCell(Cell current, double xM) {
-    double margin = AimConstants.FRONT_CELL_SWITCH_M;
-    if (current == null) {
-      return xM >= 0 ? Cell.AUDIENCE : Cell.SCORING;
-    }
-    if (current == Cell.AUDIENCE && xM < -margin) {
-      return Cell.SCORING;
-    }
-    if (current == Cell.SCORING && xM > margin) {
-      return Cell.AUDIENCE;
-    }
-    return current;
-  }
-
-  /** The Cell aimed at: the one in front ({@link #frontCell}), or the tags' up Cell with AIM_AT_FRONT_CELL off. */
-  Cell aimCell() {
-    return AimConstants.AIM_AT_FRONT_CELL && frontCell != null ? frontCell : visionCorrector.upCell(alliance);
-  }
-
-  /**
-   * Null when the Cell hasn't been seen recently. While aiming, the shot direction (hooded or backward)
-   * is picked once, as the one ready soonest (ShootOnTheMove.secondsToReady: turn, hood and wheels), and kept
-   * until RT is let go: their headings are 180 degrees apart, so switching between them each loop spins the
-   * robot back and forth. A backward shot blocked only by the robot's speed still counts, SHOT_PICK_BLOCKED_S
-   * later: the robot then lines up and the hood goes down, and it fires once slowed. Picking only a ready
-   * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
-   * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
-   */
-  private Aim aimAtCell(FieldPose pose, double[] velocity, long nowNanos, boolean aiming) {
-    tracker.recordPose(nowNanos, pose);
-    // Every loop, aiming or not, so it has settled by the time RT is pressed. Only the aim uses it
-    // Loop clock, not the frame's capture time: that only moves when a camera frame arrives
-    double velocityNowS = clock.seconds();
-    aimVelocity = ShootOnTheMove.smoothAimVelocity(aimVelocity, velocity, velocityNowS - aimVelocityS,
-        AimConstants.AIM_VELOCITY_SMOOTHING_S);
-    aimVelocityS = velocityNowS;
-    Logger.recordOutput("SOTM/AimVelocity", aimVelocity);
-    // Spinning fast, the frame's pose is too uncertain and moved the Cell 0.17 m during one shot (5 Nov)
-    boolean steady = Math.abs(velocity[2]) <= VisionConstants.MAX_OMEGA_FOR_VISION_RAD_S;
-    for (CellSighting sighting : vision.takeNewCellSightings()) {
-      Alliance other = alliance == Alliance.RED ? Alliance.BLUE : Alliance.RED;
-      if (allianceFromTags && other.ownsCluster(sighting.clusterName) && !tracker.knowsCell(nowNanos)
-          && !visionCorrector.upCellConfirmed(alliance)) {
-        alliance = other;
-      }
-      if (alliance.ownsCluster(sighting.clusterName)) {
-        if (steady) {
-          tracker.update(sighting);
-        }
-      }
-    }
-    cellSeenAgoS = tracker.secondsSinceSeen(nowNanos);
-    // Once the tags have placed the robot and shown which of our Cells is up, aim at that Cell's place on the
-    // field. The tracker's Cell, last seen 6-20 s before, had been dragged 0.38 m toward the down Cell by the
-    // pose corrections it follows, and the balls went into the down Cell (5 Nov, 081558)
-    if (!aiming || frontCell == null) { // Held for the whole shot
-      frontCell = frontCell(frontCell, pose.xM);
-    }
-    aimingAtFieldCell = AimConstants.AIM_AT_FIELD_CELL
-        && (poseValid && (AimConstants.AIM_AT_FRONT_CELL || visionCorrector.upCellConfirmed(alliance))
-            || poseSeeded);
-    double cellX;
-    double cellY;
-    if (aimPointOverride != null) {
-      if (!poseValid) {
-        return null;
-      }
-      cellX = aimPointOverride[0];
-      cellY = aimPointOverride[1];
-    } else if (aimingAtFieldCell) {
-      double[] point = VisionCorrector.upCellAimPoint(alliance, aimCell());
-      cellX = point[0];
-      cellY = point[1];
-    } else if (tracker.knowsCell(nowNanos)) {
-      cellX = tracker.getCellX();
-      cellY = tracker.getCellY();
-    } else {
-      return null;
-    }
-    aimCellX = cellX;
-    aimCellY = cellY;
-    Aim hooded = ShootOnTheMove.aimHooded(pose, aimVelocity[0], aimVelocity[1], cellX, cellY);
-    if (hoodedOnly) {
-      aimBackwardLatched = false;
-      prepositionBackward = false;
-      return hooded;
-    }
-    Aim backward = ShootOnTheMove.aimBackward(pose, aimVelocity[0], aimVelocity[1], cellX, cellY);
-    if (tuningMode && tuningLive) {
-      return tuningBackward ? backward : hooded;
-    }
-    if (tuningMode) {
-      // Tight, so a tuning miss is down to the RPM and hood rather than where in the gate the ball left
-      return (tuningBackward ? backward : hooded).withShot(tuningRpm, tuningHoodDeg,
-          Math.toRadians(TUNING_HEADING_TOLERANCE_DEG));
-    }
-    boolean pickBackward;
-    boolean frontOfCell = BackwardShotConstants.BACKWARD_SHOTS_ON && wedgeForcesBackward(
-        ShootOnTheMove.inFrontOfCell(pose, cellX, cellY, ShotPickConstants.BACKWARD_ONLY_WEDGE_DEG),
-        backward.shot.distanceToLipM);
-    if (!BackwardShotConstants.BACKWARD_SHOTS_ON || backward.shot.reason == Shot.Reason.OUT_OF_RANGE) {
-      pickBackward = false;
-    } else if (frontOfCell || backwardOnly) {
-      pickBackward = true;
-    } else if (ShotPickConstants.SHOT_PICK_QUICKEST) {
-      // Whichever is ready soonest from the heading, hood and wheels now (8 Nov): no backward arc
-      pickBackward = ShootOnTheMove.backwardQuicker(hooded, backward, pose.headingRad,
-          HoodSubsystem.ticksToAngle(hood.getPosition()), shooter.getRpm());
-    } else {
-      pickBackward = hooded.shot.reason == Shot.Reason.OUT_OF_RANGE
-          || backward.shot.distanceToLipM <= ShotPickConstants.BACKWARD_PICK_MAX_DIST_M;
-    }
-    Logger.recordOutput("SOTM/PickBackward", pickBackward);
-    if (!aiming) {
-      aimBackwardLatched = null;
-      // The shot RT would pick, so the hood can get there first. Only switched once the other one has
-      // been the pick for PREPOSITION_SETTLE_S, so turning past the switch point doesn't swing the hood
-      // through its whole travel each time (the belt skipped doing that, 4 Nov).
-      double nowS = nowNanos * 1e-9;
-      if (pickBackward == prepositionBackward) {
-        prepositionSwitchSinceS = Double.NaN;
-      } else if (Double.isNaN(prepositionSwitchSinceS)) {
-        prepositionSwitchSinceS = nowS;
-      } else if (nowS - prepositionSwitchSinceS >= PREPOSITION_SETTLE_S) {
-        prepositionBackward = pickBackward;
-        prepositionSwitchSinceS = Double.NaN;
-      }
-      return prepositionBackward ? backward : hooded;
-    }
-    if (aimBackwardLatched == null) {
-      aimBackwardLatched = pickBackward;
-      backwardBlockedSinceS = Double.NaN;
-    }
-    if (aimBackwardLatched) {
-      double nowS = nowNanos * 1e-9;
-      if (backward.shot.valid) {
-        backwardBlockedSinceS = Double.NaN;
-      } else if (Double.isNaN(backwardBlockedSinceS)) {
-        backwardBlockedSinceS = nowS;
-      } else if (!frontOfCell && nowS - backwardBlockedSinceS >= ShotPickConstants.BACKWARD_GIVE_UP_S
-          && hooded.shot.valid) {
-        aimBackwardLatched = false; // For the rest of this press, so it doesn't turn back and forth
-      }
-    }
-    return aimBackwardLatched ? backward : hooded;
-  }
-
-  /** Also rumbles once each time the shot becomes ready. */
-  private void updateAimState(boolean aiming, Aim aim, boolean ready) {
-    AimState newState;
-    if (!aiming) {
-      newState = AimState.OFF;
-    } else if (aim == null) {
-      newState = AimState.CELL_NOT_SEEN;
-    } else if (!aim.shot.valid) {
-      newState = AimState.NO_SAFE_SHOT;
-    } else if (ready) {
-      newState = AimState.READY;
-    } else {
-      newState = AimState.LINING_UP;
-    }
-    if (newState == AimState.READY && aimState != AimState.READY) {
-      physicalDriver.rumble(150);
-    }
-    aimState = newState;
-    stopHint = aiming ? stopHint(aim, newState, closeMovingGateBypassed) : null;
-    double nowS = clock.seconds();
-    if (stopHint == null) {
-      stopHintSinceS = Double.NaN;
-    } else if (Double.isNaN(stopHintSinceS)) {
-      stopHintSinceS = nowS;
-    }
-    if (!aiming) {
-      stopHintRumbled = false;
-    } else if (!stopHintRumbled && !Double.isNaN(stopHintSinceS) && nowS - stopHintSinceS >= STOP_HINT_RUMBLE_AFTER_S) {
-      physicalDriver.rumble(STOP_HINT_RUMBLE_MS); // Once a press: the driver is moving in a way that can't shoot
-      stopHintRumbled = true;
-    }
-    Logger.recordOutput("SOTM/StopHint", stopHint == null ? "" : stopHint);
-  }
-
-  /** What the driver must change for the shot to fire ({@link ShootOnTheMove#stopHint}), else null. */
-  static String stopHint(Aim aim, AimState state, boolean closeMovingBypassed) {
-    if (aim == null || (state != AimState.LINING_UP && state != AimState.NO_SAFE_SHOT)) {
-      return null;
-    }
-    return ShootOnTheMove.stopHint(aim.shot, closeMovingBypassed);
-  }
-
   /** While aiming, D-pad up and down nudge the RPM, for when the table is a little off on the day. */
   private void updateTrim(boolean aiming) {
     if (!buttonsFree()) {
@@ -915,12 +695,6 @@ public class Robot {
         && feedGate != null && feedGate.ballsLeft() > 0);
   }
 
-  /** In front of the Cell the backward shot is forced, within the range its table was shot at. */
-  static boolean wedgeForcesBackward(boolean inFrontOfCell, double backwardLipM) {
-    return inFrontOfCell && backwardLipM <= ShotPickConstants.BACKWARD_WEDGE_MAX_LIP_M;
-  }
-
-
   private static int feedStopHoodTicks() {
     return (int) Math.round(FireConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
   }
@@ -981,8 +755,8 @@ public class Robot {
   public boolean isPoseValid() { return poseValid; }
   public double getBatteryVolts() { return batteryVolts; }
   public int getPositionFixes() { return positionFixes; }
-  public double getAimCellX() { return aimCellX; }
-  public double getAimCellY() { return aimCellY; }
+  public double getAimCellX() { return aimSelector.aimCellX; }
+  public double getAimCellY() { return aimSelector.aimCellY; }
   /** Aims as RT asks but feeds nothing: a scripted test lining up before the shot it means to take. */
   public void setHoldFire(boolean hold) { holdFire = hold; }
 
@@ -997,9 +771,9 @@ public class Robot {
 
   /** @param hoodDeg launch angle; HoodSubsystem.ZERO_ANGLE_DEG is the hood on its lower stop */
   public void setTuningShot(boolean backward, double rpm, double hoodDeg) {
-    tuningBackward = backward;
-    tuningRpm = rpm;
-    tuningHoodDeg = hoodDeg;
+    aimSelector.tuningBackward = backward;
+    aimSelector.tuningRpm = rpm;
+    aimSelector.tuningHoodDeg = hoodDeg;
   }
 
   /**
@@ -1063,10 +837,12 @@ public class Robot {
   }
 
   /** Switches to the other alliance when the cameras see its Cell while this alliance's Cell isn't known. */
-  public void setAllianceFromTags(boolean on) { allianceFromTags = on; }
+  public void setAllianceFromTags(boolean on) { aimSelector.allianceFromTags = on; }
 
   /** Aims at this field point {x, y} instead of the Cell, once the tags have placed the robot; null for the Cell. */
-  public void setAimPointOverride(double[] point) { aimPointOverride = point == null ? null : point.clone(); }
+  public void setAimPointOverride(double[] point) {
+    aimSelector.aimPointOverride = point == null ? null : point.clone();
+  }
 
   /** Which end of our alliance's Hive is up, as the tags last showed it (the starting guess until they have). */
   public Cell getUpCell() { return visionCorrector.upCell(alliance); }
@@ -1202,10 +978,10 @@ public class Robot {
   }
 
   /** Volley calibration measures the hooded shot at every test spot. */
-  public void setHoodedOnly(boolean on) { hoodedOnly = on; }
+  public void setHoodedOnly(boolean on) { aimSelector.hoodedOnly = on; }
 
   /** Volley Tuning's backward spots: the backward shot whenever the table has one. */
-  public void setBackwardOnly(boolean on) { backwardOnly = on; }
+  public void setBackwardOnly(boolean on) { aimSelector.backwardOnly = on; }
 
   /** A, B, X, Y and the D-pad do nothing in the robot, so an OpMode can use them (Volley Tuning's marks). */
   public void setButtonsReserved(boolean on) { buttonsReserved = on; }

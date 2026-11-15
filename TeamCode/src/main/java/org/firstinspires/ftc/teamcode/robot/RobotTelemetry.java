@@ -106,8 +106,8 @@ final class RobotTelemetry {
     double heading = pose.headingRad;
     String colour = robot.alliance == Alliance.RED ? "red" : "blue";
     boolean aiming = aim != null;
-    double cellX = robot.aimCellX / Units.M_PER_IN;
-    double cellY = robot.aimCellY / Units.M_PER_IN;
+    double cellX = robot.aimSelector.aimCellX / Units.M_PER_IN;
+    double cellY = robot.aimSelector.aimCellY / Units.M_PER_IN;
     fieldSender.execute(() -> {
       try {
         FieldManager field = PanelsField.INSTANCE.getField();
@@ -148,8 +148,8 @@ final class RobotTelemetry {
     lines.add(new String[] {"Hood launch deg", String.format("%.1f target / %.1f actual  (lift %.1f / %.1f)",
         HoodSubsystem.ticksToAngle(robot.hood.getTarget()), HoodSubsystem.ticksToAngle(robot.hood.getPosition()),
         robot.hood.getTargetLiftDegrees(), robot.hood.getLiftDegrees())});
-    lines.add(new String[] {"Aim", aim == null ? robot.aimState + ", Cell not known"
-        : String.format("%s  %s  %.2f m to lip  heading err %.1f deg", robot.aimState,
+    lines.add(new String[] {"Aim", aim == null ? robot.aimSelector.aimState + ", Cell not known"
+        : String.format("%s  %s  %.2f m to lip  heading err %.1f deg", robot.aimSelector.aimState,
             aim.backward ? "BACKWARD" : "HOODED", aim.shot.distanceToLipM,
             Math.toDegrees(aim.headingErrorRad(pose.headingRad)))});
     lines.add(new String[] {"Pose", String.format("%.2f, %.2f m  %.0f deg%s", pose.xM, pose.yM,
@@ -207,23 +207,24 @@ final class RobotTelemetry {
   /** The driver's lines: which shot, whether it's ready and what it waits for, and only the problems to act on. */
   private void addDriverTelemetry(Aim aim, FieldPose pose) {
     if (aim == null) {
-      telemetry.addData("Shot", Double.isInfinite(robot.cellSeenAgoS) ? "no Cell yet: point the cameras at the tags"
+      telemetry.addData("Shot", Double.isInfinite(robot.aimSelector.cellSeenAgoS)
+          ? "no Cell yet: point the cameras at the tags"
           : "Cell lost: point the cameras at the tags");
     } else {
       telemetry.addData("Shot", String.format("%s  %.2f m  %s",
-          robot.aimingAtFieldCell ? robot.alliance + " " + robot.aimCell() : "camera's Cell",
+          robot.aimSelector.aimingAtFieldCell ? robot.alliance + " " + robot.aimSelector.aimCell() : "camera's Cell",
           aim.shot.distanceToLipM, aim.backward ? "BACKWARD" : "HOODED"));
       String state;
-      if (robot.stopHint != null) {
-        state = robot.stopHint;
-      } else if (robot.aimState == AimState.LINING_UP) {
+      if (robot.aimSelector.stopHint != null) {
+        state = robot.aimSelector.stopHint;
+      } else if (robot.aimSelector.aimState == AimState.LINING_UP) {
         state = String.format("lining up  wheels %.0f/%.0f  hood %.1f/%.1f  turn %.0f deg", robot.shooter.getRpm(),
             robot.shooter.getTargetRpm(), HoodSubsystem.ticksToAngle(robot.hood.getPosition()),
             HoodSubsystem.ticksToAngle(robot.hood.getTarget()), Math.toDegrees(aim.headingErrorRad(pose.headingRad)));
-      } else if (robot.aimState == AimState.NO_SAFE_SHOT) {
+      } else if (robot.aimSelector.aimState == AimState.NO_SAFE_SHOT) {
         state = "no safe shot: " + aim.shot.reason;
       } else {
-        state = robot.aimState == AimState.OFF ? "RT to aim" : robot.aimState.toString();
+        state = robot.aimSelector.aimState == AimState.OFF ? "RT to aim" : robot.aimSelector.aimState.toString();
       }
       telemetry.addData("Aim", state + (robot.rpmTrim != 0 ? String.format("  (trim %+.0f)", robot.rpmTrim) : ""));
     }
@@ -250,7 +251,7 @@ final class RobotTelemetry {
   private void addDetailTelemetry(Aim aim, FieldPose pose) {
     telemetry.addData("Alliance", robot.alliance + (robot.poseValid ? "  pose on field" : "  pose not placed yet")
         + (robot.headingValid ? ", heading set" : ", heading from start"));
-    telemetry.addData("Aim", robot.aimState);
+    telemetry.addData("Aim", robot.aimSelector.aimState);
     if (robot.volleyMode) {
       telemetry.addData("Volley", robot.volleyShot ? String.format("balls out %d  (fed %d)  feed %.2f  boost %+.0f",
           robot.volleyFeedGate.ballsLeft(), robot.volleyFeedGate.feedStarts(), robot.volleyFeedPower(),
@@ -258,17 +259,17 @@ final class RobotTelemetry {
           : "RB for a standing volley (RT shoots on the move; none without the Cell)");
     }
     if (aim == null) {
-      telemetry.addData("Distance", Double.isInfinite(robot.cellSeenAgoS)
+      telemetry.addData("Distance", Double.isInfinite(robot.aimSelector.cellSeenAgoS)
           ? "Cell not seen yet: point the cameras at it"
-          : String.format("Cell forgotten (seen %.0f s ago): point the cameras at it", robot.cellSeenAgoS));
+          : String.format("Cell forgotten (seen %.0f s ago): point the cameras at it", robot.aimSelector.cellSeenAgoS));
     } else {
       telemetry.addData("Distance", String.format("%.2f m to lip  %s  (%s)", aim.shot.distanceToLipM,
           aim.backward ? "BACKWARD, hood down" : "FRONT, hooded",
-          robot.aimingAtFieldCell
-              ? robot.alliance + " " + robot.aimCell()
+          robot.aimSelector.aimingAtFieldCell
+              ? robot.alliance + " " + robot.aimSelector.aimCell()
                   + (AimConstants.AIM_AT_FRONT_CELL ? " (in front)" : " up, from tags")
-              : robot.cellSeenAgoS < 0.5 ? "camera sees Cell"
-                  : String.format("odometry, seen %.1f s ago", robot.cellSeenAgoS)));
+              : robot.aimSelector.cellSeenAgoS < 0.5 ? "camera sees Cell"
+                  : String.format("odometry, seen %.1f s ago", robot.aimSelector.cellSeenAgoS)));
       telemetry.addData("Shot", aim.shot.valid ? "OK" : aim.shot.reason);
       telemetry.addData("Dist", String.format("%.2f m  toward %.2f  sideways %.2f m/s",
           aim.shot.distanceToLipM, aim.shot.speedTowardCellMps, aim.shot.sidewaysSpeedMps));

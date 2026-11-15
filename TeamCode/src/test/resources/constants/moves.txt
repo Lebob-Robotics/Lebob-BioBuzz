@@ -246,3 +246,7 @@ org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_RETURN_M -> org.firstinspi
 org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_DONE_M -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_DONE_M
 org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_BOOST_PER_S -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_BOOST_PER_S
 org.firstinspires.ftc.teamcode.robot.Robot.HOLD_POINT_MOVING_MPS -> org.firstinspires.ftc.teamcode.robot.DriveControl.HOLD_POINT_MOVING_MPS
+org.firstinspires.ftc.teamcode.robot.Robot.PREPOSITION_SETTLE_S -> org.firstinspires.ftc.teamcode.robot.AimSelector.PREPOSITION_SETTLE_S
+org.firstinspires.ftc.teamcode.robot.Robot.STOP_HINT_RUMBLE_AFTER_S -> org.firstinspires.ftc.teamcode.robot.AimSelector.STOP_HINT_RUMBLE_AFTER_S
+org.firstinspires.ftc.teamcode.robot.Robot.STOP_HINT_RUMBLE_MS -> org.firstinspires.ftc.teamcode.robot.AimSelector.STOP_HINT_RUMBLE_MS
+org.firstinspires.ftc.teamcode.robot.Robot.TUNING_HEADING_TOLERANCE_DEG -> org.firstinspires.ftc.teamcode.robot.AimSelector.TUNING_HEADING_TOLERANCE_DEG
