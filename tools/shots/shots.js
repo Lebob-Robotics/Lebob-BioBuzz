@@ -26,7 +26,7 @@
     exitRadiusM: undefined,
     exitSpeedPerRpm: 0.0023,  // m/s of ball per flywheel RPM; measure with slow-motion video
     shooterOffsetM: 0.15,     // ball exit point forward of the robot centre
-    rpmToleranceRpm: 50,      // must match Constants.SHOOTER_TOLERANCE_RPM; the fixed hood leaves a 125-175 RPM band
+    rpmToleranceRpm: 50,      // the fixed-angle shooter's; the fixed hood leaves a 125-175 RPM band
     lipHeightM: 1.359,        // near lip of the up-facing Cell, 53.5 in
     openingWidthM: 0.508,     // 20 in
     openingLengthM: 0.356,    // 14 in along the tilted face

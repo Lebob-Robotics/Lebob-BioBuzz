@@ -1,14 +1,16 @@
 # Shot table tools
 
-Lebob Robotics, FTC 29550 · BIOBUZZ 2026/27 · v1.0, 20 Sep 2026
+Lebob Robotics, FTC 29550 · BIOBUZZ 2026/27 · v1.0, 20 Sep 2026; files and
+measurements updated 15 Nov 2026
 
-Note (18 Oct 2026): mark 3 has a hood, so the robot now uses the hood table
-from `table.js`. The text below about a fixed launch angle describes the
-original tool.
+Whether a shot lands depends on the distance, how fast the robot is closing
+on the Cell, the hood angle and the flywheel speed. These tools work that out
+on a laptop and give the robot a table, `ShotTable.java`: a hood angle and an
+RPM for every distance and radial speed.
 
-The robot cannot change its launch angle, so whether a shot lands while
-driving depends on distance and on how fast the robot is closing on the Cell.
-These tools work that out on a laptop and give the robot a table.
+The first robot had a fixed launch angle; mark 3 (18 Oct) added the hood. The
+visualiser (`index.html`) and "Why the tolerance was 50 RPM" below describe
+that original fixed-angle tool.
 
 ## Files
 
@@ -33,6 +35,17 @@ These tools work that out on a laptop and give the robot a table.
   the hood and flywheel tolerances, and searches for the narrowest hood travel
   that still covers every cell. `node tools/shots/hood.js` prints it.
 - `hood.html`: the same, with plots. Open it, press Compute, move the sliders.
+- `fit-speed.js`: fits `exitSpeedPerRpm` from the slow-motion video readings
+  in `speed-measurements.json`.
+- `fit-shots.js`: fits exit speed, launch offset, backspin lift and the
+  bounce-out limit to shots that were seen: `front-calibration.json` and the
+  grid CSVs from `tools/analysis/gridreport.py`.
+- `front-calibration.json`: hooded shots, fired and scored counts at a set
+  distance, hood lift and RPM. Its `note` says how they were measured.
+- `backwards-calibration.json`: the backward shot, hood on its lower stop,
+  RPM only. `BackwardShotConstants` comes from it.
+- `maps/volley_spots.svg` (and `.png`): Volley Tuning's spots on the red half
+  of the field with each spot's IN rate, as at regionals.
 
 ## What the three panels show
 
@@ -84,47 +97,40 @@ table. The page shows a red banner if not; the node script refuses to run.
 
 ## Measurements
 
-Record here, then copy into `inputs.json` and regenerate.
+The measured values are in `inputs.json`, and the readings behind them in
+`speed-measurements.json` (`fit-speed.js`) and `front-calibration.json`
+(`fit-shots.js`). Change `inputs.json`, run `export.js` and commit both.
 
-| Input | How to measure | Value | Date | Who |
-| --- | --- | --- | --- | --- |
-| `launchAngleDeg` | From the CAD, checked with a protractor on the exit guide | | | |
-| `exitHeightM` | Tape from tiles to the ball centre at exit | | | |
-| `exitSpeedPerRpm` | Fire Pollen at 3000, 4000, 5000 RPM from a fixed spot, slow-motion video past a metre rule, exit speed over RPM, fit a line through zero | | | |
-| `dragCd` | Compare the landing distance of those shots to the page's prediction, adjust until they match. Start at 0.45 | | | |
-| `shooterOffsetM` | Ball exit point forward of the robot's tracking point | | | |
-| `openingTiltDeg`, `openingLengthM`, `lipHeightM` | Competition Manual Figure 9-10 and the field CAD | | | |
-| `Constants.FEED_DELAY_S` | Video the indexer starting and the ball leaving, or count loops to the shooter current spike | | | |
-| `Constants.CAMERA_*` | From the CAD once the mount exists | | | |
+| Input | How to measure |
+| --- | --- |
+| `axleHeightM`, `exitRadiusM` | From the CAD: the flywheel axle's height, and how far from it the ball leaves the hood |
+| `exitSpeedPerRpm` | Slow-motion video of balls past a grid at several RPMs, into `speed-measurements.json`, then `fit-speed.js` |
+| `dragCd`, `liftCl` | `fit-shots.js` against shots that were seen |
+| `shooterOffsetM` | Ball exit point forward of the robot's tracking point |
+| `openingTiltDeg`, `openingLengthM`, `lipHeightM` | Competition Manual Figure 9-10 and the field CAD |
+| `AimConstants.FEED_DELAY_S` | Video the indexer starting and the ball leaving, or count loops to the shooter current spike |
 
 Time of flight at two distances, from the same video, checked against the
 table's `TOF_S` column.
 
-The table's distances are to the Cell's near lip, but the tag cluster's
-reported position (what `TargetTracker` places) is the opening centre;
-`ShotTable.LIP_TO_CENTRE_M`, generated alongside the table, converts one to
-the other before the lookup.
+The table's distances are to the Cell's near lip, but `TargetTracker` places
+the tag cluster; `CellGeometry.CLUSTER_TO_NEAR_LIP_M` moves one to the other
+before the lookup.
 
-## Why the tolerance is 50 RPM
+## Why the tolerance was 50 RPM
 
 With a fixed launch angle the near lip sets the lowest speed that scores and
 the far edge of the 14 in opening sets the highest. With the current inputs
 that window is about 0.3 m/s of ball speed, 150 to 225 RPM, at every distance
 the table keeps. The table only
 keeps cells whose band is at least twice `rpmToleranceRpm`, so the flywheel
-must hold ±50 RPM (`Constants.SHOOTER_TOLERANCE_RPM`). Tune the shooter PIDF
-until the logged `left_rpm` and `right_rpm` sit inside that at a steady
-target before spending time on moving shots. A bigger window needs a hood,
-which is a hardware conversation.
+had to hold ±50 RPM. A bigger window needed a hood, which mark 3 added. The
+robot's fire gate now uses `FireConstants.RPM_TOLERANCE`.
 
 ## Reading the logs
 
-Each run writes `/sdcard/FIRST/shots/<date-time>.csv` on the hub while Y is
-held and the Cell position is known. Pull them with:
-
-    adb pull /sdcard/FIRST/shots ./shots
-
-Columns are in `ShotLog.HEADER`. `valid` and `fired` are 0 or 1. A shot that
-missed while `valid` was 1 and `heading_err_rad` was inside tolerance means the
-table is off at that `dist_m` and `radial_mps`: check `exitSpeedPerRpm` and
-`dragCd` first.
+Shot Tuning writes every ball to `/sdcard/FIRST/ShotTuning_v2.csv` on the
+Hub. `tools/analysis/tuning_report.py` turns it into table rows, and
+`tuning_to_fit.py` into input for `fit-shots.js`. For a grid run,
+`tools/analysis/gridreport.py` and `trackshots.py` do the same from the
+PsiKit log and the field webcam. See `tools/analysis/README.md`.
