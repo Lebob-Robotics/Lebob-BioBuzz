@@ -39,7 +39,11 @@ public class HoodSubsystem extends SubsystemBase {
   // ---- Fast loop (HoodLoop), in lift degrees, seconds and power at 12 V ------
   /** Off: the hub's RUN_TO_POSITION drives the hood instead. */
   public static boolean FAST_LOOP = true;
-  public static double FAST_PERIOD_MS = 5;
+  // Every step is a REV bulk read on the Control Hub plus writes to the Expansion Hub over RS485, on the same
+  // serial link as the main loop: at 5 ms the main loop ran 65 ms against 40 without it (7 Nov, 092936)
+  public static double FAST_PERIOD_MS = 8;
+  /** Power changes smaller than this are not re-sent: at 0.002 nearly every step wrote. */
+  public static double FAST_POWER_DEADBAND = 0.01;
   public static double FAST_MAX_VEL_DEG_S = 200;
   public static double FAST_ACCEL_DEG_S2 = 4000;
   public static double FAST_DECEL_DEG_S2 = 3000;
@@ -262,6 +266,15 @@ public class HoodSubsystem extends SubsystemBase {
     if (fastLoop != null) {
       fastLoop.setOpenLoopPower(power, minDeg, maxDeg);
     }
+  }
+
+  /**
+   * The fast loop cuts power and ends its thread when the main loop misses heartbeats for 0.5 s. Nothing
+   * here told it to stop, so the hood went on "driving" a dead loop and never moved again: Volley Tuning
+   * stalled 0.59 s on Circle (15 Nov, 074849), the hood stayed at 56.7 of 74.2 degrees and no ball fed.
+   */
+  static boolean fastLoopStoppedItself(boolean drivingFast, boolean loopActive) {
+    return drivingFast && !loopActive;
   }
 
   private boolean useFastLoop() {
@@ -537,6 +550,9 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   private void driveFast(int target, int position, boolean atRest) {
+    if (fastLoopStoppedItself(drivingFast, fastLoop.isActive())) {
+      drivingFast = false; // Start it again below; its last reading is stale, so skip the mismatch check
+    }
     // Same encoder, read on two paths: a disagreement at rest means the loop's reading is wrong
     if (drivingFast && atRest && Math.abs(fastLoop.posDeg() - position / TICKS_PER_DEG) > FAST_MISMATCH_DEG) {
       if (++fastMismatchLoops >= 3) {

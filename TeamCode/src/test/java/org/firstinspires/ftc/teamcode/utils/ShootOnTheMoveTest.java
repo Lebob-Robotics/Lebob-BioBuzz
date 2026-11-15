@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.utils;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -34,6 +35,28 @@ public class ShootOnTheMoveTest {
     ShootOnTheMoveConstants.SHOOTER_LEFT_M = savedShooterLeftM;
     ShootOnTheMoveConstants.FEED_DELAY_S = savedFeedDelayS;
     ShootOnTheMoveConstants.HOOD_TOP_STOP_DEG = savedHoodTopStopDeg;
+  }
+
+  @Test
+  public void aimVelocityAveragesOutLoopNoiseButFollowsASteadyChange() {
+    // 7 Nov, 100030: sideways noise of a few cm/s swung the aim heading 2.4-3.4 degrees rms
+    double[] v = ShootOnTheMove.smoothAimVelocity(null, new double[] {1.0, 0.0}, 0.07, 0.12);
+    assertEquals(1.0, v[0], 1e-12); // First sample taken whole
+    double maxDev = 0;
+    for (int i = 0; i < 40; i++) {
+      double noise = (i % 2 == 0 ? 0.1 : -0.1);
+      v = ShootOnTheMove.smoothAimVelocity(v, new double[] {1.0, noise}, 0.07, 0.12);
+      maxDev = Math.max(maxDev, Math.abs(v[1]));
+    }
+    assertTrue("alternating 0.1 m/s noise smoothed to " + maxDev, maxDev < 0.05);
+    for (int i = 0; i < 20; i++) { // 1.4 s at the new speed: settled
+      v = ShootOnTheMove.smoothAimVelocity(v, new double[] {0.0, 0.5}, 0.07, 0.12);
+    }
+    assertEquals(0.5, v[1], 0.01);
+    assertEquals(0.0, v[0], 0.01);
+    // Off, or after a gap, it is the raw velocity
+    assertEquals(0.3, ShootOnTheMove.smoothAimVelocity(v, new double[] {0.3, 0}, 0.07, 0)[0], 1e-12);
+    assertEquals(0.3, ShootOnTheMove.smoothAimVelocity(v, new double[] {0.3, 0}, 2.0, 0.12)[0], 1e-12);
   }
 
   @Test
@@ -237,6 +260,9 @@ public class ShootOnTheMoveTest {
     assertTrue(standing.shot.valid && strafing.shot.valid);
     assertTrue(ShootOnTheMove.readyToFire(standing, true, true, standing.lockHeadingRad, 0));
     assertFalse(ShootOnTheMove.readyToFire(strafing, true, true, strafing.lockHeadingRad, strafing.lockRateRadPerSec));
+    // SOTM Tuning fires it, to see whether it scores
+    assertTrue(ShootOnTheMove.readyToFire(strafing, true, true, strafing.lockHeadingRad, strafing.lockRateRadPerSec,
+        0, true));
   }
 
   @Test
@@ -340,10 +366,10 @@ public class ShootOnTheMoveTest {
   // ---- Backward shot ----
 
   @Test public void backwardRpmIsTheCalibratedPointAndStraightBetween() {
-    assertEquals(3400, ShootOnTheMove.calculateBackward(0.95, 0, 0).targetRpm, 1e-6);
-    assertEquals(3700, ShootOnTheMove.calculateBackward(1.8, 0, 0).targetRpm, 1e-6);
-    assertEquals(4200, ShootOnTheMove.calculateBackward(2.3, 0, 0).targetRpm, 1e-6);
-    assertEquals(3950, ShootOnTheMove.calculateBackward(2.05, 0, 0).targetRpm, 1e-6);
+    assertEquals(3370, ShootOnTheMove.calculateBackward(0.95, 0, 0).targetRpm, 1e-6);
+    assertEquals(3460, ShootOnTheMove.calculateBackward(1.8, 0, 0).targetRpm, 1e-6);
+    assertEquals(3800, ShootOnTheMove.calculateBackward(2.3, 0, 0).targetRpm, 1e-6);
+    assertEquals(3630, ShootOnTheMove.calculateBackward(2.05, 0, 0).targetRpm, 1e-6);
     assertEquals(ShootOnTheMoveConstants.BACKWARD_LAUNCH_DEG, ShootOnTheMove.calculateBackward(1.3, 0, 0).hoodDeg, 0);
   }
 
@@ -351,9 +377,9 @@ public class ShootOnTheMoveTest {
     Shot close = ShootOnTheMove.calculateBackward(0.40, 0, 0);
     assertEquals(3200, close.targetRpm, 1e-6);
     assertEquals(90, close.hoodDeg, 1e-6);
-    Shot between = ShootOnTheMove.calculateBackward(0.775, 0, 0);
-    assertEquals(3335, between.targetRpm, 1e-6);
-    assertEquals(96.5, between.hoodDeg, 1e-6);
+    Shot between = ShootOnTheMove.calculateBackward(0.77, 0, 0); // Halfway from 0.73 to 0.81 m
+    assertEquals(3310, between.targetRpm, 1e-6);
+    assertEquals(96.45, between.hoodDeg, 1e-6);
   }
 
   @Test public void backwardJustInsideTheTableUsesItsFirstPoint() {
@@ -383,7 +409,7 @@ public class ShootOnTheMoveTest {
     assertTrue(aim.backward);
     assertTrue(aim.shot.valid);
     assertEquals(0, aim.targetHeadingRad, 1e-9); // Front toward +x, where the Cell is
-    assertEquals(3700, aim.shot.targetRpm, 1e-6);
+    assertEquals(3460, aim.shot.targetRpm, 1e-6);
   }
 
   @Test public void beyondTheBackwardTableUsesTheHoodedShotOutOfTheBack() {
@@ -396,6 +422,49 @@ public class ShootOnTheMoveTest {
   @Test public void withoutBackwardAllowedItIsAlwaysTheHoodedShot() {
     double clusterX = 1.8 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
     assertFalse(ShootOnTheMove.aim(new Pose(0, 0, 0), 0, 0, clusterX, 0).backward);
+  }
+
+  private static boolean backwardQuicker(double lipM, double headingRad, double towardMps, boolean hoodAndWheelsAtBackward) {
+    double clusterX = lipM + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Pose pose = new Pose(0, 0, headingRad);
+    Aim hooded = ShootOnTheMove.aimHooded(pose, towardMps, 0, clusterX, 0);
+    Aim backward = ShootOnTheMove.aimBackward(pose, towardMps, 0, clusterX, 0);
+    Aim at = hoodAndWheelsAtBackward ? backward : hooded;
+    return ShootOnTheMove.backwardQuicker(hooded, backward, headingRad, at.hoodNowDeg, at.rpmNow);
+  }
+
+  @Test
+  public void closeInFacingTheHoodedWayTakesTheHoodedShot() {
+    // 0.6 m was always backward on the old 0.80 m arc; facing the hooded way it is now the hooded shot
+    assertFalse(backwardQuicker(0.6, Math.PI, 0, false));
+    assertTrue(backwardQuicker(0.6, 0, 0, true));
+  }
+
+  @Test
+  public void facingTheBackwardWayTakesTheBackwardShot() {
+    assertTrue(backwardQuicker(0.7, 0, 0, true));
+    assertTrue(backwardQuicker(0.7, 0, 0, false)); // Hood and wheels elsewhere, but no 180 degree turn
+  }
+
+  @Test
+  public void pastTheCalibratedBackwardSpotsIsNeverBackward() {
+    // The backward table reaches 2.3 m, but only 0.40-0.81 m was ever shot
+    assertFalse(backwardQuicker(1.5, 0, 0, true));
+    assertFalse(backwardQuicker(3.0, 0, 0, true));
+  }
+
+  @Test
+  public void aBackwardShotBlockedBySpeedCountsLater() {
+    double clusterX = 0.7 + ShootOnTheMoveConstants.CLUSTER_TO_NEAR_LIP_M;
+    Pose sideways = new Pose(0, 0, Math.PI / 2);
+    Aim fast = ShootOnTheMove.aimBackward(sideways, 1.0, 0, clusterX, 0);
+    Aim slow = ShootOnTheMove.aimBackward(sideways, 0, 0, clusterX, 0);
+    assertFalse(fast.shot.valid);
+    assertEquals(ShootOnTheMoveConstants.SHOT_PICK_BLOCKED_S,
+        ShootOnTheMove.secondsToReady(fast, Math.PI / 2, Double.NaN, Double.NaN)
+            - ShootOnTheMove.secondsToReady(slow, Math.PI / 2, Double.NaN, Double.NaN), 1e-9);
+    // Side on and driving at it: both need 90 degrees, so the hooded shot, which it can take moving, wins
+    assertFalse(backwardQuicker(0.7, Math.PI / 2, 1.0, true));
   }
 
   @Test
@@ -411,5 +480,51 @@ public class ShootOnTheMoveTest {
   public void aimHoodedNeverPicksBackward() {
     Aim aim = ShootOnTheMove.aimHooded(new Pose(0, 0, 0), 0, 0, 1.5, 0);
     assertFalse(aim.backward);
+  }
+
+  @Test
+  public void hoodSteepensForWheelsAboveTheTableRpm() {
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 0), TOLERANCE);
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, -100), TOLERANCE); // Below the table: none
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(Double.NaN, 0, 200), TOLERANCE);
+    assertEquals(0, ShootOnTheMove.hoodOffsetForRpmAbove(9.0, 0, 200), TOLERANCE); // Off the table
+    double previous = 0;
+    for (int rpm = 50; rpm <= 600; rpm += 50) {
+      double offset = ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, rpm);
+      assertTrue("never falls as the wheels speed up: " + rpm, offset >= previous - 1e-9);
+      previous = offset;
+    }
+    assertTrue("+300 RPM at 1.2 m needs several degrees more", ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 300) > 3);
+    assertEquals(ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 600),
+        ShootOnTheMove.hoodOffsetForRpmAbove(1.2, 0, 900), TOLERANCE); // Held past the last step
+  }
+
+  @Test
+  public void inFrontOfCellIsAWedgeOutFromTheHive() {
+    // Red's Cell at x -0.44 opens toward -x. 14 Nov 230333 TeleOp shot hooded from (-1.47, -0.53), 11.5 degrees off
+    // its axis, and the balls bounced out: that is in front
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.47, -0.53, 0), -0.44, -0.32, 30));
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(-1.34, -0.27, 0), -0.44, -0.32, 30));
+    // Volley Tuning's spot 4 (8 of 8 hooded) and (-1.29, -1.07), 41 degrees off, are not
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-1.00, -1.05, 0), -0.44, -0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-1.29, -1.07, 0), -0.44, -0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(0.5, -0.32, 0), -0.44, -0.32, 30)); // Across the Hive
+    // The Cell at +0.44 opens toward +x
+    assertTrue(ShootOnTheMove.inFrontOfCell(new Pose(1.40, 0.40, 0), 0.44, 0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(-0.5, 0.32, 0), 0.44, 0.32, 30));
+    assertFalse(ShootOnTheMove.inFrontOfCell(new Pose(1.40, 0.32, 0), 0.44, 0.32, 0)); // Off
+  }
+
+  @Test
+  public void tellsTheDriverWhyAMovingShotWontFire() {
+    // 13 Nov 225336: 0.34-0.67 m from the lip, strafing at 0.7-1.1 m/s
+    Shot close = new Shot(Shot.Reason.OK, 3400, 60, 0.4, 0, 0.5, 0, 0.9);
+    assertEquals("STOP: too close to shoot moving", ShootOnTheMove.stopHint(close, false));
+    assertNull(ShootOnTheMove.stopHint(close, true));
+    Shot still = new Shot(Shot.Reason.OK, 3400, 60, 0.4, 0, 0.5, 0, 0);
+    assertNull(ShootOnTheMove.stopHint(still, false));
+    assertEquals("slow down sideways",
+        ShootOnTheMove.stopHint(Shot.impossible(Shot.Reason.SIDEWAYS_TOO_FAST, 1.5, 0, 1.5), false));
+    assertNull(ShootOnTheMove.stopHint(Shot.impossible(Shot.Reason.OUT_OF_RANGE, 4, 0, 0), false));
   }
 }

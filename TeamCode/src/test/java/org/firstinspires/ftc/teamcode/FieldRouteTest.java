@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
+
+import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.junit.Test;
 
 public class FieldRouteTest {
@@ -52,4 +54,72 @@ public class FieldRouteTest {
     assertEquals(2, route.size());
     assertClearOfTheHive(0.0, -1.30, route);
   }
+
+  @Test
+  public void reloadCornerIsReachedRoundTheHiveAndTheFenceCheckLetsItIn() {
+    double limit = FieldRoute.reloadLimit(-1.50, -1.50);
+    assertEquals(1.50 + FieldRoute.RELOAD_MARGIN_M, limit, 1e-12);
+    // From where the 7 Nov pass ended, the far side of the Hive from the corner
+    List<double[]> route = FieldRoute.route(-1.16, 0.44, -1.50, -1.50);
+    double x = -1.16;
+    double y = 0.44;
+    for (double[] w : route) {
+      for (int i = 0; i <= 100; i++) {
+        double px = x + (w[0] - x) * i / 100.0;
+        double py = y + (w[1] - y) * i / 100.0;
+        assertTrue(Math.abs(px) >= FieldRoute.HIVE_HALF_X_M || Math.abs(py) >= FieldRoute.HIVE_HALF_Y_M);
+        assertTrue(Math.abs(px) <= limit && Math.abs(py) <= limit);
+      }
+      x = w[0];
+      y = w[1];
+    }
+    // Slowing in to the spot it is safe; the match's limit would have stopped it
+    Pose near = new Pose(-1.42, -1.42, 0);
+    double[] slow = {-0.3, -0.3, 0};
+    assertTrue(FieldRoute.headedSafely(near, slow, limit));
+    double[] cruising = {-0.5, -0.5, 0};
+    assertTrue(FieldRoute.headedSafely(new Pose(-1.30, -1.30, 0), cruising, limit));
+    assertTrue(!FieldRoute.headedSafely(new Pose(-1.30, -1.30, 0), cruising, FieldRoute.FIELD_LIMIT_M));
+    // Fast at the corner it still stops
+    assertTrue(!FieldRoute.headedSafely(near, new double[] {-1.0, -1.0, 0}, limit));
+  }
+
+  @Test
+  public void reloadSpotIsNeverPastTheWall() {
+    assertEquals(FieldRoute.MAX_REACH_M, FieldRoute.reloadLimit(-1.66, -1.67), 1e-12); // Panels' corner itself
+    assertEquals(FieldRoute.FIELD_LIMIT_M, FieldRoute.reloadLimit(-1.0, -0.3), 1e-12);
+  }
+
+  @Test
+  public void stuckBoostLiftsTheReloadCap() {
+    // 7 Nov, 082948: capped at RELOAD_STICK it sat still on the way to the reload corner and had to be pulled
+    Pose at = new Pose(-1.30, -0.65, 0);
+    double[] calm = FieldRoute.goToStick(at, -1.5, -1.5, -1.30, -0.60, 0, FieldRoute.RELOAD_STICK);
+    assertEquals(FieldRoute.RELOAD_STICK, Math.hypot(calm[0], calm[1]), 1e-9);
+    double[] stuck = FieldRoute.goToStick(at, -1.5, -1.5, -1.30, -0.60, 1.0, FieldRoute.RELOAD_STICK);
+    assertEquals(FieldRoute.GOTO_STICK, Math.hypot(stuck[0], stuck[1]), 1e-9);
+  }
+  @Test public void perimeterEntryIsInwardOnlyAndDoesNotExpandNormalRoutes() {
+    assertTrue(FieldRoute.pathClearEntering(-1.578, -.362, -1, .32));
+    assertTrue(!FieldRoute.pathClear(-1.578, -.362, -1, .32));
+    assertTrue(!FieldRoute.pathClearEntering(-1.578, -.362, -1.59, .32));
+    assertTrue(!FieldRoute.pathClearEntering(-1.61, -.362, -1, .32));
+  }
+
+  @Test public void perimeterEntryStillCannotCrossTheHive() {
+    assertTrue(!FieldRoute.pathClearEntering(-1.578, -.362, 1, .32));
+    double x = -1.578, y = -.362;
+    for (double[] p : FieldRoute.route(x, y, 1, .32)) {
+      assertTrue(FieldRoute.pathClearEntering(x, y, p[0], p[1]));
+      x = p[0]; y = p[1];
+    }
+  }
+
+  @Test public void perimeterEntryStopsBeforeAnOutwardCoastWouldReachTheWall() {
+    Pose p = new Pose(-1.578, -.362, 0);
+    assertTrue(FieldRoute.headedSafelyEntering(p, new double[]{.2, 0, 0}));
+    assertTrue(!FieldRoute.headedSafelyEntering(p, new double[]{-.5, 0, 0}));
+    assertTrue(!FieldRoute.headedSafelyEntering(new Pose(-1.61, -.362, 0), new double[3]));
+  }
+
 }

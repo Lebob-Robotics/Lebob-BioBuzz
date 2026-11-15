@@ -1,0 +1,2 @@
+session,shot,kind,x_m,y_m,heading_deg,target_x_m,target_y_m,far_cell,far_cell_up,up_confirmed,head_err_deg,target_rpm,rpm_at_feed,launch_deg,hood_at_feed_deg,battery_v,head_trim_deg,rpm_dip
+19700101_082958,1,SHOT,-1.136,0.307,-179.92,0.440,0.324,AUDIENCE,1,1,0.57,4960,4889,72.00,72.45,12.55,0.0,492

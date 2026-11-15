@@ -18,6 +18,8 @@ final class FieldRoute {
    * 0.4 m wrong took the robot off the mat (5 Nov, 081516).
    */
   static final double FIELD_LIMIT_M = 1.35;
+  /** Farthest the robot centre can be from the field's middle: 1.83 m to the wall less half the 18 in robot. */
+  static final double MAX_REACH_M = 1.60;
   static final double HIVE_HALF_X_M = 0.75;
   static final double HIVE_HALF_Y_M = 0.95;
   static final double PREDICT_S = 0.15; // Reaction before braking starts
@@ -47,6 +49,12 @@ final class FieldRoute {
   };
 
   static final double GOTO_STICK = 0.6;
+  // Into the corner at GOTO_STICK it was still at 0.6 m/s 0.15 m out, its stop fell 4 cm past the check and the
+  // drive stopped short (7 Nov, 080429)
+  static final double RELOAD_STICK = 0.4;
+  // Only this close to the reload spot: the whole 2.3 m leg at RELOAD_STICK crept at 0.1 m/s (7 Nov, 085204)
+  static final double RELOAD_SLOW_M = 0.5;
+  static final double RELOAD_MARGIN_M = 0.04; // Past the reload spot the stop check allows, inside MAX_REACH_M
   static final double GOTO_GAIN = 2.0; // Stick per metre off
   static final double GOTO_TOLERANCE_M = 0.07;
   /** Least stick while still off: 0.18 shaped to 0.19 power and stalled 9 cm short. */
@@ -71,7 +79,11 @@ final class FieldRoute {
   }
 
   static boolean inBox(double x, double y, double edgeSlack, double hiveSlack) {
-    boolean onField = Math.abs(x) <= FIELD_LIMIT_M + edgeSlack && Math.abs(y) <= FIELD_LIMIT_M + edgeSlack;
+    return inBox(x, y, FIELD_LIMIT_M, edgeSlack, hiveSlack);
+  }
+
+  static boolean inBox(double x, double y, double limit, double edgeSlack, double hiveSlack) {
+    boolean onField = Math.abs(x) <= limit + edgeSlack && Math.abs(y) <= limit + edgeSlack;
     boolean inHive = Math.abs(x) < HIVE_HALF_X_M - hiveSlack && Math.abs(y) < HIVE_HALF_Y_M - hiveSlack;
     return onField && !inHive;
   }
@@ -120,6 +132,12 @@ final class FieldRoute {
    * and boost added to the least stick.
    */
   static double[] goToStick(Pose pose, double x, double y, double legStartX, double legStartY, double boost) {
+    return goToStick(pose, x, y, legStartX, legStartY, boost, GOTO_STICK);
+  }
+
+  /** As above, with the stick capped at maxStick. */
+  static double[] goToStick(Pose pose, double x, double y, double legStartX, double legStartY, double boost,
+      double maxStick) {
     double ex = x - pose.xM;
     double ey = y - pose.yM;
     double dist = Math.hypot(ex, ey);
@@ -135,25 +153,46 @@ final class FieldRoute {
       cx = -uy * cross * CROSS_GAIN;
       cy = ux * cross * CROSS_GAIN;
     }
-    double speed = Math.min(GOTO_STICK, Math.max(GOTO_MIN_STICK + boost, GOTO_GAIN * dist));
+    // A stuck robot's boost lifts a cap below GOTO_STICK: at RELOAD_STICK (0.29 power) it sat still for 5 s at a time
+    // on the way to the reload corner and had to be pulled (7 Nov, 082948)
+    maxStick = Math.max(maxStick, Math.min(GOTO_STICK, GOTO_MIN_STICK + boost));
+    double speed = Math.min(maxStick, Math.max(GOTO_MIN_STICK + boost, GOTO_GAIN * dist));
     double vx = dist > 1e-6 ? ex / dist * speed + cx : 0;
     double vy = dist > 1e-6 ? ey / dist * speed + cy : 0;
     double mag = Math.hypot(vx, vy);
-    if (mag > GOTO_STICK) {
-      vx *= GOTO_STICK / mag;
-      vy *= GOTO_STICK / mag;
+    if (mag > maxStick) {
+      vx *= maxStick / mag;
+      vy *= maxStick / mag;
     }
     return new double[] {vx, vy};
   }
 
   /** Where it would stop stays off the fence and the Hive. Not checked until it is inside, so it can drive in. */
   static boolean headedSafely(Pose pose, double[] velocity) {
-    if (!inBox(pose.xM, pose.yM, 0, 0)) {
+    return headedSafely(pose, velocity, FIELD_LIMIT_M);
+  }
+
+  /** As {@link #headedSafely(Pose, double[])}, with the robot centre allowed out to {@code limit}. */
+  static boolean headedSafely(Pose pose, double[] velocity, double limit) {
+    if (!inBox(pose.xM, pose.yM, limit, 0, 0)) {
       return true;
     }
     double stopX = pose.xM + stopDistance(velocity[0]);
     double stopY = pose.yM + stopDistance(velocity[1]);
-    return inBox(stopX, stopY, SPOT_FENCE_SLACK_M, SPOT_FENCE_SLACK_M);
+    return inBox(stopX, stopY, limit, SPOT_FENCE_SLACK_M, SPOT_FENCE_SLACK_M);
+  }
+
+  /** Entering from the perimeter still respects the physical wall and Hive stopping bounds. */
+  static boolean headedSafelyEntering(Pose pose, double[] velocity) {
+    if (inBox(pose.xM, pose.yM, 0, 0)) { return headedSafely(pose, velocity); }
+    if (!inBox(pose.xM, pose.yM, MAX_REACH_M, 0, 0)) { return false; }
+    return inBox(pose.xM + stopDistance(velocity[0]), pose.yM + stopDistance(velocity[1]),
+        MAX_REACH_M, 0, 0);
+  }
+
+  /** Field limit for the drive to the reload spot: wide enough to reach it, never past the robot's reach of the wall. */
+  static double reloadLimit(double x, double y) {
+    return Math.min(MAX_REACH_M, Math.max(FIELD_LIMIT_M, Math.max(Math.abs(x), Math.abs(y)) + RELOAD_MARGIN_M));
   }
 
   /** Any stick, trigger or RB past TAKEOVER_STICK hands a scripted drive back to the driver. */
@@ -161,6 +200,33 @@ final class FieldRoute {
     return Math.abs(pad.left_stick_x) > TAKEOVER_STICK || Math.abs(pad.left_stick_y) > TAKEOVER_STICK
         || Math.abs(pad.right_stick_x) > TAKEOVER_STICK || Math.abs(pad.right_stick_y) > TAKEOVER_STICK
         || pad.left_trigger > TAKEOVER_STICK || pad.right_trigger > TAKEOVER_STICK || pad.right_bumper;
+  }
+
+  /** Every point of the straight line from one point to another is inside the area and out of the Hive's footprint. */
+  static boolean pathClear(double x0, double y0, double x1, double y1) {
+    return pathClearWithin(x0, y0, x1, y1, FIELD_LIMIT_M);
+  }
+
+  /**
+   * Permit an initial inward leg from the perimeter margin to the normal travel area.
+   * The start must remain inside the physical wall reach, and the destination must be in
+   * the ordinary area. Every later leg consequently uses the ordinary limit again.
+   */
+  static boolean pathClearEntering(double x0, double y0, double x1, double y1) {
+    if (!inBox(x0, y0, MAX_REACH_M, 0, 0) || !inBox(x1, y1, 0, 0)) { return false; }
+    double entryLimit = Math.max(FIELD_LIMIT_M, Math.max(Math.abs(x0), Math.abs(y0)));
+    return pathClearWithin(x0, y0, x1, y1, entryLimit);
+  }
+
+  private static boolean pathClearWithin(double x0, double y0, double x1, double y1, double limit) {
+    int steps = (int) Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.02);
+    for (int i = 0; i <= steps; i++) {
+      double f = steps == 0 ? 0 : (double) i / steps;
+      if (!inBox(x0 + f * (x1 - x0), y0 + f * (y1 - y0), limit, 0, 0)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static boolean segmentClear(double x0, double y0, double x1, double y1) {

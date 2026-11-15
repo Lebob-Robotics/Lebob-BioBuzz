@@ -1,0 +1,214 @@
+package org.firstinspires.ftc.teamcode;
+
+import static org.junit.Assert.*;
+import org.firstinspires.ftc.teamcode.utils.Pose;
+import org.firstinspires.ftc.teamcode.auto.AutoField;
+import org.firstinspires.ftc.teamcode.utils.VisionCorrector;
+import org.junit.Test;
+
+public class VolleySpotDriveTest {
+  @Test public void pointsMirrorLikeShotTuning() {
+    assertArrayEquals(new double[]{-1, -0.32}, VolleySpotDrive.point(0, -0.44, -0.32), 1e-9);
+    assertArrayEquals(new double[]{1, 0.32}, VolleySpotDrive.point(0, 0.44, 0.32), 1e-9);
+    assertEquals(0, VolleySpotDrive.nextSpot(-1, new boolean[10]));
+    assertEquals(2, VolleySpotDrive.nextSpot(0, new boolean[]{false, true, false}));
+    assertEquals(-1, VolleySpotDrive.nextSpot(0, new boolean[]{true, true}));
+  }
+
+  @Test public void volleyTuningVisitsTheAutosSpotsFirstAndSkipsTheFrontOnes() {
+    boolean[] done = new boolean[VolleySpotDrive.SPOTS];
+    assertEquals(4, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK, done));
+    assertEquals(VolleySpotDrive.PARK + 1, VolleySpotDrive.nextVolleySpot(4, done));
+    assertEquals(5, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK + 2, done));
+    assertEquals(VolleySpotDrive.PARK, VolleySpotDrive.nextVolleySpot(9, done));
+    assertEquals(VolleySpotDrive.PARK, VolleySpotDrive.nextVolleySpot(0, done)); // From a front spot: the start
+    done[VolleySpotDrive.PARK] = done[4] = done[VolleySpotDrive.PARK + 1] = done[VolleySpotDrive.PARK + 2] = true;
+    done[5] = true;
+    assertEquals(6, VolleySpotDrive.nextVolleySpot(VolleySpotDrive.PARK, done));
+    for (int s : VolleySpotDrive.VOLLEY_ORDER) { done[s] = true; }
+    assertEquals(-1, VolleySpotDrive.nextVolleySpot(4, done));
+    for (int s = 0; s < 4; s++) { // Spots 0-3 are in the backward-only wedge
+      double[] p = VolleySpotDrive.point(s, -0.44, -0.32);
+      assertTrue(org.firstinspires.ftc.teamcode.utils.ShootOnTheMove.inFrontOfCell(
+          new org.firstinspires.ftc.teamcode.utils.Pose(p[0], p[1], 0), -0.44, -0.32,
+          org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
+    }
+    for (int s : VolleySpotDrive.VOLLEY_ORDER) {
+      double[] p = VolleySpotDrive.point(s, -0.44, -0.32);
+      assertFalse("spot " + s, org.firstinspires.ftc.teamcode.utils.ShootOnTheMove.inFrontOfCell(
+          new org.firstinspires.ftc.teamcode.utils.Pose(p[0], p[1], 0), -0.44, -0.32,
+          org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants.BACKWARD_ONLY_WEDGE_DEG));
+    }
+  }
+
+  @Test public void arrivalSettlesThenPersistentHoldReturnsAfterNudging() {
+    VolleySpotDrive d = new VolleySpotDrive();
+    Pose p = new Pose(-1, -0.32, 0);
+    assertTrue(d.start(0, -0.44, -0.32, 0, p, true, 1));
+    d.update(0, p, new double[3], true, 1);
+    assertFalse(d.ready()); assertNull(d.drive());
+    d.update(1.1, p, new double[3], true, 2);
+    assertTrue(d.ready()); assertArrayEquals(new double[]{-1, -0.32}, d.holdPoint(), 0);
+    d.update(1.2, new Pose(-1.15, -0.32, 0), new double[3], true, 3);
+    assertFalse(d.ready()); assertNotNull(d.holdPoint()); assertNull(d.drive());
+    d.update(1.3, p, new double[3], true, 4);
+    d.update(2.4, p, new double[3], true, 5);
+    assertTrue(d.ready());
+  }
+
+  @Test public void unknownPoseAndStaleTagsCannotMoveOrFire() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(-1.22, -0.32, 0);
+    assertTrue(d.start(0, -0.44, -0.32, 0, p, false, 0));
+    assertFalse(d.active());
+    assertTrue(d.start(0, -0.44, -0.32, 0, p, true, 1));
+    d.update(3.1, p, new double[3], true, 1);
+    assertFalse(d.active()); assertFalse(d.ready()); assertNull(d.holdPoint());
+    assertArrayEquals(new double[]{0, 0}, d.drive(), 0);
+  }
+
+  @Test public void cancelStopsRouteAndClearsHold() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(-1.22, -0.32, 0);
+    d.start(9, -0.44, -0.32, 0, p, true, 1);
+    d.update(0.1, p, new double[3], true, 1);
+    assertNotNull(d.drive());
+    d.stop("Circle cancelled");
+    assertFalse(d.shouldAim());
+    assertNull(d.holdPoint()); assertFalse(d.active());
+    assertArrayEquals(new double[]{0, 0}, d.drive(), 0);
+  }
+  @Test public void theParkSpotIsTheAutosParkAgainstOurWall() {
+    double[] red = AutoField.parkSpot(Alliance.RED, redCellAtMinusX());
+    assertArrayEquals(new double[] {red[0], red[1]}, VolleySpotDrive.point(VolleySpotDrive.PARK, -.44, -.324), 1e-9);
+    assertArrayEquals(new double[] {-red[0], -red[1]}, VolleySpotDrive.point(VolleySpotDrive.PARK, .44, .324), 1e-9);
+  }
+
+  @Test public void theParkDrivesOffTheWallThenCreepsOnAndHoldsPushed() {
+    VolleySpotDrive d = new VolleySpotDrive();
+    double[] park = VolleySpotDrive.point(VolleySpotDrive.PARK, -.44, -.324);
+    Pose approach = new Pose(park[0], -VolleySpotDrive.PARK_APPROACH_M, 0);
+    assertTrue(d.start(VolleySpotDrive.PARK, -.44, -.324, 0, new Pose(-1.0, -1.0, 0), true, 1));
+    d.update(0.1, approach, new double[3], true, 1); // At the approach point: creeps
+    double[] creep = d.drive();
+    assertEquals(-VolleySpotDrive.PARK_CREEP_STICK, creep[1], 1e-9); // Toward red's wall
+    assertFalse(d.ready());
+    Pose atWall = new Pose(park[0], -1.52, 0);
+    double t = 0.2;
+    for (; t < 1.5 && !d.ready(); t += 0.02) { d.update(t, atWall, new double[] {0, 0, 0}, true, 1); }
+    assertTrue("held once the wall stops it", d.ready());
+    assertEquals(-VolleySpotDrive.PARK_PUSH_STICK, d.drive()[1], 1e-9);
+    d.update(t + 0.02, new Pose(park[0], -1.8, 0), new double[3], true, 1); // A pose past the wall is wrong
+    assertFalse(d.active());
+  }
+
+  private static VisionCorrector.Cell redCellAtMinusX() {
+    for (VisionCorrector.Cell c : VisionCorrector.Cell.values()) {
+      if (VisionCorrector.upCellAimPoint(Alliance.RED, c)[0] < 0) { return c; }
+    }
+    throw new AssertionError();
+  }
+
+  @Test public void extraSpotsComeAfterTheParkAndAreReachable() {
+    assertEquals(VolleySpotDrive.PARK + 3, VolleySpotDrive.BACKWARD_FIRST);
+    assertEquals("11", VolleySpotDrive.name(VolleySpotDrive.PARK + 1));
+    assertEquals("12", VolleySpotDrive.name(VolleySpotDrive.PARK + 2));
+    assertEquals("10", VolleySpotDrive.name(9));
+    assertArrayEquals(new double[] {-1.30, -0.95}, VolleySpotDrive.point(VolleySpotDrive.PARK + 1, -.44, -.324), 1e-9);
+    assertArrayEquals(new double[] {1.22, -0.20}, VolleySpotDrive.point(VolleySpotDrive.PARK + 2, .44, .324), 1e-9);
+    for (int s = VolleySpotDrive.PARK + 1; s < VolleySpotDrive.SPOTS; s++) {
+      VolleySpotDrive d = new VolleySpotDrive();
+      assertTrue("spot " + s, d.start(s, -.44, -.324, 0, new Pose(-1.0, -1.0, 0), true, 1));
+      assertEquals(VolleySpotDrive.Stage.MOVING, d.stage());
+    }
+  }
+
+  @Test public void testSpotsHaveAUsableHoodedTableShot() {
+    for (int i = 0; i < VolleySpotDrive.SPOTS; i++) {
+      double[] p = VolleySpotDrive.point(i, -.44, -.324);
+      org.firstinspires.ftc.teamcode.utils.Aim aim = org.firstinspires.ftc.teamcode.utils.ShootOnTheMove.aimHooded(
+          new Pose(p[0], p[1], 0), 0, 0, -.44, -.324);
+      assertTrue("No hooded shot at spot " + i + ": " + aim.shot.reason, aim.shot.valid);
+    }
+  }
+
+  @Test public void circleWaitsForVisionThenRoutesWithoutAnotherPress() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose origin = new Pose(0, 0, 0);
+    assertTrue(d.start(0, Double.NaN, Double.NaN, 0, origin, false, 0));
+    assertEquals(VolleySpotDrive.Stage.ACQUIRING, d.stage());
+    d.acquire(0.9, origin, false, 0, -.44, -.324, 1);
+    d.update(0.9, origin, new double[3], false, 0);
+    assertTrue(d.turn() > 0); assertFalse(d.ready()); assertFalse(d.active());
+    assertTrue(d.shouldAim()); // Keep tracking any known Cell while the global pose is still pending.
+    assertArrayEquals(new double[]{0, 0}, d.drive(), 0); assertNull(d.holdPoint());
+    d.acquire(1.2, origin, false, 0, -.44, -.324, 0);
+    assertEquals(0, d.turn(), 0); // Pause with tags visible while vision settles.
+    Pose fixed = new Pose(-1.22, -.32, 0);
+    d.acquire(2, fixed, true, 1, -.44, -.324, 0);
+    assertEquals(VolleySpotDrive.Stage.MOVING, d.stage()); assertEquals(0, d.turn(), 0);
+    d.update(2, fixed, new double[3], true, 1);
+    assertNotNull(d.drive()); assertFalse(d.ready());
+  }
+
+  @Test public void tagSearchTimesOutAndCancelCannotRestartIt() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(0, 0, 0);
+    d.start(0, -.44, -.324, 0, p, false, 0);
+    d.acquire(31, p, false, 0, -.44, -.324, 1);
+    assertEquals(VolleySpotDrive.Stage.IDLE, d.stage()); assertEquals(0, d.turn(), 0);
+    d.start(0, -.44, -.324, 32, p, false, 0);
+    d.acquire(32.9, p, false, 0, -.44, -.324, 1);
+    assertTrue(d.turn() > 0);
+    d.stop("Circle cancelled");
+    d.acquire(33, new Pose(-1.22, -.32, 0), true, 1, -.44, -.324, 0);
+    assertEquals(VolleySpotDrive.Stage.IDLE, d.stage()); assertEquals(0, d.turn(), 0);
+    assertNull(d.holdPoint()); assertFalse(d.ready());
+  }
+
+  @Test public void holdingSpotSurvivesTagGapAndRbCanStartTheTrial() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(1, .32, 0);
+    d.start(0, .44, .324, 0, p, true, 1);
+    d.update(0, p, new double[3], true, 1);
+    d.update(1.1, p, new double[3], true, 1);
+    assertTrue(d.ready());
+    d.update(73, p, new double[3], true, 1);
+    assertTrue(d.ready()); assertNotNull(d.holdPoint());
+    org.firstinspires.ftc.teamcode.utils.VolleyTrial trial = new org.firstinspires.ftc.teamcode.utils.VolleyTrial();
+    trial.input(84, false, d.ready(), false);
+    trial.input(85, true, d.ready(), false);
+    assertTrue(trial.active());
+  }
+
+  @Test public void blindHoldReturnsFromSmallLoadingNudgeButStopsIfPushedFar() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(1, .32, 0);
+    d.start(0, .44, .324, 0, p, true, 1);
+    d.update(0, p, new double[3], true, 1);
+    d.update(1.1, p, new double[3], true, 1);
+    d.update(10, new Pose(1, .42, 0), new double[3], true, 1);
+    assertEquals(VolleySpotDrive.Stage.SETTLING, d.stage());
+    assertNotNull(d.holdPoint()); assertNull(d.drive()); assertFalse(d.ready());
+    d.update(11, p, new double[3], true, 1);
+    d.update(12.1, p, new double[3], true, 1);
+    assertTrue(d.ready());
+    d.update(13, new Pose(1, .62, 0), new double[3], true, 1);
+    assertFalse(d.active()); assertFalse(d.ready()); assertNull(d.holdPoint());
+  }
+
+  @Test public void invalidPoseStillStopsEvenAParkedRobot() {
+    VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(1, .32, 0);
+    d.start(0, .44, .324, 0, p, true, 1);
+    d.update(0, p, new double[3], true, 1);
+    d.update(1.1, p, new double[3], true, 1);
+    d.update(2, p, new double[3], false, 1);
+    assertFalse(d.active()); assertNull(d.holdPoint()); assertFalse(d.ready());
+  }
+
+  @Test public void recordedEdgePosesCanDriveInwardToTheFirstSpot() {
+    for (double[] start : new double[][] {{-1.5280515, -.372644}, {-1.578137, -.361713}}) {
+      VolleySpotDrive d = new VolleySpotDrive(); Pose p = new Pose(start[0], start[1], 0);
+      assertTrue(d.status(), d.start(0, -.44, .32385, 0, p, true, 1));
+      d.update(.1, p, new double[3], true, 1);
+      assertEquals(VolleySpotDrive.Stage.MOVING, d.stage());
+      assertTrue("Entry must move inward", d.drive()[0] > 0);
+      assertFalse(d.ready());
+    }
+  }
+
+}

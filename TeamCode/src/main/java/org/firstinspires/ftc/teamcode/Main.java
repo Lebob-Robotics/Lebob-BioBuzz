@@ -2,7 +2,10 @@ package org.firstinspires.ftc.teamcode;
 
 import com.bylazar.panels.Panels;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.utils.PoseHandoff;
+import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
 import org.psilynx.psikit.core.Logger;
 import org.psilynx.psikit.ftc.FtcLogTuning;
 import org.psilynx.psikit.ftc.PsiKitIterativeOpMode;
@@ -14,7 +17,7 @@ public class Main extends PsiKitIterativeOpMode {
    * Serves the live log to AdvantageScope over the network. MUST be false at
    * competition. The log file is written either way.
    */
-  public static final boolean LIVE_LOGGING = true;
+  public static final boolean LIVE_LOGGING = false;
 
   /**
    * Port of the live log server. Not 5800, the PsiKit default: the Panels Limelight proxy takes
@@ -54,10 +57,13 @@ public class Main extends PsiKitIterativeOpMode {
    * ShootOnTheMoveConstants, ShooterSubsystem, HoodSubsystem and
    * MecanumDriveSubsystem.
    */
-  public static final boolean PANELS_ENABLED = true;
+  public static final boolean PANELS_ENABLED = false;
 
   private Robot robot;
   private boolean wasBack;
+  private VolleySettings volley; // Null in a variant that sets its own (Volley Tuning)
+  private boolean wasShooting;
+  private int volleySpot = -1;
 
   @Override
   protected int getRlogPort() {
@@ -70,7 +76,7 @@ public class Main extends PsiKitIterativeOpMode {
   }
 
   /** Shared with OpModes that run the whole Robot, so their logs replay the same way. */
-  static void configureLogging() {
+  public static void configureLogging() {
     Logger.recordMetadata("Robot", "BioBuzz");
     Logger.recordMetadata("Mark", "3");
     Logger.recordMetadata("LiveLogging", String.valueOf(LIVE_LOGGING));
@@ -98,7 +104,33 @@ public class Main extends PsiKitIterativeOpMode {
       Panels.INSTANCE.disable();
     }
     robot = new Robot(hardwareMap, telemetry, gamepad1);
-    robot.init();
+    robot.init(true); // Nothing moves until START, so INIT is allowed between AUTO and TELEOP (G403)
+    if (PoseHandoff.alliance() != null) {
+      robot.setAlliance(PoseHandoff.alliance()); // The auto's; X and B still change it
+    }
+    // RB is a standing volley, RT the one-at-a-time shoot on the move
+    robot.setVolleyMode(true);
+    if (usesTunedVolley()) {
+      volley = VolleySettings.load(VolleyTuning.CSV_PATH);
+    }
+    configureRobot(robot);
+  }
+
+  /** For a variant of this TeleOp (Volley Tuning): changes the robot once it is made. Nothing here. */
+  protected void configureRobot(Robot robot) {
+  }
+
+  /**
+   * False for a variant that sets the volley's settings itself; true reads Volley Tuning's results. Off while
+   * VOLLEY_USE_TUNING_CSV is, so RB runs the ShootOnTheMoveConstants volley.
+   */
+  protected boolean usesTunedVolley() {
+    return ShootOnTheMoveConstants.VOLLEY_USE_TUNING_CSV;
+  }
+
+  /** The robot, for a variant of this TeleOp; null before INIT or if it threw. */
+  protected Robot robot() {
+    return robot;
   }
 
   @Override
@@ -107,6 +139,9 @@ public class Main extends PsiKitIterativeOpMode {
       pollDriverSide();
       telemetry.addData("Driving from", robot.isDriverOnFarSide() ? "FAR side of the field (Share to change)"
           : "alliance wall (Share to change)");
+      if (usesAutoPose() && PoseHandoff.peek(System.nanoTime()) != null) {
+        telemetry.addLine("Starts where the auto ended. Robot moved since? Press A after START");
+      }
       robot.initLoop();
     }
   }
@@ -123,17 +158,60 @@ public class Main extends PsiKitIterativeOpMode {
   @Override
   protected void onPsiKitStart() {
     if (robot != null) {
-      robot.start();
+      if (usesAutoPose()) {
+        robot.startFromAuto();
+      } else {
+        robot.start();
+      }
     }
+  }
+
+  /** Lebot Teleop itself starts from the auto's end pose; a tuning variant starts as placed. */
+  protected boolean usesAutoPose() {
+    return getClass() == Main.class;
   }
 
   @Override
   protected void onPsiKitLoop() {
+    robot.addPowerTelemetry(); // First on the Driver Station, for the co-driver
     pollDriverSide();
     if (robot.isDriverOnFarSide()) {
       telemetry.addData("Driving from", "FAR side (Share to change)");
     }
+    if (volley != null) {
+      applyVolleySettings();
+    } else if ((usesTunedVolley() || getClass() == Main.class) && robot.isTelemetryDetail()) {
+      telemetry.addData(ShootOnTheMoveConstants.VOLLEY_ON_RT ? "Volley (RB still, RT moving)" : "Volley (RB)",
+          "constants (full feed, matched speed each ball)");
+    }
     robot.periodic();
+    Gamepad g = robot.getDriver();
+    wasShooting = g.right_trigger > Robot.TRIGGER_PRESSED || g.right_bumper;
+  }
+
+  /** Picks the volley's settings for where the robot is, between shots only, so a volley never changes mid-burst. */
+  private void applyVolleySettings() {
+    if (!wasShooting) {
+      boolean placed = robot.isPoseValid() && robot.getLastAim() != null;
+      // A backward volley takes a tuned backward spot's settings; with none, the hooded spot's as before (its trims
+      // don't apply to the backward shot)
+      boolean backward = placed && robot.getLastAim().backward;
+      volleySpot = backward ? volley.spotFor(robot.getPose(), robot.getAimCellX(), robot.getAimCellY(), true) : -1;
+      if (volleySpot < 0) {
+        volleySpot = placed ? volley.spotFor(robot.getPose(), robot.getAimCellX(), robot.getAimCellY()) : -1;
+      }
+      VolleySettings.apply(robot, volley.get(volleySpot), VolleySpotDrive.isBackward(volleySpot));
+    }
+    String source;
+    if (volleySpot < 0) {
+      source = "constants (no tuned spot, or pose not placed)";
+    } else {
+      boolean near = volley.isNear(robot.getPose(), robot.getAimCellX(), robot.getAimCellY(), volleySpot);
+      source = "tuned spot " + VolleySpotDrive.name(volleySpot) + (near ? "" : ", the nearest tuned one");
+    }
+    if (robot.isTelemetryDetail()) {
+      telemetry.addData("Volley (RB)", source);
+    }
   }
 
   @Override

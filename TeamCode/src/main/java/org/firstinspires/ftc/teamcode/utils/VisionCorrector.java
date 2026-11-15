@@ -28,11 +28,18 @@ public final class VisionCorrector {
   private Cell upCellBlue = Cell.SCORING;
   private final int[] flipVotes = new int[2]; // Frames in a row voting against the current up Cell: red, blue
   private final boolean[] upCellConfirmed = new boolean[2]; // Tags have shown which Cell is up: red, blue
+  private final int[] agreeingFrames = new int[2]; // Frames whose votes agreed with the up Cell, ever: red, blue
   private int headingDisagreeFrames = 0; // Frames in a row whose heading fix was too big to trust, and agreed
   private double lastDisagreeRad = 0;
   private int jumpAgreeFrames = 0; // Frames whose position fix was too big to trust, each agreeing with the last
   private double lastJumpDxM = 0;
   private double lastJumpDyM = 0;
+  // A two-tag starting view cannot supply three simultaneous pairs. Require temporal agreement
+  // instead, with a baseline-scaled residual tighter than ordinary position corrections.
+  private int firstPairFrames, firstPairIdA, firstPairIdB;
+  private long firstPairFrame, firstPairSince, firstPairAt;
+  private double firstPairHeading, firstPairX, firstPairY;
+
 
   /** The up Cell of an alliance's Hive. */
   public Cell upCell(Alliance alliance) {
@@ -42,6 +49,11 @@ public final class VisionCorrector {
   /** False until the tags' heights have shown which Cell of the Hive is up, not just the starting guess. */
   public boolean upCellConfirmed(Alliance alliance) {
     return upCellConfirmed[alliance == Alliance.RED ? 0 : 1];
+  }
+
+  /** How many frames have voted for the up Cell as it stands, counting up for the whole OpMode. */
+  public int agreeingFrames(Alliance alliance) {
+    return agreeingFrames[alliance == Alliance.RED ? 0 : 1];
   }
 
   /**
@@ -63,9 +75,23 @@ public final class VisionCorrector {
   }
 
   /** Clears partial tip votes. */
+  /**
+   * The heading came from a known placement (Shoot Auto's start): one tag may place the robot using it, instead of
+   * waiting for a pair. From its start spot the Shoot Auto saw one tag, and got no fix in 30 s on 5 runs (13 Nov),
+   * firing 24-28 balls on the placement alone. Placed square is within 1-2 degrees, ~7 cm at 2 m. Heading fixes still
+   * come from pairs as before.
+   */
+  private boolean headingSeeded = false;
+
+  public void setHeadingSeeded(boolean seeded) {
+    headingSeeded = seeded;
+  }
+
   public void reset() {
+    headingSeeded = false;
     flipVotes[0] = 0;
     flipVotes[1] = 0;
+    firstPairFrames = 0;
   }
 
   private static double spreadOf(double[] dx, double[] dy, double medianDx, double medianDy) {
@@ -165,6 +191,7 @@ public final class VisionCorrector {
     List<Integer> ids = new ArrayList<>();
     TagReject firstReject = TagReject.NONE;
     int rejected = 0;
+    long newestFrame = Long.MIN_VALUE;
 
     for (TagObservation tag : observations) {
       TagReject reject = TagReject.NONE;
@@ -224,6 +251,7 @@ public final class VisionCorrector {
       double offsetY = inRobot[0] * sinHeading + inRobot[1] * cosHeading;
       usedTags.add(new double[] {tagField[0], tagField[1], offsetX, offsetY, atFrame.xM, atFrame.yM});
       ids.add(tag.id);
+      newestFrame = Math.max(newestFrame, tag.frameTimeNanos);
     }
 
     // Heading: for each pair of tags, the turn that lines up where odometry puts them with the field
@@ -246,13 +274,23 @@ public final class VisionCorrector {
     double headingGain = 0;
     boolean steadyForHeading = Math.hypot(velocityXMps, velocityYMps) <= MAX_SPEED_FOR_VISION_HEADING_MPS
         && Math.abs(turnRateRadPerSec) <= MAX_OMEGA_FOR_VISION_HEADING_RAD_S;
-    boolean enoughPairs = headingValid || headingFixes.size() >= MIN_FIRST_HEADING_PAIRS;
+    boolean consistentFirstPair = false;
+    if (VISION_HEADING && !headingValid && steadyForHeading && usedTags.size() == 2) {
+      double[] a = usedTags.get(0), b = usedTags.get(1);
+      double initialHeading = ShootOnTheMove.normalizeAngle(Math.atan2(b[1] - a[1], b[0] - a[0])
+          - Math.atan2((b[5] + b[3]) - (a[5] + a[3]), (b[4] + b[2]) - (a[4] + a[2])));
+      consistentFirstPair = firstPairAgrees(usedTags, ids, initialHeading, newestFrame, nowNanos);
+      // Close pairs are never used for normal heading trims or an isolated first fix. Only this
+      // confirmed temporal bootstrap can add one below the ordinary 20 cm baseline threshold.
+      if (consistentFirstPair && headingFixes.isEmpty()) { headingFixes.add(initialHeading); }
+    }
+    boolean enoughPairs = headingValid || headingFixes.size() >= MIN_FIRST_HEADING_PAIRS || consistentFirstPair;
     if (!headingFixes.isEmpty() && enoughPairs && (steadyForHeading || !headingValid)) {
       double[] fixes = new double[headingFixes.size()];
       for (int k = 0; k < fixes.length; k++) {
         fixes[k] = headingFixes.get(k);
       }
-      dHeading = median(fixes);
+      dHeading = angleMedian(fixes);
       boolean believable = !headingValid || Math.abs(dHeading) <= Math.toRadians(MAX_HEADING_JUMP_DEG);
       boolean override = false;
       if (believable) {
@@ -329,7 +367,7 @@ public final class VisionCorrector {
       reason = Reason.SPREAD;
     } else if (Math.abs(now.xM + medianDx) > limitM || Math.abs(now.yM + medianDy) > limitM) {
       reason = Reason.OUT_OF_FIELD;
-    } else if (!poseValid && !headingValid && headingGain == 0) {
+    } else if (!poseValid && !headingValid && !headingSeeded && headingGain == 0) {
       // Offsets turned by an untrusted heading put the robot anywhere. Once accepted, the pose is trusted and
       // the true fix is refused as a jump: one tag with the start heading 154 degrees out put the robot 2 m
       // away, on the far side of the Cell, for the whole run (5 Nov, 082826)
@@ -380,6 +418,43 @@ public final class VisionCorrector {
     return result;
   }
 
+  /** The initial pair must repeat on fresh frames; an isolated or noisy pair never seeds heading. */
+  private boolean firstPairAgrees(List<double[]> tags, List<Integer> ids, double heading,
+      long frame, long now) {
+    double[] a = tags.get(0), b = tags.get(1);
+    double baseline = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    // Adjacent real tags can be just 3.75 inches apart (9.525 cm). Duplicate/coincident
+    // tag observations still provide no heading and cannot contribute evidence.
+    if (baseline < 0.09) {
+      firstPairFrames = 0; return false;
+    }
+    double cos = Math.cos(heading), sin = Math.sin(heading);
+    double ax = a[0] - (a[2] * cos - a[3] * sin);
+    double ay = a[1] - (a[2] * sin + a[3] * cos);
+    double bx = b[0] - (b[2] * cos - b[3] * sin);
+    double by = b[1] - (b[2] * sin + b[3] * cos);
+    // Shorter baselines need tighter range agreement: for a 14 cm pair the two implied
+    // robot positions must agree within 1.4 cm, rather than the wider pair's 10 cm limit.
+    if (Math.hypot(ax - bx, ay - by) > Math.min(0.10, baseline * 0.10)) {
+      firstPairFrames = 0; return false;
+    }
+    double x = (ax + bx) / 2, y = (ay + by) / 2;
+    int idA = Math.min(ids.get(0), ids.get(1)), idB = Math.max(ids.get(0), ids.get(1));
+    if (firstPairFrames > 0 && frame <= firstPairFrame) { return false; }
+    boolean agrees = firstPairFrames > 0 && now - firstPairAt <= 2_000_000_000L
+        && idA == firstPairIdA && idB == firstPairIdB
+        && Math.abs(ShootOnTheMove.normalizeAngle(heading - firstPairHeading)) <= Math.toRadians(3)
+        && Math.hypot(x - firstPairX, y - firstPairY) <= 0.05;
+    if (!agrees) {
+      firstPairFrames = 0; firstPairSince = now;
+      firstPairHeading = heading; firstPairX = x; firstPairY = y;
+      firstPairIdA = idA; firstPairIdB = idB;
+    }
+    firstPairFrame = frame; firstPairAt = now;
+    firstPairFrames++;
+    return firstPairFrames >= 4 && now - firstPairSince >= 300_000_000L;
+  }
+
   private static VisionResult fail(Reason reason, TagReject firstReject, int rejected,
       boolean redFlipped, boolean blueFlipped) {
     return new VisionResult(reason, firstReject, 0, 0, 0, null, 0, rejected, Double.NaN,
@@ -400,6 +475,7 @@ public final class VisionCorrector {
     if (winner == upCell(alliance)) {
       flipVotes[hive] = 0;
       upCellConfirmed[hive] = true;
+      agreeingFrames[hive]++;
       return false;
     }
     if (++flipVotes[hive] < Math.max(1, TIP_CONFIRM_FRAMES)) {
@@ -416,6 +492,18 @@ public final class VisionCorrector {
   }
 
   /** The middle value of a non-empty array. Leaves the input alone. */
+  /**
+   * Median of angles that may straddle +-pi: fixes of 179 and -179 degrees are 2 degrees apart, but their plain
+   * median is near 0. Each is unwrapped to within pi of the first before taking the median.
+   */
+  private static double angleMedian(double[] angles) {
+    double[] unwrapped = new double[angles.length];
+    for (int i = 0; i < angles.length; i++) {
+      unwrapped[i] = angles[0] + ShootOnTheMove.normalizeAngle(angles[i] - angles[0]);
+    }
+    return ShootOnTheMove.normalizeAngle(median(unwrapped));
+  }
+
   private static double median(double[] values) {
     double[] sorted = Arrays.copyOf(values, values.length);
     Arrays.sort(sorted);

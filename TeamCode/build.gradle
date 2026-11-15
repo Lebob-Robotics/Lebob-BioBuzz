@@ -53,4 +53,6 @@ dependencies {
     implementation 'org.psilynx.psikit:ftc:0.2.0'
     implementation 'dev.frozenmilk.sinister:Sloth:0.3.2'
     implementation "com.bylazar:fullpanels:1.0.19"
+    implementation 'com.pedropathing:revhub:3.0.2'
+    implementation 'com.pedropathing:tuning:1.0.3'
 }

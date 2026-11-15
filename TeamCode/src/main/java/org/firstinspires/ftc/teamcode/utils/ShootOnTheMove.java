@@ -66,6 +66,34 @@ public final class ShootOnTheMove {
   }
 
   /**
+   * Hood degrees to add to the table's shot here when the wheels run rpmAbove faster than its RPM
+   * ({@link ShotTableRpm}): steeper, so the faster ball still lands in the middle. 0 at or below the table's speed,
+   * held at the table's last step above it, and 0 outside the table.
+   */
+  public static double hoodOffsetForRpmAbove(double distanceToLipM, double speedTowardCellMps, double rpmAbove) {
+    double[] distances = ShotTable.DIST_M;
+    double[] speeds = ShotTable.VEL_MPS;
+    if (!(rpmAbove > 0) || !(distanceToLipM >= distances[0] && distanceToLipM <= distances[distances.length - 1])
+        || !(speedTowardCellMps >= speeds[0] && speedTowardCellMps <= speeds[speeds.length - 1])) {
+      return 0;
+    }
+    TableLookup lookup = new TableLookup(distanceToLipM, speedTowardCellMps);
+    double spread = lookup.spread(ShotTable.HOOD_DEG);
+    boolean blend = !Double.isNaN(spread) && spread <= MAX_HOOD_DIFFERENCE_TO_BLEND_DEG;
+    double[] above = ShotTableRpm.RPM_ABOVE;
+    double r = Math.min(rpmAbove, above[above.length - 1]);
+    int k = 0;
+    while (k < above.length - 2 && above[k + 1] <= r) {
+      k++;
+    }
+    double lower = blend ? lookup.blended(ShotTableRpm.OFFSET_DEG[k]) : lookup.nearest(ShotTableRpm.OFFSET_DEG[k]);
+    double upper = blend ? lookup.blended(ShotTableRpm.OFFSET_DEG[k + 1])
+        : lookup.nearest(ShotTableRpm.OFFSET_DEG[k + 1]);
+    double offset = lower + (upper - lower) * (r - above[k]) / (above[k + 1] - above[k]);
+    return Double.isNaN(offset) ? 0 : offset;
+  }
+
+  /**
    * The turn for a shot the table can't make, from its nearest shot, so the robot keeps lining up through a
    * moment without one. Turning 0 then jumped the aim heading 25 degrees and back while strafing (5 Nov, 094211).
    */
@@ -115,14 +143,29 @@ public final class ShootOnTheMove {
     return aimHooded(robot, velocityXMps, velocityYMps, cellX, cellY);
   }
 
+  /**
+   * One step of the low-pass on the aim's velocity {x, y}: moves {@code smoothed} toward {@code raw} by the share
+   * a first-order filter with time constant {@code tauS} covers in {@code dtS}. Returns {@code raw} when off, on the
+   * first sample, or after a gap.
+   */
+  public static double[] smoothAimVelocity(double[] smoothed, double[] raw, double dtS, double tauS) {
+    if (smoothed == null || tauS <= 0 || !(dtS > 0) || dtS > 0.5) {
+      return new double[] {raw[0], raw[1]};
+    }
+    double a = 1.0 - Math.exp(-dtS / tauS);
+    return new double[] {smoothed[0] + a * (raw[0] - smoothed[0]), smoothed[1] + a * (raw[1] - smoothed[1])};
+  }
+
   /** The hooded shot out of the shooter's side, whether or not the table has one. */
   public static Aim aimHooded(Pose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
     Geometry g = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, FEED_DELAY_S);
     Geometry now = new Geometry(robot, velocityXMps, velocityYMps, cellX, cellY, 0);
-    Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps, g.sidewaysSpeedMps);
+    Shot shot = calculate(g.distanceToLipM, g.speedTowardCellMps * SOTM_TOWARD_GAIN,
+        g.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     // Calculated rather than taken back off the shot by its rate: rate noise times the feed delay swung the
     // hood target 6 degrees loop to loop (5 Nov, 082111)
-    Shot shotNow = calculate(now.distanceToLipM, now.speedTowardCellMps, now.sidewaysSpeedMps);
+    Shot shotNow = calculate(now.distanceToLipM, now.speedTowardCellMps * SOTM_TOWARD_GAIN,
+        now.sidewaysSpeedMps * SOTM_SIDEWAYS_GAIN);
     boolean both = shot.valid && shotNow.valid;
     double robotHeadingRad = normalizeAngle(g.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
     double lockHeadingRad = normalizeAngle(now.directionToCellRad + shot.turningRad - SHOOTER_DIRECTION_RAD);
@@ -155,6 +198,52 @@ public final class ShootOnTheMove {
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
         headingTolerance(g.distanceToClusterM), true, hoodNow, rpmNow, 0,
         still.valid && stillNow.valid ? rate(stillNow.targetRpm, still.targetRpm, MAX_RPM_RATE_PER_SEC) : 0);
+  }
+
+  /**
+   * About how long until {@code aim} can fire, from the robot's heading, the hood's launch angle and the wheels' speed
+   * now: the longest of the turn, the hood's move and the wheels' change (they happen together), plus
+   * SHOT_PICK_BLOCKED_S when the shot can't be taken yet. Infinite when it is out of range or has no safe shot.
+   */
+  public static double secondsToReady(Aim aim, double headingRad, double hoodDeg, double rpm) {
+    Shot.Reason reason = aim.shot.reason;
+    if (reason == Shot.Reason.OUT_OF_RANGE || reason == Shot.Reason.NO_SAFE_SHOT) {
+      return Double.POSITIVE_INFINITY;
+    }
+    double turnDeg = Math.abs(Math.toDegrees(normalizeAngle(aim.targetHeadingRad - headingRad)));
+    double turnS = turnDeg < 3 ? 0 : SHOT_PICK_TURN_BASE_S + turnDeg / SHOT_PICK_TURN_DEG_PER_S;
+    double hoodMoveDeg = Double.isNaN(hoodDeg) || Double.isNaN(aim.hoodNowDeg) ? 0 : Math.abs(aim.hoodNowDeg - hoodDeg);
+    double hoodS = hoodMoveDeg < 1 ? 0 : SHOT_PICK_HOOD_BASE_S + hoodMoveDeg / SHOT_PICK_HOOD_DEG_PER_S;
+    double rpmS = Double.isNaN(rpm) || Double.isNaN(aim.rpmNow) ? 0 : Math.abs(aim.rpmNow - rpm) / SHOT_PICK_RPM_PER_S;
+    return Math.max(turnS, Math.max(hoodS, rpmS)) + (aim.shot.valid ? 0 : SHOT_PICK_BLOCKED_S);
+  }
+
+  /**
+   * Whether the robot is straight in front of the Cell, within halfAngleDeg either side of its axis (along field x,
+   * out from the Hive's middle: a Cell at +x opens toward +x). Until 14 Nov it took out as toward the field's
+   * middle, from Cells once thought to be on the walls, so the wedge never held and TeleOp shot hooded from
+   * straight in front (230333: 11.5 degrees off the axis, the balls bounced out).
+   */
+  public static boolean inFrontOfCell(Pose robot, double cellX, double cellY, double halfAngleDeg) {
+    if (!(halfAngleDeg > 0)) {
+      return false;
+    }
+    double outX = cellX > 0 ? 1 : -1;
+    double dx = (robot.xM - cellX) * outX;
+    double dy = robot.yM - cellY;
+    return dx > 0 && Math.abs(Math.toDegrees(Math.atan2(dy, dx))) <= halfAngleDeg;
+  }
+
+  /**
+   * The backward shot is ready sooner than the hooded one; a tie goes to the hooded shot. Never past
+   * SHOT_PICK_BACKWARD_MAX_LIP_M, where the backward table isn't calibrated.
+   */
+  public static boolean backwardQuicker(Aim hooded, Aim backward, double headingRad, double hoodDeg, double rpm) {
+    if (!(backward.shot.distanceToLipM <= SHOT_PICK_BACKWARD_MAX_LIP_M)) {
+      return false;
+    }
+    double b = secondsToReady(backward, headingRad, hoodDeg, rpm);
+    return b < secondsToReady(hooded, headingRad, hoodDeg, rpm);
   }
 
   /** From the shot for a ball leaving now to the one leaving FEED_DELAY_S on. */
@@ -249,18 +338,50 @@ public final class ShootOnTheMove {
    */
   public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
       double turnRateRadPerSec, double turningRateRadPerSec) {
+    return readyToFire(aim, flywheelsReady, hoodReady, headingRad, turnRateRadPerSec, turningRateRadPerSec, false);
+  }
+
+  /**
+   * As above; with {@code closeMovingAllowed} it also fires moving close to the lip ({@link #tooCloseToShootMoving}),
+   * for SOTM Tuning to find out whether those shots score once the heading holds.
+   */
+  public static boolean readyToFire(Aim aim, boolean flywheelsReady, boolean hoodReady, double headingRad,
+      double turnRateRadPerSec, double turningRateRadPerSec, boolean closeMovingAllowed) {
     double errorNowRad = normalizeAngle(aim.lockHeadingRad - headingRad);
     double targetRateRadPerSec = aim.lockRateRadPerSec + turningRateRadPerSec;
     double errorAtLatestExitRad = errorNowRad + (targetRateRadPerSec - turnRateRadPerSec) * FEED_DELAY_MAX_S;
-    boolean movingClose = Math.hypot(aim.shot.speedTowardCellMps, aim.shot.sidewaysSpeedMps) >= MOVING_SHOT_SPEED_MPS
-        && aim.shot.distanceToLipM < MIN_MOVING_SHOT_LIP_M;
     return aim.shot.valid
-        && !movingClose
+        && (closeMovingAllowed || !tooCloseToShootMoving(aim.shot))
         && Math.abs(aim.hoodRateDegPerSec) <= MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC
         && flywheelsReady
         && hoodReady
         && Math.abs(errorNowRad) <= aim.headingToleranceRad
         && Math.abs(errorAtLatestExitRad) <= aim.headingToleranceRad;
+  }
+
+  /**
+   * What the driver must change for this shot to fire, when it is how they drive, else null. On 13 Nov 8 presses
+   * (17 s) never fired, strafing at 0.5-1 m/s 0.35-0.7 m from the lip, with only "lining up" on the screen.
+   */
+  public static String stopHint(Shot shot, boolean closeMovingAllowed) {
+    if (shot.valid) {
+      return !closeMovingAllowed && tooCloseToShootMoving(shot) ? "STOP: too close to shoot moving" : null;
+    }
+    switch (shot.reason) {
+      case SIDEWAYS_TOO_FAST: return "slow down sideways";
+      case CLOSING_TOO_FAST: return "slow down: driving at the Cell too fast";
+      case BACKING_TOO_FAST: return "slow down: backing away too fast";
+      default: return null;
+    }
+  }
+
+  /**
+   * True when the robot moves too fast this close to the lip to fire (MIN_MOVING_SHOT_LIP_M): such shots missed
+   * on 5 Nov, with the heading error growing during the feed. The match's fire gate refuses them.
+   */
+  public static boolean tooCloseToShootMoving(Shot shot) {
+    return Math.hypot(shot.speedTowardCellMps, shot.sidewaysSpeedMps) >= MOVING_SHOT_SPEED_MPS
+        && shot.distanceToLipM < MIN_MOVING_SHOT_LIP_M;
   }
 
   /**
