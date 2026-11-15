@@ -38,7 +38,7 @@ final class RobotLogger {
     Logger.recordOutput("SOTM/CellSeenAgoS", robot.cellSeenAgoS);
     Logger.recordOutput("SOTM/RpmTrim", robot.rpmTrim);
     Logger.recordOutput("SOTM/HeadingTrimDeg", robot.headingTrimDeg);
-    Logger.recordOutput("SOTM/TableRpmOffset", robot.tableRpmOffset(aim));
+    Logger.recordOutput("SOTM/TableRpmOffset", robot.shooterControl.tableRpmOffset(aim));
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", robot.hoodLiftTrimDeg);
     Logger.recordOutput("Robot/OneBallShot", robot.tuningMode && (robot.driver.right_bumper || robot.scriptedOneBall)
         && robot.driver.right_trigger <= Robot.TRIGGER_PRESSED);
@@ -99,7 +99,7 @@ final class RobotLogger {
     Logger.recordOutput("Volley/DipDepthRpm", robot.volleyFeedGate.lastDipDepthRpm());
     Logger.recordOutput("Volley/DoubleBall",
         robot.volleyFeedGate.lastDipDepthRpm() > VolleyConstants.VOLLEY_DOUBLE_DIP_RPM);
-    Logger.recordOutput("Volley/HoodDeg", robot.volleyHoodDeg);
+    Logger.recordOutput("Volley/HoodDeg", robot.shooterControl.volleyHoodDeg);
     Logger.recordOutput("Volley/BoostRpm", robot.volleyBoostRpm());
     Logger.recordOutput("Volley/FeedPower", robot.volleyFeedPower());
     Logger.recordOutput("Volley/IndexerPower", robot.volleyIndexerPower());

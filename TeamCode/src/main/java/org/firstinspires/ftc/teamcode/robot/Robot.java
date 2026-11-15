@@ -14,7 +14,6 @@ import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.HoodPreset;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
@@ -27,7 +26,6 @@ import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.field.PoseHandoff;
 import org.firstinspires.ftc.teamcode.shooting.feed.LoadingShooterInterlock;
-import org.firstinspires.ftc.teamcode.control.HoodStepControl;
 import org.firstinspires.ftc.teamcode.control.LoopWatchdog;
 import org.firstinspires.ftc.teamcode.vision.CellSighting;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
@@ -40,7 +38,6 @@ import org.firstinspires.ftc.teamcode.shooting.AimConstants;
 import org.firstinspires.ftc.teamcode.shooting.BackwardShotConstants;
 import org.firstinspires.ftc.teamcode.shooting.FireConstants;
 import org.firstinspires.ftc.teamcode.shooting.ShotPickConstants;
-import org.firstinspires.ftc.teamcode.shooting.SotmConstants;
 import org.firstinspires.ftc.teamcode.shooting.volley.VolleyConstants;
 import org.firstinspires.ftc.teamcode.vision.VisionConstants;
 import org.firstinspires.ftc.teamcode.shooting.ShooterTuning;
@@ -93,6 +90,7 @@ public class Robot {
   private final RobotLogger log = new RobotLogger(this);
   final BallPath ballPath = new BallPath(this);
   final DriveControl driveControl = new DriveControl(this);
+  final ShooterControl shooterControl = new ShooterControl(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -152,8 +150,6 @@ public class Robot {
   private int positionFixes; // Tag fixes applied to the position so far
 
   AimState aimState = AimState.OFF;
-  private double aimRpm = DriverConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
-  private final HoodStepControl hoodSteps = new HoodStepControl();
   double hoodLiftTrimDeg = 0;
   double rpmTrim = 0; // Driver's, for the rest of the match
   double headingTrimDeg = 0; // Anticlockwise, the tuning tools' aim trim (TeleOp uses aimTrimDeg's)
@@ -182,7 +178,7 @@ public class Robot {
   // the matched wheel speed (VolleyConstants). RT stays the one-at-a-time shoot on the move. Off,
   // RB is a plain held shot as RT's
   boolean volleyMode = false;
-  private boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
+  boolean volleyRequested = false; // This loop asks for a volley: RB, Volley Tuning's aim, or RT (VOLLEY_ON_RT)
   private boolean hoodedOnly = false;
   private boolean backwardOnly = false;
   final OneBallFeedGate volleyFeedGate
@@ -193,9 +189,8 @@ public class Robot {
   OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
   boolean volleyShot = false; // This loop's shot is a volley
   // Volley Tuning's settings in place of the constants
-  private final VolleyConfig volley = new VolleyConfig();
+  final VolleyConfig volley = new VolleyConfig();
 
-  double volleyHoodDeg = 0; // Launch angle the volley added this loop, for the log
   // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
   private boolean buttonsReserved = false;
@@ -206,11 +201,10 @@ public class Robot {
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
   private double backwardBlockedSinceS = Double.NaN;
-  private final RpmTrend rpmTrend = new RpmTrend(FireConstants.RPM_TREND_WINDOW_S);
+  final RpmTrend rpmTrend = new RpmTrend(FireConstants.RPM_TREND_WINDOW_S);
   private static final double PREPOSITION_SETTLE_S = 0.5;
   private boolean prepositionBackward = false;
   private double prepositionSwitchSinceS = Double.NaN;
-  private boolean shooterStopLatched = false; // X: flywheels off until the driver next asks for a shot
   private boolean handsOffPose = false;
   private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
   private boolean swapBatteryRumbled = false;
@@ -220,7 +214,6 @@ public class Robot {
   private static final double STOP_HINT_RUMBLE_AFTER_S = 0.4;
   private static final int STOP_HINT_RUMBLE_MS = 400;
   private boolean startedFromAuto = false;
-  private double lastShotKnownS = Double.NEGATIVE_INFINITY;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
@@ -499,8 +492,9 @@ public class Robot {
     times.aim = System.nanoTime();
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     times.aimed = System.nanoTime();
-    double turnDeg = aimTrimDeg(tuningMode, headingTrimDeg, aim != null && aim.backward) + movingHeadingDeg(aim);
-    if (volleyAim(aim) && !Double.isNaN(volley.headingTrimDeg())) { turnDeg += volley.headingTrimDeg(); }
+    double turnDeg = ShooterControl.aimTrimDeg(tuningMode, headingTrimDeg, aim != null && aim.backward)
+        + shooterControl.movingHeadingDeg(aim);
+    if (shooterControl.volleyAim(aim) && !Double.isNaN(volley.headingTrimDeg())) { turnDeg += volley.headingTrimDeg(); }
     if (aim != null && turnDeg != 0) {
       aim = aim.turnedBy(Math.toRadians(turnDeg));
     }
@@ -511,14 +505,14 @@ public class Robot {
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
     // that had just moved 3 degrees (the robot stopped) was judged against the old one, and the ball missed (5 Nov, 095605)
     times.shooter = System.nanoTime();
-    volleyShot = volleyAim(aim);
+    volleyShot = shooterControl.volleyAim(aim);
     feedGate = volleyShot ? volleyFeedGate : aimedFeedGate;
     loadingShooter.update(clock.seconds(), spinOnlyOnFire, shotRequested() && !holdFire,
         shooter.getMaxMeasuredRpm());
     Logger.recordOutput("Shooter/Loading/State", loadingShooter.state());
     Logger.recordOutput("Shooter/Loading/SpinBlocked", loadingShooter.blocksSpin());
     Logger.recordOutput("Shooter/Loading/CanLoad", loadingShooter.canLoad());
-    updateShooterAndHood(aiming, aim);
+    shooterControl.update(aiming, aim);
     times.shooterSet = System.nanoTime();
     rpmTrend.update(clock.seconds(), shooter.getRpm());
     double predictedRpmError = rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm();
@@ -913,110 +907,6 @@ public class Robot {
     return pressedNow && !pressedLastLoop;
   }
 
-  private void updateShooterAndHood(boolean aiming, Aim aim) {
-    volleyHoodDeg = 0;
-    boolean validShot = aim != null && aim.shot.valid;
-    // A backward shot waiting only for the robot to slow down: hood down and wheels at its speed already
-    boolean backwardWaiting = aim != null && aim.backward && !validShot
-        && aim.shot.reason != Shot.Reason.OUT_OF_RANGE;
-    boolean shotKnown = validShot || backwardWaiting;
-    double nowS = clock.seconds();
-    if (shotKnown) { lastShotKnownS = nowS; }
-    // A shot gone for a moment (NO_SAFE_SHOT flickers, a median 0.42 s, p90 1.2 s, 13 Nov) keeps its speed:
-    // dropping to IDLE braked the wheels a median 1350 RPM, 478 times that day, and they then had to come back
-    boolean shotJustLost = !shotKnown && nowS - lastShotKnownS <= FireConstants.PRESPIN_HOLD_S;
-    double rpmRate = shotKnown ? aim.rpmRatePerSec : 0.0;
-    // The shot is for the ball leaving FEED_DELAY_S from now. The wheels and hood only have to be there by
-    // then, so they follow the shot for now and arrive at this one as the ball leaves. Holding this one
-    // already put them a feed delay early: 4 degrees of hood at 20 degrees/s (5 Nov, 080236).
-    if (shotKnown && !Double.isNaN(aim.rpmNow)) {
-      aimRpm = aim.rpmNow;
-    }
-
-    boolean fullPower = driver.y && buttonsFree();
-    boolean eject = driver.b && buttonsFree();
-    if (aiming || fullPower || eject) {
-      shooterStopLatched = false;
-    } else if (driver.x && buttonsFree()) {
-      shooterStopLatched = true;
-    }
-    if (volleyMode) { // Full power back up to speed after each ball of a volley
-      boolean fast = volleyShot && volley.fastRecovery();
-
-      shooter.setSpinThresholds(fast ? VolleyConstants.VOLLEY_OPEN_LOOP_BELOW_RPM : Double.NaN,
-          fast ? VolleyConstants.VOLLEY_HANDBACK_RPM : Double.NaN);
-    }
-
-    if (eject) {
-      shooter.setShooterState(ShooterState.EJECT);
-    } else if (loadingShooter.blocksSpin()) {
-      shooter.setShooterState(ShooterState.STOP); // Heading/hood still track below; no powered idle while filling.
-    } else if (aiming) {
-      shooter.setShooterState(ShooterState.AIM);
-      // No Cell in view means no shot table to read, so go for the top speed
-      shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0
-          ? ShooterTuning.RPM_OVERRIDE
-          : aim == null ? shooter.getMaxRpm() : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim),
-          ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
-    } else if (fullPower) {
-      if (ShooterTuning.RPM_OVERRIDE > 0) {
-        shooter.setShooterState(ShooterState.AIM);
-        shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE);
-      } else {
-        shooter.setShooterState(ShooterState.SHOOT);
-      }
-    } else if (shooterStopLatched || tuningMode) { // The tuning OpModes rest the wheels between shots
-      shooter.setShooterState(ShooterState.STOP);
-    } else if (shotKnown && FireConstants.PRESPIN_ON) {
-      // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
-      shooter.setShooterState(ShooterState.AIM);
-      shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE
-          : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim) + volleyBackwardRpm(aim),
-          ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
-    } else if (shotJustLost && FireConstants.PRESPIN_ON
-        && shooter.getShooterState() == ShooterState.AIM) {
-      shooter.setShooterState(ShooterState.AIM); // At the last target, which it keeps
-    } else {
-      shooter.setShooterState(ShooterState.IDLE);
-    }
-
-    // Not aiming but the Cell is known: move the hood to the shot RT would take now, while driving,
-    // so it is already there when RT is pressed. Presets are for when the Cell isn't known.
-    boolean prepositioning = !aiming && shotKnown && !fullPower && !eject;
-    if (aiming || prepositioning) {
-      if (tuningMode && !tuningLive && validShot) {
-        // Lift 0 is the lower stop; held just above it, as a backward shot's is, so the hood can't sag
-        hood.setTargetTicks(Math.max(HoodSubsystem.minTargetTicks(), HoodSubsystem.angleToTicks(aim.hoodNowDeg)));
-      } else if (shotKnown && aim.backward) {
-        // Never under just above the lower stop. Target 0 cuts the motor to rest on the stop, but the hood
-        // doesn't fall by itself: it stayed ~36 degrees up and the shot never got ready. Trim doesn't apply
-        hood.setTargetTicks(Double.isNaN(aim.hoodNowDeg) ? HoodSubsystem.minTargetTicks()
-            : Math.max(HoodSubsystem.minTargetTicks(), HoodSubsystem.angleToTicks(aim.hoodNowDeg)));
-      } else if (validShot) { // Otherwise the hood holds its last angle
-        // Lift rises as the launch angle falls
-        volleyHoodDeg = volleyHoodDeg(aim);
-        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.hoodNowDeg - hoodLiftTrimDeg + movingHoodDeg(aim)
-            + volleyHoodDeg), -aim.hoodRateDegPerSec);
-      }
-    } else if (!buttonsFree()) {
-      return; // The D-pad sets the tuning shot, or marks balls, instead
-    } else if (driver.dpad_up) {
-      hood.setPreset(HoodPreset.FAR);
-    } else if (driver.dpad_down) {
-      hood.setPreset(HoodPreset.CLOSE);
-    }
-    if (!buttonsFree()) {
-      return;
-    }
-    double lift = hood.getTargetLiftDegrees();
-    double steppedLift = hoodSteps.update(lift, driver.dpad_right, driver.dpad_left,
-        HoodSubsystem.ZERO_ANGLE_DEG - HoodSubsystem.MIN_ANGLE_DEG);
-    if (steppedLift != lift) {
-      if (aiming || prepositioning) { hoodLiftTrimDeg += steppedLift - lift; }
-      hood.setTargetLiftDegrees(steppedLift);
-    }
-  }
-
   boolean shotRequested() {
     double fireTrigger = fireTrigger();
     boolean requested = fireTrigger > TRIGGER_PRESSED || driver.right_bumper
@@ -1098,73 +988,6 @@ public class Robot {
 
   /** Heading/hood may track while filling, but flywheels start only for an enabled shot. */
   public void setSpinOnlyOnFire(boolean enabled) { spinOnlyOnFire = enabled; }
-
-  double tableRpmOffset(Aim aim) {
-    if (aim == null || (tuningMode && !tuningLive)) {
-      return 0;
-    }
-    double toward = finiteOr0(aim.shot.speedTowardCellMps);
-    return aim.backward ? SotmConstants.SOTM_BACKWARD_RPM_PER_TOWARD_MPS * toward
-        : AimConstants.HOODED_RPM_OFFSET + SotmConstants.SOTM_RPM_PER_TOWARD_MPS * toward;
-  }
-
-  /** Launch angle added to a hooded shot for its speed toward the Cell. */
-  private double movingHoodDeg(Aim aim) {
-    if (aim == null || aim.backward || (tuningMode && !tuningLive)) {
-      return 0;
-    }
-    double towardMps = finiteOr0(aim.shot.speedTowardCellMps);
-    return SotmConstants.SOTM_HOOD_DEG_PER_TOWARD_MPS * towardMps + (tuningMode ? 0
-        : movingHoodTrimDeg(aim.shot.distanceToLipM, Math.hypot(towardMps, finiteOr0(aim.shot.sidewaysSpeedMps))));
-  }
-
-  /**
-   * TeleOp's launch angle added to a moving hooded shot for its distance to the lip
-   * ({@link SotmConstants#SOTM_HOOD_TRIM_DEG}): full from the moving shot speed, scaled down to none at rest.
-   */
-  static double movingHoodTrimDeg(double lipM, double speedMps) {
-    double[] d = SotmConstants.SOTM_HOOD_TRIM_DIST_M;
-    double[] t = SotmConstants.SOTM_HOOD_TRIM_DEG;
-    if (Double.isNaN(lipM) || Double.isNaN(speedMps)) {
-      return 0;
-    }
-    double trim;
-    if (lipM <= d[0]) {
-      trim = t[0];
-    } else if (lipM >= d[d.length - 1]) {
-      trim = t[t.length - 1];
-    } else {
-      int i = 0;
-      while (lipM > d[i + 1]) { i++; }
-      trim = t[i] + (t[i + 1] - t[i]) * (lipM - d[i]) / (d[i + 1] - d[i]);
-    }
-    return trim * Math.min(1, Math.abs(speedMps) / FireConstants.MOVING_SHOT_SPEED_MPS);
-  }
-
-  /**
-   * Aim trim, degrees anticlockwise: the tuning tools' own (toolTrimDeg), else the standing trim they found for the
-   * hooded or backward shot.
-   */
-  static double aimTrimDeg(boolean tuningMode, double toolTrimDeg, boolean backward) {
-    if (tuningMode) {
-      return toolTrimDeg;
-    }
-    return backward ? BackwardShotConstants.BACKWARD_HEADING_TRIM_DEG
-        : AimConstants.HOODED_HEADING_TRIM_DEG;
-  }
-
-  /** Aim turned anticlockwise for the shot's sideways speed. */
-  private double movingHeadingDeg(Aim aim) {
-    if (aim == null || (tuningMode && !tuningLive)) {
-      return 0;
-    }
-    return (aim.backward ? SotmConstants.SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS
-        : SotmConstants.SOTM_HEADING_DEG_PER_SIDEWAYS_MPS) * finiteOr0(aim.shot.sidewaysSpeedMps);
-  }
-
-  private static double finiteOr0(double v) {
-    return Double.isNaN(v) || Double.isInfinite(v) ? 0 : v;
-  }
 
   /**
    * Shot Tuning: every shot is the one set by {@link #setTuningShot}, from anywhere, and D-pad, left bumper, X and
@@ -1433,57 +1256,14 @@ public class Robot {
     return !tuningMode && !buttonsReserved;
   }
 
-  private boolean volleyAim(Aim aim) {
-    return volleyMode && volleyRequested && aim != null
-        && (!aim.backward || VolleyConstants.VOLLEY_BACKWARD_ON);
-  }
-
-  private double volleyBoostRpm(Aim aim) {
-    return volleyAim(aim) && !aim.backward ? volleyBoostRpm() : 0;
-  }
-
   /** Top of a volley's matched band: tighter for a backward burst, which goes long when fed fast. */
   private static double volleyReadyAboveRpm(Aim aim) {
     return aim != null && aim.backward ? VolleyConstants.VOLLEY_BACKWARD_READY_ABOVE_RPM
         : VolleyConstants.VOLLEY_READY_ABOVE_RPM;
   }
 
-  /**
-   * Launch angle a volley adds: the steepening for its boost (ShotTableRpm), a share of the steepening for the
-   * wheels' predicted speed off the target (VOLLEY_HOOD_FOLLOW_GAIN), and the trim for the ball about to go.
-   */
-  private double volleyHoodDeg(Aim aim) {
-    if (!volleyAim(aim)) {
-      return 0;
-    }
-    double boost = volleyBoostRpm();
-    double lipM = aim.shot.distanceToLipM;
-    double towardMps = finiteOr0(aim.shot.speedTowardCellMps);
-    double boostDeg = ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, boost);
-    double followDeg = 0;
-    double gain = VolleyConstants.VOLLEY_HOOD_FOLLOW_GAIN;
-    if (gain != 0) {
-      double above = rpmTrend.predicted(FireConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm() + boost;
-      above = Math.max(boost - VolleyConstants.VOLLEY_READY_BELOW_RPM,
-          Math.min(boost + VolleyConstants.VOLLEY_READY_ABOVE_RPM, above));
-      followDeg = gain * (ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, above) - boostDeg);
-    }
-    return finiteOr0(boostDeg + followDeg) + volleyTrimDeg(false);
-  }
-
-  /** The trim for the ball about to go (VolleyConfig.trimDeg). */
-  private double volleyTrimDeg(boolean backward) {
-    return volley.trimDeg(volleyFeedGate.ballsLeft() == 0, backward);
-  }
-
   public static double volleyTrimDeg(double trim, boolean volleyTrimsBackward, boolean backward, boolean first) {
     return VolleyConfig.trimDeg(trim, volleyTrimsBackward, backward, first);
-  }
-
-  /** A backward volley's trim, as wheel speed: its hood follows the table, and its range comes from the RPM. */
-  private double volleyBackwardRpm(Aim aim) {
-    return volleyAim(aim) && aim.backward
-        ? -VolleyConstants.VOLLEY_BACKWARD_RPM_PER_TRIM_DEG * volleyTrimDeg(true) : 0;
   }
 
   /** Called once when the OpMode stops. */
