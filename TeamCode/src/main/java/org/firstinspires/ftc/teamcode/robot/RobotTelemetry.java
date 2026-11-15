@@ -155,7 +155,7 @@ final class RobotTelemetry {
             Math.toDegrees(aim.headingErrorRad(pose.headingRad)))});
     lines.add(new String[] {"Pose", String.format("%.2f, %.2f m  %.0f deg%s", pose.xM, pose.yM,
         Math.toDegrees(pose.headingRad), robot.poseFusion.poseValid ? "" : "  (not placed by tags yet)")});
-    lines.add(new String[] {"Battery", String.format("%.2f V", robot.batteryVolts)});
+    lines.add(new String[] {"Battery", String.format("%.2f V", robot.batteryMonitor.batteryVolts)});
     if (!panelsBusy.compareAndSet(false, true)) {
       return;
     }
@@ -319,19 +319,21 @@ final class RobotTelemetry {
         : a >= 5 || load >= 0.35 ? "! warm"
         : "ok";
     telemetry.addData("INTAKE", String.format("%.1f A  load %.0f%%  %s", a, 100 * load, intakeFlag));
+    BatteryMonitor battery = robot.batteryMonitor;
     if (!robot.isTelemetryDetail()) { // Battery on one line, its flag only when it needs doing something about
-      String batteryFlag = robot.batteryMinVolts < 11.0 ? "  !! LOW - swap"
-          : robot.batteryVolts < 12.0 ? "  ! low" : "";
-      telemetry.addData("Battery", String.format("%.1f V%s%s", robot.batteryVolts, batteryFlag,
+      String batteryFlag = battery.batteryMinVolts < 11.0 ? "  !! LOW - swap"
+          : battery.batteryVolts < 12.0 ? "  ! low" : "";
+      telemetry.addData("Battery", String.format("%.1f V%s%s", battery.batteryVolts, batteryFlag,
           robot.shooter.isStalled() ? "   FLYWHEELS STALLED" : ""));
       return;
     }
     String shooterFlag = robot.shooter.isStalled() ? "STALLED" : "ok";
     telemetry.addData("FLYWHEELS", String.format("L %.1f  R %.1f A  %s",
         robot.shooter.getLeftAmps(), robot.shooter.getRightAmps(), shooterFlag));
-    String batteryFlag = robot.batteryMinVolts < 11.0 ? "!! LOW - swap" : robot.batteryVolts < 12.0 ? "! low" : "ok";
-    telemetry.addData("BATTERY", String.format("%.2f V  (lowest %.2f)  %s", robot.batteryVolts, robot.batteryMinVolts,
-        batteryFlag));
+    String batteryFlag = battery.batteryMinVolts < 11.0 ? "!! LOW - swap"
+        : battery.batteryVolts < 12.0 ? "! low" : "ok";
+    telemetry.addData("BATTERY", String.format("%.2f V  (lowest %.2f)  %s", battery.batteryVolts,
+        battery.batteryMinVolts, batteryFlag));
   }
 
   void stop() {

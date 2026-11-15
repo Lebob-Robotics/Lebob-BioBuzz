@@ -254,3 +254,4 @@ org.firstinspires.ftc.teamcode.robot.Robot.STALL_RUMBLE_MS -> org.firstinspires.
 org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_RUMBLE_MS -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_RUMBLE_MS
 org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_REMIND_MS -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_REMIND_MS
 org.firstinspires.ftc.teamcode.robot.Robot.INTAKE_LOCK_REMIND_S -> org.firstinspires.ftc.teamcode.robot.DriverPad.INTAKE_LOCK_REMIND_S
+org.firstinspires.ftc.teamcode.robot.Robot.BATTERY_SAMPLE_PERIOD_S -> org.firstinspires.ftc.teamcode.robot.BatteryMonitor.BATTERY_SAMPLE_PERIOD_S

@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.robot;
 import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -80,6 +79,7 @@ public class Robot {
   final PoseFusion poseFusion = new PoseFusion(this);
   final FireControl fireControl = new FireControl(this);
   final DriverPad driverPad = new DriverPad(this);
+  final BatteryMonitor batteryMonitor; // Made in the constructor, which has the hardware map
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
   final Gamepad physicalDriver;
@@ -99,15 +99,7 @@ public class Robot {
   public static final double TRIGGER_PRESSED = 0.5;
   boolean holdFire;
   boolean spinOnlyOnFire;
-  /** Battery voltage is a separate hub read, so sample it this often. */
-  private static final double BATTERY_SAMPLE_PERIOD_S = 0.1;
-
-  /** Null if the config has no voltage sensor. */
-  private final VoltageSensor battery;
   final ElapsedTime clock = new ElapsedTime();
-  private double lastBatterySampleS = Double.NEGATIVE_INFINITY;
-  double batteryVolts = Double.NaN;
-  double batteryMinVolts = Double.NaN;
 
   /** Where shoot on the move is up to. Shown to the driver and logged. */
   public enum AimState {
@@ -147,8 +139,6 @@ public class Robot {
   // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
   private boolean buttonsReserved = false;
   private boolean handsOffPose = false;
-  private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
-  private boolean swapBatteryRumbled = false;
   private boolean startedFromAuto = false;
   private final double[] hiveTagSeenS = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY}; // By Alliance ordinal
   // This loop's results, for an OpMode that drives the robot itself (Shot Tuning)
@@ -183,8 +173,8 @@ public class Robot {
     vision = new VisionSubsystem(hardwareMap);
 
     // Both hubs read the same battery, so one sensor is enough.
-    battery = hardwareMap.voltageSensor.iterator().hasNext()
-        ? hardwareMap.voltageSensor.iterator().next() : null;
+    batteryMonitor = new BatteryMonitor(this, hardwareMap.voltageSensor.iterator().hasNext()
+        ? hardwareMap.voltageSensor.iterator().next() : null);
   }
 
   /** Called once when the OpMode enters INIT. */
@@ -251,18 +241,8 @@ public class Robot {
       hood.periodic(); // Drives the hood down onto its stop and zeroes it there; nothing else moves
     }
     vision.periodic(); // Read and log tags in INIT without running any mechanism commands.
-    updateBattery(true);
-    if (!Double.isNaN(batteryVolts)) {
-      initMaxVolts = Double.isNaN(initMaxVolts) ? batteryVolts : Math.max(initMaxVolts, batteryVolts);
-    }
-    if (swapBattery(initMaxVolts)) {
-      telemetry.addLine(String.format("!! SWAP BATTERY: %.1f V at rest, want %.1f or more",
-          initMaxVolts, DriverConstants.SWAP_BATTERY_V));
-      if (!swapBatteryRumbled) {
-        physicalDriver.rumble(600);
-        swapBatteryRumbled = true;
-      }
-    }
+    batteryMonitor.update(true);
+    batteryMonitor.warnIfLowAtRest();
     noteHiveTags(vision.takeNewTagObservations());
     display.addInitTelemetry();
   }
@@ -453,7 +433,7 @@ public class Robot {
 
     times.log = System.nanoTime();
     boolean telemetryDue = display.due();
-    updateBattery(telemetryDue);
+    batteryMonitor.update(telemetryDue);
     log.logAim(aim);
     if (volleyMode) {
       log.logVolley();
@@ -486,40 +466,12 @@ public class Robot {
     display.addPowerTelemetry();
   }
 
-  /**
-   * A battery this low at rest sags toward brownout in a match: two 9 Nov runs that started at 11.1-11.9 V fell to
-   * 6.8-6.9 V, and every auto sags to 9.6 V at spin-up even from 12.6 V.
-   */
-  static boolean swapBattery(double restingVolts) {
-    return restingVolts < DriverConstants.SWAP_BATTERY_V;
-  }
-
-  /**
-   * Samples the battery voltage, keeping the lowest seen this run (it sags when the shooter spins up),
-   * then logs it and adds it to telemetry.
-   */
-  private void updateBattery(boolean telemetryDue) {
-    double now = clock.seconds();
-    if (battery != null && now - lastBatterySampleS >= BATTERY_SAMPLE_PERIOD_S) {
-      lastBatterySampleS = now;
-      batteryVolts = battery.getVoltage();
-      hood.setBatteryVolts(batteryVolts);
-      batteryMinVolts = Double.isNaN(batteryMinVolts)
-          ? batteryVolts : Math.min(batteryMinVolts, batteryVolts);
-    }
-    Logger.recordOutput("Robot/BatteryVolts", batteryVolts);
-    Logger.recordOutput("Robot/BatteryMinVolts", batteryMinVolts);
-    if (telemetryDue && isTelemetryDetail()) {
-      telemetry.addData("Battery", "%.2f V (lowest %.2f V)", batteryVolts, batteryMinVolts);
-    }
-  }
-
   /** The pose this loop aimed from, after the vision correction. */
   public FieldPose getPose() { return lastPose; }
   /** Field velocity {x, y, turn rate} this loop, m/s and rad/s. */
   public double[] getVelocity() { return lastVelocity.clone(); }
   public boolean isPoseValid() { return poseFusion.poseValid; }
-  public double getBatteryVolts() { return batteryVolts; }
+  public double getBatteryVolts() { return batteryMonitor.batteryVolts; }
   public int getPositionFixes() { return poseFusion.positionFixes; }
   public double getAimCellX() { return aimSelector.aimCellX; }
   public double getAimCellY() { return aimSelector.aimCellY; }
