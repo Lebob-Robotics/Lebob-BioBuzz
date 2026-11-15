@@ -12,14 +12,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.FeederSubsystem.FeederState;
 import org.firstinspires.ftc.teamcode.subsystems.RampSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem.HoodPreset;
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem.IndexerState;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.IntakeState;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.OdometrySubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
@@ -29,8 +26,6 @@ import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.feed.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.field.PoseHandoff;
-import org.firstinspires.ftc.teamcode.shooting.feed.StackPressure;
-import org.firstinspires.ftc.teamcode.shooting.feed.WheelContact;
 import org.firstinspires.ftc.teamcode.shooting.feed.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.control.HoodStepControl;
 import org.firstinspires.ftc.teamcode.control.HeadingHold;
@@ -40,7 +35,6 @@ import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.PoseHistory;
 import org.firstinspires.ftc.teamcode.shooting.feed.RpmTrend;
 import org.firstinspires.ftc.teamcode.shooting.feed.OneBallFeedGate;
-import org.firstinspires.ftc.teamcode.shooting.feed.IndexerRetry;
 import org.firstinspires.ftc.teamcode.shooting.Shot;
 import org.firstinspires.ftc.teamcode.shooting.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.shooting.AimConstants;
@@ -95,12 +89,13 @@ import org.firstinspires.ftc.teamcode.opmodes.Main;
  * stage, so it is what waits for READY on an aimed shot.
  */
 public class Robot {
-  private final Telemetry telemetry;
+  final Telemetry telemetry;
   private final RobotTelemetry display;
   private final RobotLogger log = new RobotLogger(this);
+  final BallPath ballPath = new BallPath(this);
   private final RobotLogger.LoopTimes times = new RobotLogger.LoopTimes();
   /** The real gamepad 1, kept for rumble. */
-  private final Gamepad physicalDriver;
+  final Gamepad physicalDriver;
   /** What the code reads: gamepad 1, plus the browser gamepad from Panels when Panels is on. Rebuilt each loop. */
   Gamepad driver;
 
@@ -115,9 +110,9 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double TRIGGER_PRESSED = 0.5;
-  private boolean holdFire;
-  private boolean spinOnlyOnFire;
-  private final LoadingShooterInterlock loadingShooter = new LoadingShooterInterlock();
+  boolean holdFire;
+  boolean spinOnlyOnFire;
+  final LoadingShooterInterlock loadingShooter = new LoadingShooterInterlock();
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
@@ -202,7 +197,6 @@ public class Robot {
   private static final double HOLD_POINT_MOVING_MPS = 0.05;
   private boolean holdPointReturning = false;
   private double holdPointStuckSinceS;
-  private final IndexerRetry indexerRetry = new IndexerRetry();
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private final LoopWatchdog watchdog = new LoopWatchdog();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
@@ -222,7 +216,7 @@ public class Robot {
       FireConstants.AIMED_FEED_STOP_UNREADY_S, VolleyConstants.VOLLEY_FEED_PULSE_S,
       VolleyConstants.VOLLEY_FEED_PAUSE_S,
       VolleyConstants.VOLLEY_MIN_GAP_S, true);
-  private OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
+  OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
   boolean volleyShot = false; // This loop's shot is a volley
   // Volley Tuning's settings in place of the constants
   private final VolleyConfig volley = new VolleyConfig();
@@ -235,7 +229,6 @@ public class Robot {
   boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
   double aimCellX = 0; // The point aimed at this loop, field metres
   double aimCellY = 0;
-  boolean intakeOn = true;
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
   private double backwardBlockedSinceS = Double.NaN;
@@ -249,14 +242,6 @@ public class Robot {
   private boolean prepositionBackward = false;
   private double prepositionSwitchSinceS = Double.NaN;
   private boolean shooterStopLatched = false; // X: flywheels off until the driver next asks for a shot
-  private boolean wasFull = false;
-  private final WheelContact wheelContact = new WheelContact();
-  private boolean wheelContactFull = false; // A loading ball touched the wheels: the stack is full
-  private final StackPressure stackPressure = new StackPressure();
-  private boolean stackPacked = false; // The intake pushed a packed stack: it eases off and the last roller stops
-  private boolean intakeEased = false; // The intake at PACKED_INTAKE_POWER; clears sooner than stackPacked
-  private boolean wasLtPressed = false;
-  private double ltReleasedAtS = Double.NEGATIVE_INFINITY;
   private boolean handsOffPose = false;
   private double initMaxVolts = Double.NaN; // Highest in INIT: at rest, before the mechanisms load it
   private boolean swapBatteryRumbled = false;
@@ -288,12 +273,12 @@ public class Robot {
   private double committedSinceS;
   private double[] lastTranslation = {0.0, 0.0};
   // Scoring Auto (6 Nov, feature/auto): no gamepad is read (G401); it drives, aims and intakes through these
-  private boolean autonomous = false;
-  private boolean autoIndexerPaused = false; // The auto's agitation: a loading indexer stops while true
-  private boolean autoIndexerReverse = false; // ...or runs backward, a jiggle like the volley's retry pulse
+  boolean autonomous = false;
+  boolean autoIndexerPaused = false; // The auto's agitation: a loading indexer stops while true
+  boolean autoIndexerReverse = false; // ...or runs backward, a jiggle like the volley's retry pulse
   private final Gamepad noGamepad = new Gamepad();
   private boolean autoShoot = false;
-  private boolean autoIntake = false;
+  boolean autoIntake = false;
   private AutoDriver autoDriver = null;
   /** A heading the auto wants held with the heading lock instead of Pedro's turn, or NaN. */
   private double autoHeadingRad = Double.NaN;
@@ -658,7 +643,7 @@ public class Robot {
     Logger.recordOutput("Feeder/Gate", feedGate.stateName());
     Logger.recordOutput("Feeder/BallLeft", feedGate.ballLeft());
     times.feed = System.nanoTime();
-    updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
+    ballPath.update(aiming, aimedFeed || manualReady);
     times.feedSet = System.nanoTime();
     if (aimedFeed) {
       feedCommitUntilS = clock.seconds() + FireConstants.FEED_COMMIT_S;
@@ -1304,7 +1289,7 @@ public class Robot {
     }
   }
 
-  private boolean shotRequested() {
+  boolean shotRequested() {
     double fireTrigger = fireTrigger();
     boolean requested = fireTrigger > TRIGGER_PRESSED || driver.right_bumper
         || scriptedOneBall || scriptedVolley || (driver.y && buttonsFree());
@@ -1312,205 +1297,11 @@ public class Robot {
         && feedGate != null && feedGate.ballsLeft() > 0);
   }
 
-  /**
-   * Intake collects while LT is held (always, with INTAKE_ONLY_ON_LT off) and reverses at full capacity. An aimed shot holds the
-   * feeder backward and stops the last roller until READY. LT advances that roller gently against
-   * the held feeder until a loading ball touches the spinning flywheels (WheelContact), the sign of a full stack. Between shot feeds,
-   * the upstream stage keeps the second/third balls moving toward the stopped last roller.
-   */
-  private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
-    boolean shooting = aiming || (driver.y && buttonsFree());
-    boolean fireRequested = shotRequested();
-    boolean shotAllowed = fireRequested && !holdFire;
-    boolean enabledShot = shotAllowed && !loadingShooter.blocksSpin();
-    boolean ejecting = driver.b && buttonsFree();
-    double feederPower = volleyMode && volleyShot && enabledShot ? volleyFeedPower() : 1.0;
-    double loadTrigger = loadTrigger(driver.left_trigger, autoIntake);
-    boolean ltPressed = loadTrigger > TRIGGER_PRESSED;
-    boolean loading = ltPressed && !shotAllowed;
-    // Full until a ball leaves, B ejects or LT is pressed again after a real let-go (the way out if a bump looked
-    // like a touch). A tap doesn't count, or tapping LT pushed the packed stack at full power on every press
-    double nowS = clock.seconds();
-    boolean wheelsSpinning = Math.abs(shooter.getMaxMeasuredRpm()) > WHEELS_STOPPED_RPM;
-    if (loadingLatchesClear(ltPressed && !wasLtPressed, nowS - ltReleasedAtS, ejecting, feedGate.ballLeft(),
-        wheelsSpinning)) {
-      wheelContactFull = false;
-      stackPacked = false;
-      intakeEased = false;
-    }
-    // The intake's ease clears on a real LT re-press even with the wheels spinning: the last roller stays stopped
-    // (stackPacked) until a ball leaves, so the front ball still can't creep into the wheels (14 Nov 222230)
-    if (intakeEaseClears(ltPressed && !wasLtPressed, nowS - ltReleasedAtS,
-        stackPressure.runningFree(nowS, intakeEased && intake.getIntakeState() == IntakeState.INTAKE,
-            intake.getAmps()))) {
-      intakeEased = false;
-    }
-    if (!ltPressed && wasLtPressed) {
-      ltReleasedAtS = nowS;
-    }
-    wasLtPressed = ltPressed;
-    boolean watchingWheels = loading && !wheelContactFull && !tuningMode
-        && indexer.getIndexerState() == IndexerState.LOAD && shooter.getShooterState() == ShooterState.AIM;
-    if (wheelContact.update(clock.seconds(), watchingWheels, shooter.getRpm(), shooter.getTargetRpm())) {
-      wheelContactFull = true;
-    }
-    Logger.recordOutput("Intake/WheelContactFull", wheelContactFull);
-    // Not in the auto, whose intake pushes into the Flower's balls the whole time and has no LT to start over.
-    // Still packed (last roller stopped), a full intake pushing hard again eases again
-    boolean watchingIntake = StackPressure.ON && loading && !intakeEased && !autoIntake && !tuningMode
-        && (indexer.getIndexerState() == IndexerState.LOAD || stackPacked)
-        && intake.getIntakeState() == IntakeState.INTAKE;
-    if (stackPressure.update(clock.seconds(), watchingIntake, intake.getAmps())) {
-      stackPacked = true;
-      intakeEased = true;
-    }
-    Logger.recordOutput("Intake/StackPacked", stackPacked);
-    Logger.recordOutput("Intake/Eased", intakeEased);
-    intake.setIntakePower(intakeEased ? StackPressure.PACKED_INTAKE_POWER : 1.0);
-    boolean full = intake.isFull() || wheelContactFull;
-    if (full && !wasFull) {
-      physicalDriver.rumble(300);
-    }
-    wasFull = full;
-
-    boolean intakeWanted = tuningMode || !DriverConstants.INTAKE_ONLY_ON_LT
-        || loadTrigger > TRIGGER_PRESSED;
-    intakeOn = intakeWanted;
-    intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted, autoIntake));
-    boolean feeding = enabledShot && (!aiming || ready);
-    // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
-    // the stack at full power against its stopped last roller, or the 4th ball took 2.9 s to come up (12 Nov)
-    // The auto feeds at full power: its slowed last roller brought the next ball up too little, 14 Nov 220201
-    double indexerPower = volleyMode && volleyShot && feeding && !autonomous ? volleyIndexerPower() : 1.0;
-    IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
-        holdFire || loadingShooter.blocksSpin(), full);
-    indexerCommand = packedLoad(indexerCommand, stackPacked);
-    indexerCommand = autoStage(indexerCommand, autonomous);
-    indexerCommand = agitated(indexerCommand, autonomous && autoIndexerPaused, autoIndexerReverse);
-    if (!ejecting && (loadingShooter.clearing() || (loading && !loadingShooter.canLoad())
-        || (spinOnlyOnFire && enabledShot && !feeding && feedGate.feedStarts() == 0))) {
-      indexerCommand = IndexerState.STOP;
-    }
-    // Retry only after a volley has actually started. All release, clearance and shot gates still apply.
-    boolean retryAllowed = volleyShot && enabledShot && !ejecting && feedGate.feedStarts() > 0
-        && (indexerCommand == IndexerState.STAGE || indexerCommand == IndexerState.FEED
-            || (autonomous && indexerCommand == IndexerState.LOAD));
-    indexerRetry.update(clock.seconds(), retryAllowed, feedGate.ballLeft());
-    // The retry's pause: in the auto a short reverse, to back a stuck ball off before full power forward
-    if (indexerRetry.paused()) { indexerCommand = autonomous ? IndexerState.EJECT : IndexerState.STOP; }
-    if (indexerRetry.fullPower()) { indexerPower = 1.0; }
-    indexer.setIndexerState(indexerCommand, indexerPower);
-    Logger.recordOutput("Indexer/Retry/Paused", indexerRetry.paused());
-    Logger.recordOutput("Indexer/Retry/FullPower", indexerRetry.fullPower());
-    if (spinOnlyOnFire && loading && !loadingShooter.canLoad()) {
-      telemetry.addLine("LT: waiting for flywheels to stop");
-    }
-    boolean volleyBetweenBalls = volleyShot && volleyFeedGate.ballsLeft() > 0
-        && !VolleyConstants.VOLLEY_HOLD_BETWEEN_BALLS;
-    FeederState feederCommand = feederCommand(ejecting, loading || loadingShooter.clearing(), shooting, feeding,
-        fireRequested, feedGate.feederEmpty(), volleyBetweenBalls);
-    if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
-    feeder.setFeederState(feederCommand, feederPower);
-  }
-
-  /**
-   * The feeder's command. Held back whenever nothing shoots, as Volley Tuning's always-aimed robot does: stopped,
-   * the spinning wheels and the intake's push took balls out of the stack between shots in Lebot Teleop (12 Nov),
-   * and 14 Nov 211610 the auto, aiming all the time, left it stopped after an empty volley while the indexer staged
-   * the next pickup at full power: balls went out on the way to the Flower.
-   */
-  static FeederState feederCommand(boolean ejecting, boolean loadingOrClearing, boolean shooting, boolean feeding,
-      boolean fireRequested, boolean feederEmpty, boolean volleyBetweenBalls) {
-    if (ejecting) {
-      return FeederState.EJECT;
-    }
-    if (loadingOrClearing) {
-      return FeederState.HOLD; // Even if the last trial's feed gate says empty
-    }
-    if (shooting && feeding) {
-      return FeederState.FEED;
-    }
-    if (shooting && fireRequested && (feederEmpty || volleyBetweenBalls)) {
-      // Between a volley's balls the feeder stops, so the next ball isn't pulled back from the wheels
-      return FeederState.STOP;
-    }
-    return FeederState.HOLD; // The last roller isolates the moving upstream queue while an aimed shot waits
-  }
-
-  /** Below this the flywheels count as stopped: a ball pushed into them doesn't fly. */
-  static final double WHEELS_STOPPED_RPM = 100;
-
-  /**
-   * "Packed" and "full" clear on a ball leaving, B, or an LT press after LT was let go REARM_RELEASE_S or more, the
-   * last only with the flywheels stopped. 14 Nov 222230 a press 5.7 s after a packed stack was let go cleared it with
-   * the wheels at 3500 RPM: loading pushed the stack at its last roller's power and shot the front ball out.
-   */
-  static boolean loadingLatchesClear(boolean newLtPress, double ltReleasedForS, boolean ejecting, boolean ballLeft,
-      boolean wheelsSpinning) {
-    return (newLtPress && ltReleasedForS >= StackPressure.REARM_RELEASE_S && !wheelsSpinning) || ejecting || ballLeft;
-  }
-
   /** In front of the Cell the backward shot is forced, within the range its table was shot at. */
   static boolean wedgeForcesBackward(boolean inFrontOfCell, double backwardLipM) {
     return inFrontOfCell && backwardLipM <= ShotPickConstants.BACKWARD_WEDGE_MAX_LIP_M;
   }
 
-  /** The intake's ease ends on an LT press after a real let-go, or once it runs free (nothing pushing back). */
-  static boolean intakeEaseClears(boolean newLtPress, double ltReleasedForS, boolean runningFree) {
-    return (newLtPress && ltReleasedForS >= StackPressure.REARM_RELEASE_S) || runningFree;
-  }
-
-  /**
-   * The intake as LT, B and a full stack ask; in the auto a full stack stops it instead of ejecting, so the Pollen
-   * already taken stays in for the next volley (13 Nov 224556 ejected at the rear Flower for 3.2 s).
-   */
-  static IntakeState intakeCommand(boolean full, boolean ejecting, boolean wanted, boolean auto) {
-    if (auto && full && !ejecting) {
-      return IntakeState.STOP;
-    }
-    return IntakeSubsystem.automaticState(full, ejecting, wanted);
-  }
-
-  /**
-   * In the auto the last roller keeps bringing balls up between shots, against the held-back feeder, as loading does:
-   * stopped (STAGE), the next ball never reached the feeder in the 0.2-0.4 s feed pulses. 14 Nov 220201 the preload
-   * shot 2 of 4, the Garden and Flower volleys none, the last roller still for 2 s before each.
-   */
-  static IndexerState autoStage(IndexerState command, boolean autonomous) {
-    return autonomous && command == IndexerState.STAGE ? IndexerState.LOAD : command;
-  }
-
-  /** The auto's agitation pauses only loading: a feed, an eject or a stop goes on as commanded. */
-  static IndexerState agitated(IndexerState command, boolean paused) {
-    return agitated(command, paused, false);
-  }
-
-  /** As above; with reverse the paused part runs the indexer backward, jiggling the stack, instead of stopping it. */
-  static IndexerState agitated(IndexerState command, boolean paused, boolean reverse) {
-    if (!paused || command != IndexerState.LOAD) {
-      return command;
-    }
-    return reverse ? IndexerState.EJECT : IndexerState.STOP;
-  }
-
-  /** A packed stack loads with its last roller stopped, so nothing creeps the first ball into the wheels. */
-  static IndexerState packedLoad(IndexerState command, boolean packed) {
-    return packed && command == IndexerState.LOAD ? IndexerState.STAGE : command;
-  }
-
-  /** Intake protection only controls its motor; LT, eject and shot gates still control the indexer. */
-  static IndexerState indexerCommand(boolean ejecting, boolean fireRequested, boolean feeding,
-      double leftTrigger, boolean holdFire, boolean full) {
-    if (ejecting) {
-      return IndexerState.EJECT;
-    }
-    // Aim alone is not a request to run the indexer. An armed shot stages the upstream
-    // queue through recovery gaps, with its independent last roller stopped until feeding.
-    if (fireRequested && !holdFire) {
-      return feeding ? IndexerState.FEED : IndexerState.STAGE;
-    }
-    return leftTrigger > TRIGGER_PRESSED && !full ? IndexerState.LOAD : IndexerState.STOP;
-  }
 
   private static int feedStopHoodTicks() {
     return (int) Math.round(FireConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
@@ -1742,7 +1533,7 @@ public class Robot {
   public boolean isFeederEmpty() { return feedGate.feederEmpty(); }
 
   /** The stack read full this loop (a loading ball touched the wheels): the auto moves on from a Flower. */
-  public boolean isStackFull() { return wasFull; }
+  public boolean isStackFull() { return ballPath.stackFull(); }
 
   /** Frames so far whose tags voted for our up Cell as it stands. */
   public int getUpCellAgreeingFrames() { return visionCorrector.agreeingFrames(alliance); }
@@ -1908,7 +1699,7 @@ public class Robot {
 
   public boolean volleyFastRecovery() { return volley.fastRecovery(); }
 
-  private boolean buttonsFree() {
+  boolean buttonsFree() {
     return !tuningMode && !buttonsReserved;
   }
 

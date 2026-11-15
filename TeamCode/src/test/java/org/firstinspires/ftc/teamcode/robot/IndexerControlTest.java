@@ -12,52 +12,52 @@ public class IndexerControlTest {
     IntakeOverloadGuard intakeGuard = new IntakeOverloadGuard();
     intakeGuard.update(0, true, 9);
     assertTrue(intakeGuard.update(0.3, true, 9));
-    assertEquals(IndexerState.LOAD, Robot.indexerCommand(false, false, false, 1, false, false));
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, false, false, 0, false, false));
+    assertEquals(IndexerState.LOAD, BallPath.indexerCommand(false, false, false, 1, false, false));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, false, false, 0, false, false));
     assertTrue(intakeGuard.isTripped());
   }
 
   @Test public void automaticIntakeDoesNotRunIndexerWithoutLt() {
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, false, false, 0, false, false));
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, false, false, Robot.TRIGGER_PRESSED, false, false));
-    assertEquals(IndexerState.LOAD, Robot.indexerCommand(false, false, false, Robot.TRIGGER_PRESSED + 0.01, false, false));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, false, false, 0, false, false));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, false, false, Robot.TRIGGER_PRESSED, false, false));
+    assertEquals(IndexerState.LOAD, BallPath.indexerCommand(false, false, false, Robot.TRIGGER_PRESSED + 0.01, false, false));
   }
 
   @Test public void waitingShotStagesUpstreamWithoutFeedingLastRoller() {
-    assertEquals(IndexerState.STAGE, Robot.indexerCommand(false, true, false, 1, false, false));
-    assertEquals(IndexerState.FEED, Robot.indexerCommand(false, true, true, 0, false, false));
+    assertEquals(IndexerState.STAGE, BallPath.indexerCommand(false, true, false, 1, false, false));
+    assertEquals(IndexerState.FEED, BallPath.indexerCommand(false, true, true, 0, false, false));
   }
 
   @Test public void ejectRemainsAvailableAndWinsOverShooting() {
-    assertEquals(IndexerState.EJECT, Robot.indexerCommand(true, true, false, 1, false, false));
-    assertEquals(IndexerState.EJECT, Robot.indexerCommand(true, false, false, 0, false, false));
+    assertEquals(IndexerState.EJECT, BallPath.indexerCommand(true, true, false, 1, false, false));
+    assertEquals(IndexerState.EJECT, BallPath.indexerCommand(true, false, false, 0, false, false));
   }
   @Test public void ltCanLoadWhileScriptedAimInhibitsFire() {
-    assertEquals(IndexerState.LOAD, Robot.indexerCommand(false, true, false, 1, true, false));
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, true, false, 0, true, false));
-    assertEquals(IndexerState.STAGE, Robot.indexerCommand(false, true, false, 1, false, false));
-    assertEquals(IndexerState.FEED, Robot.indexerCommand(false, true, true, 1, false, false));
-    assertEquals(IndexerState.EJECT, Robot.indexerCommand(true, true, false, 1, true, false));
+    assertEquals(IndexerState.LOAD, BallPath.indexerCommand(false, true, false, 1, true, false));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, true, false, 0, true, false));
+    assertEquals(IndexerState.STAGE, BallPath.indexerCommand(false, true, false, 1, false, false));
+    assertEquals(IndexerState.FEED, BallPath.indexerCommand(false, true, true, 1, false, false));
+    assertEquals(IndexerState.EJECT, BallPath.indexerCommand(true, true, false, 1, true, false));
   }
 
   @Test public void fullCapacityStopsLoadingButAllowsShootingAndEject() {
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, false, false, 1, true, true));
-    assertEquals(IndexerState.FEED, Robot.indexerCommand(false, true, true, 0, false, true));
-    assertEquals(IndexerState.EJECT, Robot.indexerCommand(true, false, false, 1, false, true));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, false, false, 1, true, true));
+    assertEquals(IndexerState.FEED, BallPath.indexerCommand(false, true, true, 0, false, true));
+    assertEquals(IndexerState.EJECT, BallPath.indexerCommand(true, false, false, 1, false, true));
   }
 
   @Test public void volleyRecoveryAdvancesTheUpstreamQueueWithoutLt() {
-    assertEquals(IndexerState.STAGE, Robot.indexerCommand(false, true, false, 0, false, false));
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, true, false, 0, true, false));
-    assertEquals(IndexerState.STOP, Robot.indexerCommand(false, false, false, 0, false, false));
+    assertEquals(IndexerState.STAGE, BallPath.indexerCommand(false, true, false, 0, false, false));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, true, false, 0, true, false));
+    assertEquals(IndexerState.STOP, BallPath.indexerCommand(false, false, false, 0, false, false));
   }
 
 
   @Test public void packedStackLoadsWithTheLastRollerStopped() {
-    assertEquals(IndexerState.STAGE, Robot.packedLoad(IndexerState.LOAD, true));
-    assertEquals(IndexerState.LOAD, Robot.packedLoad(IndexerState.LOAD, false));
-    assertEquals(IndexerState.FEED, Robot.packedLoad(IndexerState.FEED, true)); // Shots and eject unchanged
-    assertEquals(IndexerState.EJECT, Robot.packedLoad(IndexerState.EJECT, true));
+    assertEquals(IndexerState.STAGE, BallPath.packedLoad(IndexerState.LOAD, true));
+    assertEquals(IndexerState.LOAD, BallPath.packedLoad(IndexerState.LOAD, false));
+    assertEquals(IndexerState.FEED, BallPath.packedLoad(IndexerState.FEED, true)); // Shots and eject unchanged
+    assertEquals(IndexerState.EJECT, BallPath.packedLoad(IndexerState.EJECT, true));
   }
 
   @Test public void trippedIntakeRumblesUntilReset() {
@@ -70,13 +70,13 @@ public class IndexerControlTest {
 
   @Test public void tappingLtKeepsAPackedStackEased() {
     double rearm = StackPressure.REARM_RELEASE_S;
-    assertFalse("A 0.1 s tap", Robot.loadingLatchesClear(true, 0.1, false, false, false));
-    assertTrue("A real let-go", Robot.loadingLatchesClear(true, rearm, false, false, false));
+    assertFalse("A 0.1 s tap", BallPath.loadingLatchesClear(true, 0.1, false, false, false));
+    assertTrue("A real let-go", BallPath.loadingLatchesClear(true, rearm, false, false, false));
     assertFalse("Not with the wheels spinning: the stack would be pushed into them",
-        Robot.loadingLatchesClear(true, rearm + 5, false, false, true));
-    assertFalse("Still held", Robot.loadingLatchesClear(false, 5, false, false, false));
-    assertTrue("B", Robot.loadingLatchesClear(false, 0, true, false, true));
-    assertTrue("A ball out", Robot.loadingLatchesClear(false, 0, false, true, true));
+        BallPath.loadingLatchesClear(true, rearm + 5, false, false, true));
+    assertFalse("Still held", BallPath.loadingLatchesClear(false, 5, false, false, false));
+    assertTrue("B", BallPath.loadingLatchesClear(false, 0, true, false, true));
+    assertTrue("A ball out", BallPath.loadingLatchesClear(false, 0, false, true, true));
   }
 
   @Test public void theWedgeForcesBackwardOnlyWhereTheBackwardTableWasShot() {
@@ -89,37 +89,37 @@ public class IndexerControlTest {
 
   @Test public void theIntakesEaseEndsOnARealLtPressEvenWithTheWheelsSpinning() {
     double rearm = StackPressure.REARM_RELEASE_S;
-    assertTrue("A real let-go", Robot.intakeEaseClears(true, rearm, false));
-    assertFalse("A 0.1 s tap", Robot.intakeEaseClears(true, 0.1, false));
-    assertFalse("Still held, pushing", Robot.intakeEaseClears(false, 5, false));
-    assertTrue("Running free", Robot.intakeEaseClears(false, 0, true));
+    assertTrue("A real let-go", BallPath.intakeEaseClears(true, rearm, false));
+    assertFalse("A 0.1 s tap", BallPath.intakeEaseClears(true, 0.1, false));
+    assertFalse("Still held, pushing", BallPath.intakeEaseClears(false, 5, false));
+    assertTrue("Running free", BallPath.intakeEaseClears(false, 0, true));
   }
 
   @Test public void theAutoStopsItsIntakeWhenFullInsteadOfEjecting() {
-    IntakeState auto = Robot.intakeCommand(true, false, true, true);
+    IntakeState auto = BallPath.intakeCommand(true, false, true, true);
     assertEquals(IntakeState.STOP, auto);
-    assertEquals(IntakeState.EJECT, Robot.intakeCommand(true, false, true, false));
-    assertEquals(IntakeState.EJECT, Robot.intakeCommand(true, true, true, true));
-    assertEquals(IntakeState.INTAKE, Robot.intakeCommand(false, false, true, true));
+    assertEquals(IntakeState.EJECT, BallPath.intakeCommand(true, false, true, false));
+    assertEquals(IntakeState.EJECT, BallPath.intakeCommand(true, true, true, true));
+    assertEquals(IntakeState.INTAKE, BallPath.intakeCommand(false, false, true, true));
   }
 
   @Test
   public void theAutoKeepsBringingBallsToTheFeederBetweenShots() {
-    assertEquals(IndexerState.LOAD, Robot.autoStage(IndexerState.STAGE, true));
-    assertEquals(IndexerState.FEED, Robot.autoStage(IndexerState.FEED, true));
-    assertEquals(IndexerState.STOP, Robot.autoStage(IndexerState.STOP, true));
-    assertEquals("TeleOp stages as before", IndexerState.STAGE, Robot.autoStage(IndexerState.STAGE, false));
+    assertEquals(IndexerState.LOAD, BallPath.autoStage(IndexerState.STAGE, true));
+    assertEquals(IndexerState.FEED, BallPath.autoStage(IndexerState.FEED, true));
+    assertEquals(IndexerState.STOP, BallPath.autoStage(IndexerState.STOP, true));
+    assertEquals("TeleOp stages as before", IndexerState.STAGE, BallPath.autoStage(IndexerState.STAGE, false));
   }
 
   @Test
   public void agitationPausesOnlyLoading() {
-    assertEquals(IndexerState.STOP, Robot.agitated(IndexerState.LOAD, true));
-    assertEquals(IndexerState.LOAD, Robot.agitated(IndexerState.LOAD, false));
-    assertEquals(IndexerState.FEED, Robot.agitated(IndexerState.FEED, true));
-    assertEquals(IndexerState.EJECT, Robot.agitated(IndexerState.EJECT, true));
-    assertEquals("the jiggle backs the stack off", IndexerState.EJECT, Robot.agitated(IndexerState.LOAD, true, true));
-    assertEquals(IndexerState.LOAD, Robot.agitated(IndexerState.LOAD, false, true));
-    assertEquals(IndexerState.FEED, Robot.agitated(IndexerState.FEED, true, true));
-    assertEquals(IndexerState.STOP, Robot.agitated(IndexerState.STOP, true, true));
+    assertEquals(IndexerState.STOP, BallPath.agitated(IndexerState.LOAD, true));
+    assertEquals(IndexerState.LOAD, BallPath.agitated(IndexerState.LOAD, false));
+    assertEquals(IndexerState.FEED, BallPath.agitated(IndexerState.FEED, true));
+    assertEquals(IndexerState.EJECT, BallPath.agitated(IndexerState.EJECT, true));
+    assertEquals("the jiggle backs the stack off", IndexerState.EJECT, BallPath.agitated(IndexerState.LOAD, true, true));
+    assertEquals(IndexerState.LOAD, BallPath.agitated(IndexerState.LOAD, false, true));
+    assertEquals(IndexerState.FEED, BallPath.agitated(IndexerState.FEED, true, true));
+    assertEquals(IndexerState.STOP, BallPath.agitated(IndexerState.STOP, true, true));
   }
 }

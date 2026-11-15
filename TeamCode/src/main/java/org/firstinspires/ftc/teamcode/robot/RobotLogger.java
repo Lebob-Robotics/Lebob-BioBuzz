@@ -44,7 +44,7 @@ final class RobotLogger {
         && robot.driver.right_trigger <= Robot.TRIGGER_PRESSED);
     Logger.recordOutput("Robot/TuningLive", robot.tuningLive);
     Logger.recordOutput("Robot/PositionHold", robot.isHolding());
-    Logger.recordOutput("Robot/IntakeOn", robot.intakeOn);
+    Logger.recordOutput("Robot/IntakeOn", robot.ballPath.intakeOn);
     if (aim == null) {
       return;
     }

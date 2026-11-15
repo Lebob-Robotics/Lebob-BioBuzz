@@ -234,3 +234,4 @@ org.firstinspires.ftc.teamcode.auto.CornerAuto.MIN_PATH_IN -> org.firstinspires.
 # Phase 6: Robot split into its parts
 org.firstinspires.ftc.teamcode.robot.Robot.DS_TELEMETRY_PERIOD_S -> org.firstinspires.ftc.teamcode.robot.RobotTelemetry.DS_TELEMETRY_PERIOD_S
 org.firstinspires.ftc.teamcode.robot.Robot.PANELS_TELEMETRY_PERIOD_S -> org.firstinspires.ftc.teamcode.robot.RobotTelemetry.PANELS_TELEMETRY_PERIOD_S
+org.firstinspires.ftc.teamcode.robot.Robot.WHEELS_STOPPED_RPM -> org.firstinspires.ftc.teamcode.robot.BallPath.WHEELS_STOPPED_RPM
