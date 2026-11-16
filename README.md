@@ -14,6 +14,7 @@ our own code in `TeamCode`.
 | Lebot Auto Red, Lebot Auto Blue | Robot | `auto/ScoringAutoRed`, `ScoringAutoBlue` | The scoring auto: preloads into the Cell that is up, the Garden into the other, our wall's Flower, then park |
 | Lebot Corner Red, Lebot Corner Blue | Robot | `auto/CornerAutoRed`, `CornerAutoBlue` | The corner auto: preloads from the rear corner, a wait there, our wall's Flower, a volley into the AUDIENCE Cell, then park |
 | Lets Solo Double Red, Lets Solo Double Blue | Robot | `auto/SoloAutoRed`, `SoloAutoBlue` | The solo auto: preloads from beside our Garden into the Cell beside it, the Garden, a check of the Hive, then both Flowers and park, the volleys' Cells chosen by whether the Hive tipped |
+| Lets Solo Triple Red, Lets Solo Triple Blue | Robot | `auto/SoloTripleAutoRed`, `SoloTripleAutoBlue` | The solo auto with no partner: as Double, and when the Hive has not tipped at the check, it also takes the partner's 4 preloads from the loading zone and shoots them from Volley Tuning's PARK spot into the Cell that is up, parked there |
 | Shoot Auto | Robot | `auto/ShootAuto` | Drives forward, fires the load as one volley, parks just over the loading zone's line. X blue, B red in INIT |
 | Volley Tuning | Tuning | `opmodes/tuning/VolleyTuning` | Four-ball volleys at Shot Tuning's spots; writes `VolleyTuning_v3.csv` |
 | Shot Tuning | Tuning | `opmodes/tuning/ShotTuning` | Standing shots at test spots, to find each spot's scoring hood (or RPM) range and aim trim; writes `ShotTuning_v2.csv` |

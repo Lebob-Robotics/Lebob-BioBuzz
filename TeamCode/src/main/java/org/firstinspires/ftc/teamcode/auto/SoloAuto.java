@@ -20,7 +20,7 @@ import org.psilynx.psikit.core.Logger;
 /**
  * The solo autonomous ({@link SoloSequence}), for one alliance, driven as {@link BaseAuto} drives: the preloads from
  * beside our Garden, the Garden, a check of the Hive, then two Flowers and a park whose volleys depend on whether
- * the Hive tipped.
+ * the Hive tipped. With no partner, also the partner's preloads from the loading zone, shot from the park.
  */
 public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence> {
   /**
@@ -39,13 +39,20 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
   public static double ALONG_TURN_FROM = 0.80;
   public static double ALONG_END_BY = 0.90;
 
+  private final boolean partnerBalls;
   private TipPredictor tips;
   private Cell checkUpAtStart;
   private int checkFramesAtStart;
   private Boolean tagsTipped;
 
   protected SoloAuto(Alliance alliance) {
+    this(alliance, false);
+  }
+
+  /** @param partnerBalls no partner: its preloads are taken from the loading zone ({@link SoloSequence}) */
+  protected SoloAuto(Alliance alliance, boolean partnerBalls) {
     super(alliance);
+    this.partnerBalls = partnerBalls;
   }
 
   @Override
@@ -56,20 +63,22 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
   @Override
   protected SoloSequence newPlan() {
     tips = new TipPredictor(robot.getUpCell());
-    return new SoloSequence(0);
+    return new SoloSequence(0, partnerBalls);
   }
 
   @Override
   protected String placement() {
     String wall = alliance == Alliance.RED ? "audience" : "rear";
     return alliance + " SOLO: robot against the " + wall + " wall beside our Garden, its side 2 cm past the Garden's"
-        + " tile, intake to the wall, camera to the Hive";
+        + " tile, intake to the wall, camera to the Hive"
+        + (partnerBalls ? ". NO PARTNER: its preloads at the loading zone's middle against our wall" : "");
   }
 
   @Override
   protected String status(double t) {
     Boolean tipped = plan.tipped();
-    return String.format(Locale.US, "SOLO %s  %.1f s  %d shot  aim %s  %s", plan.step(), t, plan.ballsShot(),
+    return String.format(Locale.US, "SOLO%s %s  %.1f s  %d shot  aim %s  %s", partnerBalls ? " NO PARTNER" : "",
+        plan.step(), t, plan.ballsShot(),
         aimCell(), tipped == null ? "" : tipped ? "TIPPED" : "NOT TIPPED");
   }
 
@@ -111,6 +120,9 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
     Boolean farTipped = plan.farTipped();
     Logger.recordOutput("Auto/SoloFarTipped", farTipped == null ? "" : farTipped ? "TIPPED" : "NOT_TIPPED");
     Logger.recordOutput("Auto/SoloFarTipFromTags", plan.farTipFromTags());
+    if (partnerBalls) {
+      Logger.recordOutput("Auto/SoloParkVolleyCell", plan.parkVolleyCell(alliance).name());
+    }
   }
 
   /**
@@ -127,7 +139,8 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
           && Math.abs(Angles.normalize(pose.headingRad - stop[2])) <= FACE_FLOWER_RAD;
       return armRoom || !follower.following();
     }
-    if ((step == SoloSequence.Step.INTAKE_WALL_FLOWER || step == SoloSequence.Step.INTAKE_REAR_FLOWER)
+    if ((step == SoloSequence.Step.INTAKE_WALL_FLOWER || step == SoloSequence.Step.INTAKE_REAR_FLOWER
+        || step == SoloSequence.Step.TAKE_PARTNER_BALLS)
         && inStepS >= FLOWER_STALL_AFTER_S && robotSpeedMps <= FLOWER_STALLED_MPS) {
       return true;
     }
@@ -153,6 +166,9 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
   @Override
   protected Cell aimCell() {
     SoloSequence.Step volley = plan == null ? SoloSequence.Step.SHOOT_PRELOAD : plan.nextVolley();
+    if (volley == SoloSequence.Step.SHOOT_PARK) {
+      return plan.parkVolleyCell(alliance);
+    }
     return volley == SoloSequence.Step.SHOOT_PRELOAD || volley == SoloSequence.Step.SHOOT_NEAR
         ? SoloSequence.nearCell(alliance) : SoloSequence.parkCell(alliance);
   }
@@ -160,7 +176,7 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
   @Override
   protected double flowerHeading(SoloSequence.Step step) {
     return step == SoloSequence.Step.INTAKE_WALL_FLOWER || step == SoloSequence.Step.INTAKE_REAR_FLOWER
-        ? lockedHeading(step) : Double.NaN;
+        || step == SoloSequence.Step.TAKE_PARTNER_BALLS ? lockedHeading(step) : Double.NaN;
   }
 
   @Override
@@ -168,7 +184,7 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
     FieldPose now = pose();
     Pose here = new Pose(now.xM / Units.M_PER_IN, now.yM / Units.M_PER_IN, now.headingRad);
     boolean slow = step == SoloSequence.Step.SWEEP_GARDEN || step == SoloSequence.Step.INTAKE_WALL_FLOWER
-        || step == SoloSequence.Step.INTAKE_REAR_FLOWER;
+        || step == SoloSequence.Step.INTAKE_REAR_FLOWER || step == SoloSequence.Step.TAKE_PARTNER_BALLS;
     drivetrain.setScale(slow ? SWEEP_POWER_SCALE : 1.0);
     boolean onWall = step == SoloSequence.Step.ONTO_GARDEN_WALL || step == SoloSequence.Step.SWEEP_GARDEN;
     drivetrain.setStrafeBias(onWall ? ScoringAuto.WALL_PUSH : 0.0);
@@ -226,8 +242,17 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
       case BACK_FROM_REAR_FLOWER:
         line(here, pedro(AutoField.REAR_FLOWER, alliance), false);
         break;
-      case PARKED: // Held off our wall, square to it
-        follower.hold(park);
+      case DRIVE_TO_PARTNER_BALLS: // Square to our wall above them, turning on the way
+        lineTo(here, pedro(AutoField.PARTNER_BALLS_IN, alliance));
+        break;
+      case TAKE_PARTNER_BALLS: // Straight into the wall through them, wiggling as in a Flower
+        line(here, pedro(AutoField.partnerBallsEnd(), alliance), false);
+        break;
+      case SHOOT_PARK: // Back off the wall to the park, turning to the Cell
+        lineTo(here, poseOf(plan.parkedSpot(alliance)));
+        break;
+      case PARKED: // Held off our wall: square to it, or where the park volley was shot
+        follower.hold(poseOf(plan.parkedSpot(alliance)));
         break;
     }
   }
@@ -288,6 +313,8 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
       case INTAKE_REAR_FLOWER:
       case BACK_FROM_REAR_FLOWER:
         return AutoField.forAlliance(AutoField.REAR_FLOWER, alliance)[2];
+      case TAKE_PARTNER_BALLS:
+        return AutoField.forAlliance(AutoField.PARTNER_BALLS_IN, alliance)[2];
       default:
         return Double.NaN;
     }

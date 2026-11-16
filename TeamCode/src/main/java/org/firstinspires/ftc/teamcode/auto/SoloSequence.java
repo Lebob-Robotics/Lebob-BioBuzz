@@ -31,6 +31,11 @@ import org.firstinspires.ftc.teamcode.field.Cell;
  * <p>It parks at {@link AutoField#EDGE_PARK}, beside the loading zone and just over its line, leaving the zone to a
  * partner. Parked, it shoots nothing: square to our wall it does not face a Cell.
  *
+ * <p>With no partner ({@link #SoloSequence(double, boolean)}), the not-tipped route ends instead by taking the
+ * partner's 4 preloads, put at the loading zone's middle against our wall, intake first into the wall through them,
+ * cameras to the Hive. It shoots them from Volley Tuning's PARK spot into whichever Cell is up by those frames, else
+ * the ball count, and stays there, parked. The tipped route has no time for them.
+ *
  * <p>At a Flower the robot never stops for the arm: it goes down on the last of the drive to the stop short of the
  * Flower ({@link SoloAuto#LOWER_ARM_FROM_M}), and comes up on the drive on from the stop after backing out.
  *
@@ -54,7 +59,11 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     SHOOT_FAR(true),
     DRIVE_TO_WALL_FLOWER(false), LOWER_ARM_WALL(false), INTAKE_WALL_FLOWER(false), BACK_FROM_WALL_FLOWER(false),
     DRIVE_TO_REAR_FLOWER(false), LOWER_ARM_REAR(false), INTAKE_REAR_FLOWER(false), BACK_FROM_REAR_FLOWER(false),
-    DRIVE_TO_PARK(false), PARKED(false);
+    DRIVE_TO_PARK(false), PARKED(false),
+    /** No partner: square to our wall above its preloads, then intake first into the wall through them. */
+    DRIVE_TO_PARTNER_BALLS(false), TAKE_PARTNER_BALLS(false),
+    /** No partner: at Volley Tuning's PARK spot ({@link AutoField#parkSpot}), into the Cell that is up. */
+    SHOOT_PARK(true);
 
     /** A volley is shot here, once the robot has stopped at the step's spot. */
     public final boolean shooting;
@@ -77,6 +86,15 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   public static double PARK_FROM_NEAR_BY_S = 25.7;
   /** No Flower is started after this: its drive, the arm and the dwell would not leave time for a volley. */
   public static double LATEST_FLOWER_S = 21.0;
+  /**
+   * The partner's preloads are not started after this. Started by it, the robot is at the park by about 27.3 s
+   * (SoloAutoSimTest); started at 23.5 s, as usual, the last of them leaves at 28.0 s.
+   */
+  public static double LATEST_PARTNER_BALLS_S = 24.5;
+  /** Stopped against our wall in the partner's preloads this long, unless the stack fills first. */
+  public static double PARTNER_DWELL_S = 0.5;
+  /** Longest for the drive into the wall through them. */
+  public static double PARTNER_TAKE_MAX_S = 2.0;
   /** Fresh tag frames that settle the tip check: frames agreeing with the up Cell, or a flip, since it began. */
   public static int TIP_CHECK_FRAMES = 3;
   /** At the near Cell's spot with no fresh frames, this long more before the ball count's prediction decides. */
@@ -94,6 +112,7 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
    */
   public static final double[] PARK_ENTRY_CONTROL = {1.40, -1.05, 0};
 
+  private final boolean partnerBalls;
   private final List<Step> route = new ArrayList<>(OPENING);
   private int at = 0;
   private Step step = Step.SHOOT_PRELOAD;
@@ -105,9 +124,17 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   private boolean predictedTipped = false;
   private Boolean farTipped = null;
   private boolean farTipFromTags = false;
+  private Boolean parkVolleyNear = null;
+  private boolean lastVolleyEmptied = false;
 
   public SoloSequence(double startS) {
+    this(startS, false);
+  }
+
+  /** @param partnerBalls no partner: its preloads are taken from the loading zone and shot from the park */
+  public SoloSequence(double startS, boolean partnerBalls) {
     tracker = new StepTracker(startS);
+    this.partnerBalls = partnerBalls;
   }
 
   /** The Cell beside our Garden, up at the start: red AUDIENCE, blue SCORING. */
@@ -217,7 +244,9 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
       case SHOOT_PRELOAD:
       case SHOOT_NEAR:
       case SHOOT_FAR:
+      case SHOOT_PARK:
         if (tracker.volleyEnded(nowS)) {
+          lastVolleyEmptied = tracker.volleyDone(nowS);
           next(nowS);
         }
         break;
@@ -277,6 +306,17 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
           enter(Step.PARKED, nowS);
         }
         break;
+      case DRIVE_TO_PARTNER_BALLS:
+        if (pathDone) {
+          next(nowS);
+        }
+        break;
+      case TAKE_PARTNER_BALLS: // pathDone here: stopped against our wall
+        boolean taken = tracker.arrived() && tracker.arrivedForS(nowS) >= PARTNER_DWELL_S;
+        if (stackFull || taken || inStepS >= PARTNER_TAKE_MAX_S) {
+          next(nowS);
+        }
+        break;
       case PARKED:
         break;
     }
@@ -307,7 +347,11 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
       route.addAll(REAR_FLOWER);
       route.add(Step.SHOOT_FAR);
     }
-    route.add(Step.DRIVE_TO_PARK);
+    if (!tipped && partnerBalls) {
+      route.addAll(Arrays.asList(Step.DRIVE_TO_PARTNER_BALLS, Step.TAKE_PARTNER_BALLS, Step.SHOOT_PARK));
+    } else {
+      route.add(Step.DRIVE_TO_PARK);
+    }
     route.add(Step.PARKED);
     next(nowS);
   }
@@ -340,15 +384,21 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   public boolean watchingHive() {
     boolean atWallFlower = step == Step.LOWER_ARM_WALL || step == Step.INTAKE_WALL_FLOWER
         || step == Step.BACK_FROM_WALL_FLOWER;
-    return step == Step.CHECK_TIP || (atWallFlower && recheckPending());
+    return step == Step.CHECK_TIP || (atWallFlower && recheckPending()) || step == Step.TAKE_PARTNER_BALLS;
   }
 
-  /** On to the route's next step; a Flower too late to start goes to park instead. */
+  /**
+   * On to the route's next step; a Flower too late to start goes to park instead, as do the partner's preloads too
+   * late or after a volley given up with balls still in: 4 more would be over the 4 a robot may control (G407).
+   */
   private void next(double nowS) {
     at++;
     Step following = route.get(at);
-    if ((following == Step.DRIVE_TO_WALL_FLOWER || following == Step.DRIVE_TO_REAR_FLOWER)
-        && nowS >= LATEST_FLOWER_S) {
+    boolean lateFlower = (following == Step.DRIVE_TO_WALL_FLOWER || following == Step.DRIVE_TO_REAR_FLOWER)
+        && nowS >= LATEST_FLOWER_S;
+    boolean noPartnerBalls = following == Step.DRIVE_TO_PARTNER_BALLS
+        && (nowS >= LATEST_PARTNER_BALLS_S || !lastVolleyEmptied);
+    if (lateFlower || noPartnerBalls) {
       goPark(nowS);
       return;
     }
@@ -359,8 +409,19 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     return step == Step.SHOOT_NEAR ? PARK_FROM_NEAR_BY_S : PARK_BY_S;
   }
 
+  /** To park; at the partner's preloads, already at the park, it shoots what it took from there. */
   private void goPark(double nowS) {
+    if (step == Step.DRIVE_TO_PARTNER_BALLS || step == Step.TAKE_PARTNER_BALLS) {
+      at = route.indexOf(Step.SHOOT_PARK);
+      enter(Step.SHOOT_PARK, nowS);
+      return;
+    }
     enter(Step.DRIVE_TO_PARK, nowS);
+  }
+
+  /** The near Cell is down: by the tags' frames of the current watch, else the ball count. */
+  private boolean nearDown() {
+    return tagsSayTipped != null ? tagsSayTipped : predictedTipped;
   }
 
   private boolean inFlower() {
@@ -380,7 +441,10 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   }
 
   private void enter(Step following, double nowS) {
-    parking |= following == Step.DRIVE_TO_PARK || following == Step.PARKED;
+    if (following == Step.SHOOT_PARK) {
+      parkVolleyNear = !nearDown();
+    }
+    parking |= following == Step.DRIVE_TO_PARK || following == Step.PARKED || following == Step.SHOOT_PARK;
     step = following;
     tracker.enter(nowS, following.shooting);
   }
@@ -412,6 +476,7 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
         return tracker.arrived();
       case DRIVE_TO_WALL_FLOWER:
       case DRIVE_TO_REAR_FLOWER:
+      case DRIVE_TO_PARTNER_BALLS:
       case DRIVE_TO_PARK:
       case PARKED:
         return false;
@@ -431,6 +496,7 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
       case INTAKE_WALL_FLOWER:
       case LOWER_ARM_REAR:
       case INTAKE_REAR_FLOWER:
+      case TAKE_PARTNER_BALLS:
         return AutoSequence.agitationPaused(tracker.inStepS(nowS), AutoSequence.AGITATE_RUN_S,
             AutoSequence.AGITATE_STOP_S);
       default:
@@ -490,12 +556,23 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     return farTipFromTags;
   }
 
+  /** The park volley's Cell, the one up: decided on leaving the partner's preloads, the likely one before. */
+  public Cell parkVolleyCell(Alliance alliance) {
+    boolean near = parkVolleyNear != null ? parkVolleyNear : !nearDown();
+    return near ? nearCell(alliance) : parkCell(alliance);
+  }
+
+  /** Where it ends, for the alliance: {@link #parkSpot}, or after a park volley the spot it was shot from. */
+  public double[] parkedSpot(Alliance alliance) {
+    return parkVolleyNear == null ? parkSpot(alliance) : AutoField.parkSpot(alliance, parkVolleyCell(alliance));
+  }
+
   /**
    * The next volley from here: this step's if it shoots, else the first shooting step after it; before the check or
    * the recheck is made, the one its likely answer leads to.
    */
   public Step nextVolley() {
-    if (step == Step.SHOOT_PRELOAD) {
+    if (step == Step.SHOOT_PRELOAD || step == Step.SHOOT_PARK) {
       return step;
     }
     if (tipped == null) {

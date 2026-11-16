@@ -14,7 +14,7 @@ Laptop-side tools for the robot code. Nothing here runs on the robot.
 | `design.js` | The mk2 shooter design pass: chains the hood sweep and the flywheel sizing |
 | `camera-calibration/` | ChArUco lens calibration for a webcam; `results/` holds CameraL and CameraR at 1280x720 |
 | `vision/` | Camera exposure report from a match log. See its README |
-| `solo/` | Plays the solo auto's two branches (tipped, not tipped) together on the field, from `SoloAutoSimTest`. See its README |
+| `solo/` | Plays the solo auto's branches (tipped, not tipped, and Triple's partner preloads) together on the field, from `SoloAutoSimTest`. See its README |
 | `analysis/` | Python scripts for PsiKit logs, the tuning CSVs and the field webcam. See its README |
 
 The measurements behind the tables are in `../data/`.

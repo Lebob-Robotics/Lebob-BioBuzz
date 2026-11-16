@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.auto;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -19,7 +20,7 @@ import org.junit.Test;
 
 public class SoloSequenceTest {
   private static final double DT = 0.02;
-  private final SoloSequence seq = new SoloSequence(0);
+  private SoloSequence seq = new SoloSequence(0);
   private final List<Step> seen = new ArrayList<>();
   private double t = 0;
 
@@ -306,6 +307,114 @@ public class SoloSequenceTest {
     assertFalse(seq.armDown());
     quickTo(Step.INTAKE_WALL_FLOWER);
     assertTrue(seq.armDown());
+  }
+
+  @Test
+  public void noPartnerNotTippedTakesItsPreloadsAndShootsThemFromThePark() {
+    for (boolean nearDown : new boolean[] {true, false}) {
+      seq = new SoloSequence(0, true);
+      t = 0;
+      seq.tipCheck(false, false);
+      quickTo(Step.SHOOT_NEAR);
+      seen.clear();
+      quickTo(Step.TAKE_PARTNER_BALLS);
+      assertEquals(Arrays.asList(Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER,
+          Step.BACK_FROM_WALL_FLOWER, Step.SHOOT_FAR, Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR,
+          Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER, Step.SHOOT_FAR, Step.DRIVE_TO_PARTNER_BALLS,
+          Step.TAKE_PARTNER_BALLS), seen);
+      assertTrue("intake first into them", seq.intake());
+      assertFalse("no arm", seq.armDown());
+      assertTrue("cameras to the Hive", seq.watchingHive());
+      seq.tipCheck(nearDown, !nearDown); // The tags win over the ball count
+      assertEquals(Step.SHOOT_PARK, seq.nextVolley());
+      quickTo(Step.SHOOT_PARK);
+      seq.tipCheck(null, nearDown); // Decided on leaving them
+      for (Alliance a : Alliance.values()) {
+        Cell up = nearDown ? SoloSequence.parkCell(a) : SoloSequence.nearCell(a);
+        assertEquals(up, seq.parkVolleyCell(a));
+        assertArrayEquals(AutoField.parkSpot(a, up), seq.parkedSpot(a), 1e-9);
+      }
+      assertTrue(seq.intake());
+      quickTo(Step.PARKED);
+      assertEquals(Arrays.asList(Step.SHOOT_PARK, Step.PARKED), seen.subList(seen.size() - 2, seen.size()));
+      assertFalse(seq.intake());
+      seen.clear();
+    }
+  }
+
+  @Test
+  public void noPartnerTippedHasNoTimeForItsPreloads() {
+    seq = new SoloSequence(0, true);
+    seq.tipCheck(true, false);
+    quickTo(Step.CHECK_TIP);
+    seen.clear();
+    quickTo(Step.SHOOT_FAR);
+    seq.tipCheck(false, true); // The far Cell tipped back
+    quickTo(Step.PARKED);
+    assertFalse(seen.contains(Step.DRIVE_TO_PARTNER_BALLS));
+    assertEquals(Arrays.asList(Step.SHOOT_NEAR, Step.DRIVE_TO_PARK, Step.PARKED),
+        seen.subList(seen.size() - 3, seen.size()));
+    assertArrayEquals(SoloSequence.parkSpot(Alliance.BLUE), seq.parkedSpot(Alliance.BLUE), 1e-9);
+  }
+
+  @Test
+  public void noPartnerSkipsItsPreloadsLateOrWithBallsStillIn() {
+    for (boolean late : new boolean[] {true, false}) {
+      seq = new SoloSequence(0, true);
+      t = 0;
+      seq.tipCheck(false, false);
+      quickTo(Step.BACK_FROM_REAR_FLOWER);
+      quickTo(Step.SHOOT_FAR);
+      if (late) {
+        while (t < SoloSequence.LATEST_PARTNER_BALLS_S) {
+          loop(false, false, false, false); // Held off the spot until late
+        }
+        while (seq.step() == Step.SHOOT_FAR) {
+          loop(true, true, true, false); // Its 4 balls out at once, just after the latest
+        }
+        assertTrue("before the park-by time", t < SoloSequence.PARK_BY_S);
+      } else {
+        double given = t + AutoSequence.VOLLEY_WAIT_S + 0.1;
+        while (seq.step() == Step.SHOOT_FAR) {
+          loop(true, false, false, false); // A ball stuck: the feeder never empties
+          assertTrue(t < given);
+        }
+      }
+      assertEquals(late ? "late" : "a ball still in", Step.DRIVE_TO_PARK, seq.step());
+      assertArrayEquals(SoloSequence.parkSpot(Alliance.RED), seq.parkedSpot(Alliance.RED), 1e-9);
+    }
+  }
+
+  @Test
+  public void atTheParkByTimeTheDriveToThePartnersPreloadsGoesToTheParkVolley() {
+    seq = new SoloSequence(0, true);
+    seq.tipCheck(false, false);
+    quickTo(Step.DRIVE_TO_PARTNER_BALLS);
+    while (t < SoloSequence.PARK_BY_S - DT) {
+      loop(false, false, false, false);
+    }
+    loop(false, false, false, false);
+    assertEquals(Step.SHOOT_PARK, seq.step());
+    runFor(3.0, true);
+    assertEquals("the park volley is not cut for the park", Step.SHOOT_PARK, seq.step());
+    assertTrue(seq.shoot(t));
+  }
+
+  @Test
+  public void thePartnersPreloadsAreTakenSquareFromAboveThemInTheLoadingZone() {
+    double[] in = AutoField.PARTNER_BALLS_IN;
+    double[] zone = AutoField.LOADING_ZONE;
+    double ballTop = -AutoField.FIELD_HALF_M + 2 * 0.0356;
+    assertEquals("over the zone's middle", (zone[0] + zone[1]) / 2, in[0], 1e-9);
+    assertEquals("intake to our wall", -Math.PI / 2, in[2], 1e-9);
+    assertTrue("turning there, its corners clear them", in[1] - AutoField.ROBOT_HALF_M * Math.sqrt(2) > ballTop);
+    double[] end = AutoField.partnerBallsEnd();
+    assertEquals("straight in", in[0], end[0], 1e-9);
+    assertTrue("into the wall through them", end[1] < -AutoField.AT_WALL_M);
+    for (Alliance a : Alliance.values()) {
+      double[] spot = AutoField.forAlliance(in, a);
+      assertTrue(a + ": in our half", Math.signum(spot[1]) == (a == Alliance.RED ? -1 : 1));
+    }
   }
 
   @Test

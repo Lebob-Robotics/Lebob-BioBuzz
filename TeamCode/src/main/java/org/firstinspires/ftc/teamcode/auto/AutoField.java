@@ -147,6 +147,21 @@ public final class AutoField {
   public static final double[] EDGE_PARK = {LOADING_ZONE[0] + PARK_IN_ZONE_M - ROBOT_HALF_M,
       -(AT_WALL_M - PARK_WALL_GAP_M), -Math.PI / 2};
 
+  /**
+   * A partner not there has its 4 preloads put at about the loading zone's middle against our wall (game manual
+   * 10.3.4). With none, the pickup stops square to our wall above them, its corners clear of them and the wall as it
+   * turns, then drives intake first into the wall through them.
+   */
+  public static final double[] PARTNER_BALLS_IN = {(LOADING_ZONE[0] + LOADING_ZONE[1]) / 2, -AT_WALL_M + 0.25,
+      -Math.PI / 2};
+  /** It drives this far past touching our wall, and ends once the wall stops it. */
+  public static double PARTNER_PUSH_M = 0.05;
+
+  /** Where the pickup drives to: into our wall through the partner's preloads. */
+  public static double[] partnerBallsEnd() {
+    return new double[] {PARTNER_BALLS_IN[0], -AT_WALL_M - PARTNER_PUSH_M, PARTNER_BALLS_IN[2]};
+  }
+
   /** {@link #EDGE_PARK} for the alliance. */
   public static double[] edgePark(Alliance alliance) {
     return forAlliance(EDGE_PARK, alliance);

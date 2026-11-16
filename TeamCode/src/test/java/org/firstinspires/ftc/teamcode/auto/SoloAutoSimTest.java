@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.auto;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -56,16 +57,20 @@ public class SoloAutoSimTest {
   private static final double FLOWER_FILL_S = 0.6;
   /** When the tags show the Hive after the check starts, if they do. */
   private static final double TAGS_AFTER_S = 0.4;
+  /** A ball's radius: the partner's preloads lie against our wall. */
+  private static final double BALL_R = 0.0356;
+  /** The intake's front reaching the partner's preloads to all 4 in the stack. */
+  private static final double PARTNER_FILL_S = 0.3;
   private static final int TRACE_EVERY = 2;
 
   private static final class Probe extends SoloAuto {
     FieldPose at;
     double locked = Double.NaN;
 
-    Probe(Alliance alliance) {
-      super(alliance);
+    Probe(Alliance alliance, boolean noPartner) {
+      super(alliance, noPartner);
       follower = new Follower(localizer, drivetrain, Constants.algorithm());
-      plan = new SoloSequence(0);
+      plan = new SoloSequence(0, noPartner);
     }
 
     @Override
@@ -87,6 +92,14 @@ public class SoloAutoSimTest {
     final List<double[]> balls = new ArrayList<>();
     final StringBuilder timeline = new StringBuilder();
     double parkedS = Double.NaN;
+    /** At the park spot to shoot the partner's preloads. */
+    double atParkS = Double.NaN;
+    /** Off to the partner's preloads, and when they were in. */
+    double partnerS = Double.NaN;
+    double partnerTakenS = Double.NaN;
+    /** The last time it moved, and where it is at 30 s (field coordinates). */
+    double stillFromS;
+    double[] end;
     double decidedS = Double.NaN;
     double recheckedS = Double.NaN;
     double worstAimDeg;
@@ -98,6 +111,10 @@ public class SoloAutoSimTest {
 
   /** Volley times (FIRST_BALL_S, BALL_GAP_S) multiplied by this. */
   private double volleySlowdown = 1;
+  /** No partner: its 4 preloads lie at the loading zone's middle against our wall. */
+  private boolean noPartner = false;
+  /** No partner: the near Cell is down by the tags at its preloads, null for no tags then. */
+  private Boolean nearDownAtPartnerBalls = false;
   private double x;
   private double y;
   private double h;
@@ -118,7 +135,7 @@ public class SoloAutoSimTest {
    * @param farTipped tipped, the far Cell has tipped back by the tags at the recheck, null for no tags then
    */
   private Run run(Alliance alliance, Boolean tags, boolean predicted, Boolean farTipped) {
-    Probe auto = new Probe(alliance);
+    Probe auto = new Probe(alliance, noPartner);
     double[] start = AutoField.forAlliance(SoloSequence.START, alliance);
     x = start[0];
     y = start[1];
@@ -130,6 +147,8 @@ public class SoloAutoSimTest {
     double shootingS = 0;
     int volleyBalls = 0;
     boolean filled = false;
+    boolean partnerBallsThere = noPartner;
+    double reachedPartnerBallsS = Double.NaN;
     Step step = auto.plan.step();
     run.steps.add(step);
     sense(auto);
@@ -143,6 +162,8 @@ public class SoloAutoSimTest {
       Boolean verdict = null;
       if (step == Step.CHECK_TIP) {
         verdict = inStepS >= TAGS_AFTER_S ? tags : null;
+      } else if (step == Step.TAKE_PARTNER_BALLS) {
+        verdict = nearDownAtPartnerBalls;
       } else if (auto.plan.watchingHive()) { // The recheck: the near Cell is down while the far one is still up
         verdict = farTipped == null ? null : !farTipped;
       }
@@ -158,8 +179,14 @@ public class SoloAutoSimTest {
       }
       move(p);
       double speed = Math.hypot(x - px, y - py) / DT;
+      if (speed > 0.02 || Math.abs(omega) > 0.05) {
+        run.stillFromS = t;
+      }
 
       boolean ballLeft = false;
+      if (step == Step.SHOOT_PARK && auto.plan.shoot(t) && Double.isNaN(run.atParkS)) {
+        run.atParkS = t;
+      }
       if (auto.plan.shoot(t)) {
         shootingS += DT;
         if (held > 0 && shootingS >= (FIRST_BALL_S + volleyBalls * BALL_GAP_S) * volleySlowdown) {
@@ -175,6 +202,15 @@ public class SoloAutoSimTest {
       }
       if (intaking && !filled && inStepS >= FLOWER_FILL_S) {
         filled = true;
+        run.picked += 4 - held;
+        held = 4;
+      }
+      if (partnerBallsThere && Double.isNaN(reachedPartnerBallsS) && reachesPartnerBalls(alliance)) {
+        reachedPartnerBallsS = t;
+      }
+      if (partnerBallsThere && t - reachedPartnerBallsS >= PARTNER_FILL_S) {
+        partnerBallsThere = false;
+        run.partnerTakenS = t;
         run.picked += 4 - held;
         held = 4;
       }
@@ -202,6 +238,9 @@ public class SoloAutoSimTest {
         if (step == Step.PARKED) {
           run.parkedS = t;
         }
+        if (step == Step.DRIVE_TO_PARTNER_BALLS) {
+          run.partnerS = t;
+        }
         auto.startStep(step);
       }
       check(alliance, step, t);
@@ -211,7 +250,46 @@ public class SoloAutoSimTest {
     }
     run.tipped = auto.plan.tipped();
     run.farTipped = auto.plan.farTipped();
+    run.end = new double[] {x, y, h};
     return run;
+  }
+
+  /** At the park by 28.5 s: the drive to it done, or stopped at the park volley's spot. */
+  private static void assertParkedInTime(String what, Run run) {
+    double parkedS = run.steps.contains(Step.SHOOT_PARK) ? run.atParkS : run.parkedS;
+    assertTrue(what + "parked at " + parkedS, parkedS <= 28.5);
+  }
+
+  /** The intake's side, square enough to our wall, within a ball of it, across the partner's preloads' middle. */
+  private boolean reachesPartnerBalls(Alliance alliance) {
+    double[] red = AutoField.forAlliance(new double[] {x, y, h}, alliance);
+    double middle = (AutoField.LOADING_ZONE[0] + AutoField.LOADING_ZONE[1]) / 2;
+    return Math.abs(Angles.normalize(red[2] + Math.PI / 2)) < 0.3 && Math.abs(red[0] - middle) < 0.1
+        && red[1] - AutoField.ROBOT_HALF_M <= -AutoField.FIELD_HALF_M + 2 * BALL_R;
+  }
+
+  /** At 30 s: partly in the loading zone (PARK) and off every wall (LEAVE), as the game manual scores them. */
+  private static void assertParkAndLeave(String what, Alliance alliance, double[] end) {
+    double[] red = AutoField.forAlliance(end, alliance);
+    double[] zone = AutoField.LOADING_ZONE;
+    boolean inZone = false;
+    double reachX = 0;
+    double reachY = 0;
+    for (int i = 0; i <= 20; i++) {
+      for (int j = 0; j <= 20; j++) {
+        double along = AutoField.ROBOT_HALF_M * (i / 10.0 - 1);
+        double across = AutoField.ROBOT_HALF_M * (j / 10.0 - 1);
+        double px = red[0] + along * Math.cos(red[2]) - across * Math.sin(red[2]);
+        double py = red[1] + along * Math.sin(red[2]) + across * Math.cos(red[2]);
+        inZone |= px >= zone[0] && px <= zone[1] && py >= zone[2] && py <= zone[3];
+        reachX = Math.max(reachX, Math.abs(px));
+        reachY = Math.max(reachY, Math.abs(py));
+      }
+    }
+    String where = String.format(Locale.US, "%s: ends at %.3f, %.3f, %.0f deg", what, red[0], red[1],
+        Math.toDegrees(red[2]));
+    assertTrue(where + ", not in the loading zone", inZone);
+    assertTrue(where + ", touching a wall", Math.max(reachX, reachY) < AutoField.FIELD_HALF_M - 0.02);
   }
 
   private void sense(Probe auto) {
@@ -261,14 +339,19 @@ public class SoloAutoSimTest {
     return s;
   }
 
-  private void assertFullRun(String name, Run run, List<Step> volleys) {
+  private void assertFullRun(String name, Alliance a, Run run, List<Step> volleys, int balls) {
     String detail = name + "\n" + run.timeline;
     System.out.println(detail);
     assertEquals(detail, volleys, shooting(run.steps));
-    assertTrue(detail + "parked at " + run.parkedS, run.parkedS <= 28.5);
-    assertEquals(detail + "picked", 12, run.picked);
-    assertEquals(detail + "shot", 16, run.shot);
+    assertParkedInTime(detail, run);
+    if (run.steps.contains(Step.SHOOT_PARK)) {
+      double lastBallS = run.balls.get(run.balls.size() - 1)[0];
+      assertTrue(detail + "last ball at " + lastBallS, lastBallS <= 28.5);
+    }
+    assertEquals(detail + "picked", balls - 4, run.picked);
+    assertEquals(detail + "shot", balls, run.shot);
     assertTrue(detail + "a ball left " + run.worstAimDeg + " deg off its Cell", run.worstAimDeg <= 3);
+    assertParkAndLeave(detail, a, run.end);
   }
 
   @Test
@@ -276,8 +359,8 @@ public class SoloAutoSimTest {
     for (Alliance a : Alliance.values()) {
       Run run = run(a, false, false);
       assertEquals(Boolean.FALSE, run.tipped);
-      assertFullRun(a + " not tipped", run,
-          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_NEAR, Step.SHOOT_FAR, Step.SHOOT_FAR));
+      assertFullRun(a + " not tipped", a, run,
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_NEAR, Step.SHOOT_FAR, Step.SHOOT_FAR), 16);
     }
   }
 
@@ -287,8 +370,8 @@ public class SoloAutoSimTest {
       Run run = run(a, true, false);
       assertEquals(Boolean.TRUE, run.tipped);
       assertEquals(Boolean.TRUE, run.farTipped);
-      assertFullRun(a + " tipped", run,
-          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_NEAR));
+      assertFullRun(a + " tipped", a, run,
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_NEAR), 16);
     }
   }
 
@@ -297,8 +380,8 @@ public class SoloAutoSimTest {
     for (Alliance a : Alliance.values()) {
       Run run = run(a, true, false, false);
       assertEquals(Boolean.FALSE, run.farTipped);
-      assertFullRun(a + " tipped, far Cell still up", run,
-          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_FAR));
+      assertFullRun(a + " tipped, far Cell still up", a, run,
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_FAR), 16);
     }
   }
 
@@ -315,6 +398,58 @@ public class SoloAutoSimTest {
   }
 
   @Test
+  public void noPartnerNotTippedShootsItsPreloadsFromTheParkIntoTheCellUp() {
+    noPartner = true;
+    for (Alliance a : Alliance.values()) {
+      for (Boolean nearDown : new Boolean[] {true, false, null}) {
+        nearDownAtPartnerBalls = nearDown;
+        Run run = run(a, false, false);
+        String name = a + " no partner, near Cell down at its preloads " + nearDown;
+        assertFullRun(name, a, run,
+            Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_NEAR, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_PARK), 20);
+        Cell up = Boolean.TRUE.equals(nearDown) ? SoloSequence.parkCell(a) : SoloSequence.nearCell(a);
+        double[] aim = AutoField.autoAimPoint(a, up);
+        double[] last = run.balls.get(run.balls.size() - 1);
+        assertArrayEquals(name, aim, new double[] {last[3], last[4]}, 1e-9);
+      }
+    }
+  }
+
+  @Test
+  public void noPartnerTippedShootsEveryBallAndParksAtTheEdge() {
+    noPartner = true;
+    for (Alliance a : Alliance.values()) {
+      Run run = run(a, true, false);
+      assertFullRun(a + " no partner, tipped", a, run,
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_NEAR), 16);
+      assertArrayEquals(SoloSequence.parkSpot(a), run.end, 0.03);
+    }
+  }
+
+  @Test
+  public void noPartnerSlowerVolleysStillParkInTime() {
+    noPartner = true;
+    double worstParkedS = 0;
+    double worstStillS = 0;
+    for (Alliance a : Alliance.values()) {
+      for (boolean tipped : new boolean[] {false, true}) {
+        for (int i = 0; i <= 30; i++) {
+          volleySlowdown = 1 + i * 0.05;
+          Run run = run(a, tipped, tipped);
+          String what = String.format(Locale.US, "%s no partner, tipped %b, volleys x%.2f%n%s", a, tipped,
+              volleySlowdown, run.timeline);
+          assertParkedInTime(what, run);
+          assertParkAndLeave(what, a, run.end);
+          worstParkedS = Math.max(worstParkedS, run.steps.contains(Step.SHOOT_PARK) ? run.atParkS : run.parkedS);
+          worstStillS = Math.max(worstStillS, run.stillFromS);
+        }
+      }
+    }
+    System.out.printf(Locale.US, "No partner, volleys x1 to x2.5: parked by %.2f s, still by %.2f s%n", worstParkedS,
+        worstStillS);
+  }
+
+  @Test
   public void writesTheTraceForTheViewer() throws Exception {
     if (!"1".equals(System.getenv("WRITE_SOLO_TRACE"))) {
       return;
@@ -323,6 +458,9 @@ public class SoloAutoSimTest {
     Run notTipped = run(a, false, false);
     Run tipped = run(a, true, false);
     Run farStillUp = run(a, true, false, false);
+    noPartner = true;
+    nearDownAtPartnerBalls = true; // The far Cell still up after its 8: they go into it
+    Run alone = run(a, false, false);
     StringBuilder j = new StringBuilder();
     j.append("// Written by SoloAutoSimTest with WRITE_SOLO_TRACE=1: the red runs of the solo auto, simulated.\n");
     j.append("var SOLO_TRACE = {\n");
@@ -354,6 +492,12 @@ public class SoloAutoSimTest {
     double[] lz = AutoField.LOADING_ZONE;
     j.append("\"loadingZone\": [").append(num(lz[0])).append(", ").append(num(lz[1])).append(", ")
         .append(num(lz[2])).append(", ").append(num(lz[3])).append("],\n");
+    double middle = (lz[0] + lz[1]) / 2;
+    j.append("\"partnerBalls\": [");
+    for (int i = 0; i < 4; i++) {
+      j.append(i == 0 ? "" : ", ").append(pair(middle + (i - 1.5) * 2 * BALL_R, lz[2] + BALL_R));
+    }
+    j.append("],\n");
     // Each volley's spot by its Volley Tuning name and IN rate at the 15 Nov competition
     VolleySettings tuned = AutoVolleySettingsTest.comp();
     Cell near = SoloSequence.nearCell(a);
@@ -362,11 +506,14 @@ public class SoloAutoSimTest {
         .append(spot(tunedName(tuned, a, near, AutoField.shotSpot(a, near)), AutoField.shotSpot(a, near)))
         .append(", ").append(spot(tunedName(tuned, a, far, AutoField.shotSpot(a, far)), AutoField.shotSpot(a, far)))
         .append(", ").append(spot("park", SoloSequence.parkSpot(a)))
+        .append(", ").append(spot(tunedName(tuned, a, far, AutoField.parkSpot(a, far)), AutoField.parkSpot(a, far)))
         .append("]\n},\n");
     j.append("\"runs\": [\n");
-    j.append(runJson("Not tipped", notTipped, -1, notTipped.decidedS, "")).append(",\n")
-        .append(runJson("Tipped", tipped, -1, tipped.decidedS, "")).append(",\n")
-        .append(runJson("Far still up", farStillUp, 1, farStillUp.recheckedS, "the far Cell had not tipped back"))
+    j.append(runJson("Not tipped", notTipped, -1, notTipped.decidedS, "", "")).append(",\n")
+        .append(runJson("Tipped", tipped, -1, tipped.decidedS, "", "")).append(",\n")
+        .append(runJson("Far still up", farStillUp, 1, farStillUp.recheckedS, "the far Cell had not tipped back",
+            "recheck")).append(",\n")
+        .append(runJson("No partner", alone, 0, alone.partnerS, "Triple: the partner's preloads", "no partner"))
         .append("\n]\n};\n");
     File module = new File("src/test").isDirectory() ? new File(".") : new File("TeamCode");
     File out = new File(module, "../tools/solo/solo-trace.js");
@@ -381,12 +528,20 @@ public class SoloAutoSimTest {
         100 * VolleySettingsAccess.rate(tuned, spot));
   }
 
-  /** A run, the same as run parent (-1: the shared start) until branchS, where why sent it its own way. */
-  private static String runJson(String name, Run run, int parent, double branchS, String why) {
+  /**
+   * A run, the same as run parent (-1: the shared start) until branchS, where why sent it its own way, marked there
+   * with mark.
+   */
+  private static String runJson(String name, Run run, int parent, double branchS, String why, String mark) {
+    double parkedS = Double.isNaN(run.atParkS) ? run.parkedS : run.atParkS;
     StringBuilder j = new StringBuilder("{\"name\": \"").append(name).append("\", \"parkedS\": ")
-        .append(num(run.parkedS)).append(", \"shot\": ").append(run.shot).append(", \"parent\": ").append(parent)
+        .append(num(parkedS)).append(", \"shot\": ").append(run.shot).append(", \"parent\": ").append(parent)
         .append(", \"branchS\": ").append(num(branchS)).append(", \"why\": \"").append(why)
-        .append("\",\n\"trace\": [");
+        .append("\", \"mark\": \"").append(mark).append("\"");
+    if (!Double.isNaN(run.partnerTakenS)) {
+      j.append(", \"partnerTakenS\": ").append(num(run.partnerTakenS));
+    }
+    j.append(",\n\"trace\": [");
     for (int i = 0; i < run.trace.size(); i++) {
       double[] r = run.trace.get(i);
       j.append(i == 0 ? "" : ",").append(i % 8 == 0 ? "\n" : "").append(String.format(Locale.US,

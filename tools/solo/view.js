@@ -6,14 +6,14 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SoloView = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
-  const W = 1000, H = 840;
+  const W = 1000, H = 870;
   const OX = 30, OY = 78, SIZE = 600;
   const PANEL_X = 660;
   const SHARED = '#6a51a3';
-  const RUN_COLORS = ['#1b9e77', '#e8590c', '#d6336c'];
+  const RUN_COLORS = ['#1b9e77', '#e8590c', '#d6336c', '#0b7285'];
   const CATEGORY = {
     shoot: ['#d62728', 'shoot'], garden: ['#bcbd22', 'Garden'], check: ['#9467bd', 'Hive check'],
-    flower: ['#2ca02c', 'Flower'], drive: ['#8c8c8c', 'drive'],
+    flower: ['#2ca02c', 'Flower'], partner: ['#3bc9db', "partner's preloads"], drive: ['#8c8c8c', 'drive'],
   };
   const DETAIL = {
     SHOOT_PRELOAD: 'shooting the preloads', FACE_GARDEN: 'turning to the Garden', ONTO_GARDEN_WALL: 'onto the wall',
@@ -22,7 +22,8 @@
     DRIVE_TO_WALL_FLOWER: "to our wall's Flower", LOWER_ARM_WALL: 'arm down', INTAKE_WALL_FLOWER: 'taking the Flower',
     BACK_FROM_WALL_FLOWER: 'backing out', DRIVE_TO_REAR_FLOWER: 'to the rear Flower', LOWER_ARM_REAR: 'arm down',
     INTAKE_REAR_FLOWER: 'taking the Flower', BACK_FROM_REAR_FLOWER: 'backing out', DRIVE_TO_PARK: 'to the park',
-    PARKED: 'parked',
+    PARKED: 'parked', DRIVE_TO_PARTNER_BALLS: "to the partner's preloads",
+    TAKE_PARTNER_BALLS: "taking the partner's preloads", SHOOT_PARK: 'shooting from the park',
   };
 
   /** The panel's and timeline's entry for a step: its name and category. */
@@ -35,6 +36,8 @@
     if (/WALL$|WALL_FLOWER/.test(step)) return ["Our wall's Flower", 'flower'];
     if (/REAR/.test(step)) return ['Rear Flower', 'flower'];
     if (step === 'DRIVE_TO_PARK') return ['To the park', 'drive'];
+    if (/PARTNER/.test(step)) return ["Partner's preloads", 'partner'];
+    if (step === 'SHOOT_PARK') return ['Shoot from the park', 'shoot'];
     return ['Parked', 'drive'];
   }
 
@@ -170,7 +173,7 @@
     data.runs.forEach((run, i) => {
       const p = at(run, t);
       o.push(text(PANEL_X, y, `${run.name}`, `font-weight="bold" fill="${RUN_COLORS[i]}"`));
-      o.push(text(PANEL_X + 120, y, `${p.shot} of 16 shot · parked ${run.parkedS.toFixed(1)} s`, `font-size="12"
+      o.push(text(PANEL_X + 120, y, `${p.shot} of ${run.shot} shot · parked ${run.parkedS.toFixed(1)} s`, `font-size="12"
         fill="#333"`));
       y += 20;
       if (run.parent >= 0) {
@@ -243,12 +246,19 @@
     const split = Math.min(t, data.splitS);
     const o = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"
       font-family="DejaVu Sans, Arial, sans-serif" font-size="13">`, `<rect width="${W}" height="${H}" fill="#fff"/>`];
-    o.push(text(OX, 26, `Solo ${data.alliance === 'RED' ? 'Red' : 'Blue'}: every branch, simulated`,
+    o.push(text(OX, 26, `Lets Solo ${data.alliance === 'RED' ? 'Red' : 'Blue'}: every branch, simulated`,
       'font-size="20" font-weight="bold"'));
     o.push(text(OX, 46, 'Pedro on the simulated robot (SoloAutoSimTest), its drives matched to the regionals logs.'
       + ' Black bar: intake, white dot: shooter', 'font-size="12" fill="#666"'));
     o.push(text(W - 20, 40, `t = ${t.toFixed(1)} s`, 'text-anchor="end" font-size="26" font-weight="bold"'));
     o.push(field(data, img));
+    // The partner's preloads, there until the run with no partner has them in
+    const taker = data.runs.find((run) => run.partnerTakenS !== undefined);
+    if (taker && data.field.partnerBalls && t < taker.partnerTakenS) {
+      for (const b of data.field.partnerBalls) {
+        o.push(`<circle cx="${f(px(b[0]))}" cy="${f(py(b[1]))}" r="${f(0.0356 * S)}" fill="#ffd400" stroke="#7a6400"/>`);
+      }
+    }
     o.push(trail(data.runs[0], 0, split, SHARED, 'stroke-opacity="0.9"'));
     // A run is drawn from where it goes its own way; before that it is its parent, or the shared robot
     const live = data.runs.map((run) => t > start(data, run));
@@ -260,7 +270,7 @@
     if (t > data.splitS) {
       data.runs.forEach((run, i) => live[i] && o.push(trail(run, start(data, run), t, RUN_COLORS[i])));
       marker(at(data.runs[0], data.splitS), SHARED, 'split');
-      data.runs.forEach((run, i) => live[i] && run.parent >= 0 && marker(at(run, run.branchS), RUN_COLORS[i], 'recheck'));
+      data.runs.forEach((run, i) => live[i] && run.parent >= 0 && marker(at(run, run.branchS), RUN_COLORS[i], run.mark));
     }
     if (t <= data.splitS) {
       const p = at(data.runs[0], t);
