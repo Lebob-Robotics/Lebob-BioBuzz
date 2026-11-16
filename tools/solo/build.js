@@ -1,11 +1,12 @@
-// node tools/solo/build.js [--gif]: solo.html, a player for the solo auto's two branches on the real field, from
-// solo-trace.js (SoloAutoSimTest with WRITE_SOLO_TRACE=1). With --gif, solo.gif too (needs ImageMagick's magick).
+// node tools/solo/build.js [--gif] [--mp4]: solo.html, a player for the solo auto's two branches on the real field,
+// from solo-trace.js (SoloAutoSimTest with WRITE_SOLO_TRACE=1). --gif writes solo.gif (ImageMagick's magick), --mp4
+// solo.mp4 in real time (magick and ffmpeg: $FFMPEG, else ffmpeg on the PATH).
 // The field picture is AdvantageScope's 2026-2027 FTC field from its assets folder, which AdvantageScope downloads
 // once it has run online; SOLO_FIELD_DIR picks another folder holding image.png and config.json.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const {execFileSync} = require('child_process');
+const {execFile, execFileSync} = require('child_process');
 const SoloView = require('./view.js');
 
 const dir = __dirname;
@@ -122,22 +123,60 @@ const html = `<!doctype html>
 fs.writeFileSync(path.join(dir, 'solo.html'), html);
 console.log(`${path.join(dir, 'solo.html')} (field from ${img.folder})`);
 
-if (process.argv.includes('--gif')) {
-  const STEP_S = 0.2; // Each frame shown 0.1 s: twice real time
+/** Each frame's SVG, every stepS of the auto, in a new temporary folder, the field picture resized to widthPx. */
+function writeFrames(stepS, widthPx) {
   const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-frames-'));
   const small = path.join(frames, 'field.png');
-  execFileSync('magick', [path.join(img.folder, 'image.png'), '-resize', '1000x', small]);
-  const gifImg = fieldImage(small);
+  execFileSync('magick', [path.join(img.folder, 'image.png'), '-resize', `${widthPx}x`, small]);
+  const frameImg = fieldImage(small);
   const files = [];
-  for (let i = 0; i * STEP_S <= 30 + 1e-9; i++) {
+  for (let i = 0; i * stepS <= 30 + 1e-9; i++) {
     const file = path.join(frames, `f${String(i).padStart(4, '0')}.svg`);
-    fs.writeFileSync(file, SoloView.frame(data, Math.min(30, i * STEP_S), gifImg));
+    fs.writeFileSync(file, SoloView.frame(data, Math.min(30, i * stepS), frameImg));
     files.push(file);
   }
-  const lastFrame = files.pop();
-  const out = path.join(dir, 'solo.gif');
-  execFileSync('magick', ['-delay', '10', ...files, '-delay', '300', lastFrame, '-resize', '800x', '+dither', '-loop', '0',
-    '-layers', 'Optimize', out], {stdio: 'inherit'});
-  fs.rmSync(frames, {recursive: true});
-  console.log(`${out}: ${files.length + 1} frames, ${(fs.statSync(out).size / 1e6).toFixed(1)} MB`);
+  return {frames, files};
 }
+
+/** Runs magick on each file, as many at once as there are CPUs. */
+async function eachInParallel(files, args) {
+  let next = 0;
+  const worker = async () => {
+    while (next < files.length) {
+      const file = files[next++];
+      await new Promise((resolve, reject) =>
+        execFile('magick', args(file), (err) => (err ? reject(err) : resolve())));
+    }
+  };
+  await Promise.all(Array.from({length: os.cpus().length}, worker));
+}
+
+async function main() {
+  if (process.argv.includes('--gif')) {
+    const {frames, files} = writeFrames(0.2, 1000); // Each frame shown 0.1 s: twice real time
+    const lastFrame = files.pop();
+    const out = path.join(dir, 'solo.gif');
+    execFileSync('magick', ['-delay', '10', ...files, '-delay', '300', lastFrame, '-resize', '800x', '+dither',
+      '-loop', '0', '-layers', 'Optimize', out], {stdio: 'inherit'});
+    fs.rmSync(frames, {recursive: true});
+    console.log(`${out}: ${files.length + 1} frames, ${(fs.statSync(out).size / 1e6).toFixed(1)} MB`);
+  }
+  if (process.argv.includes('--mp4')) {
+    const FPS = 30;
+    const {frames, files} = writeFrames(1 / FPS, 1200); // The field is 1200 px across at twice the size
+    // Twice the SVG's size, then scaled down in the encode: sharper text and lines
+    await eachInParallel(files, (file) => ['-density', '192', file, file.replace(/\.svg$/, '.png')]);
+    const out = path.join(dir, 'solo.mp4');
+    execFileSync(process.env.FFMPEG || 'ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS),
+      '-i', path.join(frames, 'f%04d.png'), '-vf', 'scale=1500:-2:flags=lanczos,tpad=stop_mode=clone:stop_duration=3',
+      '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out],
+    {stdio: 'inherit'});
+    fs.rmSync(frames, {recursive: true});
+    console.log(`${out}: ${files.length} frames at ${FPS} fps, ${(fs.statSync(out).size / 1e6).toFixed(1)} MB`);
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
