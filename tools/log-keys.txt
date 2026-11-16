@@ -31,6 +31,8 @@ Auto/Phase
 Auto/PredictedCell
 Auto/ShotSpotCell
 Auto/SkipSecondFlower
+Auto/SoloTipFromTags
+Auto/SoloTipped
 Auto/Step
 Auto/TimeS
 Auto/VolleySpot
