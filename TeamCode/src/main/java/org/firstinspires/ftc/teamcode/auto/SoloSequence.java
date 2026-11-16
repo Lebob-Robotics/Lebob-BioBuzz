@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Cell;
 
 /**
@@ -12,9 +13,9 @@ import org.firstinspires.ftc.teamcode.field.Cell;
  * metres, as {@link AutoField}). Made to score alone from beside our Garden:
  *
  * <ol>
- *   <li>Start against the audience wall beside our Garden, camera side to the Hive. Pull off the wall to Volley
- *       Tuning's spot 11 while the flywheels spin up, and shoot the 4 preloads into the Cell beside the Garden (the
- *       one up at the start: {@link #nearCell}).
+ *   <li>Start against the audience wall beside our Garden, camera side to the Hive. Drive to Volley Tuning's spot 5
+ *       for the Cell beside the Garden (the one up at the start: {@link #nearCell}) while the flywheels spin up, and
+ *       shoot the 4 preloads into it.
  *   <li>Take the Garden as {@link AutoSequence} does: turn intake first along the Pollen line, slide onto the wall,
  *       sweep into the corner.
  *   <li>Check the Hive on the way out of the corner, cameras to it, driving to the spot in front of the near Cell.
@@ -22,13 +23,22 @@ import org.firstinspires.ftc.teamcode.field.Cell;
  *   <li>Not tipped: shoot the Garden there, take our wall's Flower, shoot from the park, take the rear Flower, then
  *       park and shoot what it holds until the end.
  *   <li>Tipped: drive on to the park and shoot the Garden into the other Cell from there, take the rear Flower and
- *       shoot from in front of that Cell, take our wall's Flower and shoot into the near Cell, then park and shoot
- *       until the end in case a ball stuck.
+ *       shoot from in front of that Cell, then take our wall's Flower. Watching the Hive from there (camera to it),
+ *       recheck: once the other Cell has tipped back (the near Cell up again), shoot into the near Cell, then park and
+ *       shoot until the end in case a ball stuck. Not tipped back, shoot the other Cell again from the park, to tip
+ *       it, and stay parked shooting.
  * </ol>
+ *
+ * <p>At a Flower the robot never stops for the arm: it goes down on the last of the drive to the stop short of the
+ * Flower ({@link SoloAuto#LOWER_ARM_FROM_M}), and comes up on the drive on from the stop after backing out.
  *
  * <p>A Flower is not started after {@link #LATEST_FLOWER_S}: it goes to park instead. Whatever it is doing at
  * {@link #PARK_BY_S}, it goes to park; in a Flower it starts backing out {@link AutoSequence#FLOWER_EXIT_S} before
- * that, and from a Flower left that late it parks rather than drive to another volley. Flower, Garden and volley timings are {@link AutoSequence}'s.
+ * that, and from a Flower left that late it parks rather than drive to another volley. Flower, Garden and volley
+ * timings are {@link AutoSequence}'s.
+ *
+ * <p>Every volley is shot from a spot Volley Tuning confirmed, so the auto shoots with that spot's settings: spot 5
+ * in front of either Cell (93% IN at the 15 Nov competition) and the park (90%).
  */
 public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   public enum Step {
@@ -42,9 +52,7 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     /** In front of the other Cell, at {@link AutoField#shotSpot}. */
     SHOOT_FAR(true),
     DRIVE_TO_WALL_FLOWER(false), LOWER_ARM_WALL(false), INTAKE_WALL_FLOWER(false), BACK_FROM_WALL_FLOWER(false),
-    RAISE_ARM_WALL(false),
     DRIVE_TO_REAR_FLOWER(false), LOWER_ARM_REAR(false), INTAKE_REAR_FLOWER(false), BACK_FROM_REAR_FLOWER(false),
-    RAISE_ARM_REAR(false),
     DRIVE_TO_PARK(false), PARKED(true);
 
     /** A volley is shot here, once the robot has stopped at the step's spot. */
@@ -58,9 +66,9 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   private static final List<Step> OPENING = Arrays.asList(
       Step.SHOOT_PRELOAD, Step.FACE_GARDEN, Step.ONTO_GARDEN_WALL, Step.SWEEP_GARDEN, Step.CHECK_TIP);
   private static final List<Step> WALL_FLOWER = Arrays.asList(Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL,
-      Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER, Step.RAISE_ARM_WALL);
+      Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER);
   private static final List<Step> REAR_FLOWER = Arrays.asList(Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR,
-      Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER, Step.RAISE_ARM_REAR);
+      Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER);
 
   /** Latest start of the drive to park: about 2.2 s from the near Cell's spot, parked before AUTO ends at 30 s. */
   public static double PARK_BY_S = 26.0;
@@ -77,15 +85,11 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   public static final double[] START = {AutoField.AT_WALL_M, -(AutoField.FIELD_HALF_M - 0.61) + 0.02
       + AutoField.ROBOT_HALF_M, 0};
   /**
-   * Where the preloads are shot from (red, {x, y}): Volley Tuning's spot 11 for the near Cell, 1.11 m from its aim
-   * point, 0.3 m off the audience wall: clear of it to turn, and 0.12 m from where the Garden's turn is held.
-   */
-  public static final double[] PRELOAD_SPOT = {1.30, -0.95};
-  /**
    * Bends the drive from the Garden's corner to the park over our wall's Flower: straight, it crossed the Flower's
-   * keep-out (AutoField.WALL_FLOWER_KEEP_OUT).
+   * keep-out (AutoField.WALL_FLOWER_KEEP_OUT). From where the tags usually decide the check, it passes 9 cm outside
+   * the keep-out and 29 cm from the Hive. Lower bends were up to 0.1 s quicker in SoloAutoSimTest, but within 3 cm.
    */
-  public static final double[] PARK_ENTRY_CONTROL = {1.00, -0.95, 0};
+  public static final double[] PARK_ENTRY_CONTROL = {1.40, -1.05, 0};
 
   private final List<Step> route = new ArrayList<>(OPENING);
   private int at = 0;
@@ -96,6 +100,8 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   private boolean tipFromTags = false;
   private Boolean tagsSayTipped = null;
   private boolean predictedTipped = false;
+  private Boolean farTipped = null;
+  private boolean farTipFromTags = false;
 
   public SoloSequence(double startS) {
     tracker = new StepTracker(startS);
@@ -117,11 +123,13 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     return nearCell(alliance).other();
   }
 
-  /** Where the preloads are shot from, in field coordinates for the alliance, back (shooter) to the near Cell. */
+  /**
+   * Where the preloads are shot from, back (shooter) to the near Cell: Volley Tuning's spot 5 for it, as the Garden's
+   * volley when the Hive has not tipped. Spot 7 is 0.15 m nearer the start at 90%, but its tuned indexer runs at 0.75
+   * and feeds slower; spot 11, beside the start, scored 73%.
+   */
   public static double[] preloadSpot(Alliance alliance) {
-    double[] p = AutoField.forAlliance(new double[] {PRELOAD_SPOT[0], PRELOAD_SPOT[1], 0}, alliance);
-    double[] aim = AutoField.autoAimPoint(alliance, nearCell(alliance));
-    return new double[] {p[0], p[1], Math.atan2(p[1] - aim[1], p[0] - aim[0])};
+    return AutoField.shotSpot(alliance, nearCell(alliance));
   }
 
   /** Where it parks and shoots from, for the alliance: AutoField's park, back to {@link #parkCell}. */
@@ -130,9 +138,58 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
   }
 
   /**
-   * The tip check's inputs, each loop before {@link #update}.
+   * The bend for the drive to the park from here (red coordinates), or null for a straight one: bent over our wall's
+   * Flower only where the straight drive would cross its keep-out.
+   */
+  public static double[] parkControl(double[] redFrom) {
+    return crossesWallFlower(redFrom, parkSpot(Alliance.RED)) ? PARK_ENTRY_CONTROL : null;
+  }
+
+  /** Full-power speeds driving along the robot (forward or back) and across it, from the regionals logs. */
+  public static double ALONG_MPS = 1.5;
+  public static double ACROSS_MPS = 1.2;
+  /** Turning on the way costs about this much time per radian beyond the turn from start to end heading. */
+  public static double TURN_COST_S_PER_RAD = 0.4;
+
+  /**
+   * The heading to drive travelRad on one of the robot's axes (forward, back or either side), never diagonally where
+   * a mecanum drive is slowest: whichever is quickest for the distance with the turning it adds, onto it from the
+   * start's heading and from it on to the end's.
+   */
+  static double alongAxis(double fromRad, double toRad, double travelRad, double distanceM) {
+    double direct = Math.abs(Angles.normalize(toRad - fromRad));
+    double best = Angles.normalize(travelRad);
+    double quickest = Double.MAX_VALUE;
+    for (int k = 0; k < 4; k++) {
+      double axis = Angles.normalize(travelRad + k * Math.PI / 2);
+      double turn = Math.abs(Angles.normalize(axis - fromRad)) + Math.abs(Angles.normalize(toRad - axis));
+      double s = distanceM / (k % 2 == 0 ? ALONG_MPS : ACROSS_MPS) + (turn - direct) * TURN_COST_S_PER_RAD;
+      if (s < quickest) {
+        quickest = s;
+        best = axis;
+      }
+    }
+    return best;
+  }
+
+  /** The straight drive between two red points takes the robot's centre into our wall's Flower's keep-out. */
+  static boolean crossesWallFlower(double[] redFrom, double[] redTo) {
+    double[] keepOut = AutoField.WALL_FLOWER_KEEP_OUT;
+    for (int i = 0; i <= 100; i++) {
+      double x = redFrom[0] + (redTo[0] - redFrom[0]) * i / 100.0;
+      double y = redFrom[1] + (redTo[1] - redFrom[1]) * i / 100.0;
+      if (x > keepOut[0] && x < keepOut[1] && y < keepOut[2]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * The tip check's and the recheck's inputs, each loop before {@link #update}.
    *
-   * @param tagsTipped the near Cell is down by the tags' fresh frames; null while they have shown nothing new
+   * @param tagsTipped the near Cell is down by the tags' frames since {@link #watchingHive} began; null while they
+   *                   have shown nothing new
    * @param predicted  the near Cell is down by the ball count (TipPredictor), for when the tags show nothing
    */
   public void tipCheck(Boolean tagsTipped, boolean predicted) {
@@ -188,9 +245,9 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
         break;
       case LOWER_ARM_WALL:
       case LOWER_ARM_REAR:
-        // pathDone here: stopped short of the Flower and facing it. The arm goes down then
-        if ((tracker.arrived() && tracker.arrivedForS(nowS) >= AutoSequence.ARM_MOVE_S)
-            || inStepS >= AutoSequence.FACE_FLOWER_MAX_S) {
+        // The arm goes down from the step's start, on the last of the drive; pathDone here: at the stop facing the
+        // Flower
+        if ((tracker.arrived() && inStepS >= AutoSequence.ARM_MOVE_S) || inStepS >= AutoSequence.FACE_FLOWER_MAX_S) {
           next(nowS);
         }
         break;
@@ -202,16 +259,12 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
         }
         break;
       case BACK_FROM_WALL_FLOWER:
-      case BACK_FROM_REAR_FLOWER:
+      case BACK_FROM_REAR_FLOWER: // Backed out clear of the Flower: the arm comes up on the next drive
         if (pathDone || inStepS >= AutoSequence.BACK_OUT_MAX_S) {
-          next(nowS);
-        }
-        break;
-      case RAISE_ARM_WALL:
-      case RAISE_ARM_REAR:
-        if (inStepS >= AutoSequence.ARM_MOVE_S) {
           if (nowS >= PARK_BY_S - AutoSequence.FLOWER_EXIT_S) { // No time for a volley elsewhere: the park's
             goPark(nowS);
+          } else if (step == Step.BACK_FROM_WALL_FLOWER && recheckPending()) {
+            recheckFarTip(nowS);
           } else {
             next(nowS);
           }
@@ -256,6 +309,36 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     next(nowS);
   }
 
+  /**
+   * The near Cell's volley only once the other Cell has tipped back: by the tags' frames at our wall's Flower, else
+   * the ball count. Not tipped back, it is shot again from the park, then parked there shooting.
+   */
+  private void recheckFarTip(double nowS) {
+    farTipFromTags = tagsSayTipped != null;
+    farTipped = !(farTipFromTags ? tagsSayTipped : predictedTipped);
+    if (!farTipped) {
+      route.subList(at + 1, route.size()).clear();
+      route.add(Step.SHOOT_PARK);
+      route.add(Step.PARKED);
+    }
+    next(nowS);
+  }
+
+  /** Tipped, the near Cell's volley still ahead and not yet rechecked. */
+  private boolean recheckPending() {
+    return Boolean.TRUE.equals(tipped) && farTipped == null && route.indexOf(Step.SHOOT_NEAR) > at;
+  }
+
+  /**
+   * The tags' frames count toward a check now: during the tip check, and for the recheck at our wall's Flower, where
+   * the camera faces the Hive and the other Cell's last volley has landed. Each watch counts only its own frames.
+   */
+  public boolean watchingHive() {
+    boolean atWallFlower = step == Step.LOWER_ARM_WALL || step == Step.INTAKE_WALL_FLOWER
+        || step == Step.BACK_FROM_WALL_FLOWER;
+    return step == Step.CHECK_TIP || (atWallFlower && recheckPending());
+  }
+
   /** On to the route's next step; a Flower too late to start goes to park instead. */
   private void next(double nowS) {
     at++;
@@ -278,25 +361,15 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
         || step == Step.LOWER_ARM_REAR || step == Step.INTAKE_REAR_FLOWER;
   }
 
-  /** Out of a Flower: backs out if the arm is down, else straight on to what follows the Flower. */
+  /** Out of a Flower: the arm is down from the drive's last part on, so it backs out. */
   private void leaveFlower(double nowS) {
     boolean wall = step == Step.LOWER_ARM_WALL || step == Step.INTAKE_WALL_FLOWER;
-    if (armDown()) {
-      at = route.indexOf(wall ? Step.BACK_FROM_WALL_FLOWER : Step.BACK_FROM_REAR_FLOWER);
-      enter(route.get(at), nowS);
-      return;
-    }
-    at = route.indexOf(wall ? Step.RAISE_ARM_WALL : Step.RAISE_ARM_REAR);
-    if (nowS >= PARK_BY_S - AutoSequence.FLOWER_EXIT_S) {
-      goPark(nowS);
-    } else {
-      next(nowS);
-    }
+    at = route.indexOf(wall ? Step.BACK_FROM_WALL_FLOWER : Step.BACK_FROM_REAR_FLOWER);
+    enter(route.get(at), nowS);
   }
 
   private boolean leavingFlower() {
-    return step == Step.BACK_FROM_WALL_FLOWER || step == Step.RAISE_ARM_WALL
-        || step == Step.BACK_FROM_REAR_FLOWER || step == Step.RAISE_ARM_REAR;
+    return step == Step.BACK_FROM_WALL_FLOWER || step == Step.BACK_FROM_REAR_FLOWER;
   }
 
   private void enter(Step following, double nowS) {
@@ -358,13 +431,12 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     }
   }
 
-  /** The Pollen arm is down from facing a Flower until it backs out, as {@link AutoSequence#armDown}. */
+  /** The Pollen arm is down from the last of the drive to a Flower until it has backed out. */
   @Override
   public boolean armDown() {
     switch (step) {
       case LOWER_ARM_WALL:
       case LOWER_ARM_REAR:
-        return tracker.arrived();
       case INTAKE_WALL_FLOWER:
       case INTAKE_REAR_FLOWER:
       case BACK_FROM_WALL_FLOWER:
@@ -401,9 +473,19 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
     return tipFromTags;
   }
 
+  /** The recheck's answer, tipped: the other Cell tipped back, so the near Cell is shot. Null until it is made. */
+  public Boolean farTipped() {
+    return farTipped;
+  }
+
+  /** The recheck was settled by the tags, not the prediction. */
+  public boolean farTipFromTags() {
+    return farTipFromTags;
+  }
+
   /**
-   * The next volley from here: this step's if it shoots, else the first shooting step after it; before the check is
-   * made, the one its likely answer leads to.
+   * The next volley from here: this step's if it shoots, else the first shooting step after it; before the check or
+   * the recheck is made, the one its likely answer leads to.
    */
   public Step nextVolley() {
     if (step == Step.SHOOT_PRELOAD) {
@@ -417,6 +499,10 @@ public final class SoloSequence implements AutoPlan<SoloSequence.Step> {
       return Step.PARKED;
     }
     for (int i = at; i < route.size(); i++) {
+      if (route.get(i) == Step.SHOOT_NEAR && recheckPending()) {
+        boolean nearDown = tagsSayTipped != null ? tagsSayTipped : predictedTipped;
+        return nearDown ? Step.SHOOT_PARK : Step.SHOOT_NEAR;
+      }
       if (route.get(i).shooting) {
         return route.get(i);
       }

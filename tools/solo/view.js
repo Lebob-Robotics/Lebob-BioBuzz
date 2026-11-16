@@ -1,4 +1,4 @@
-// The solo auto's two branches on one field, as SVG: shared by index.html (the player) and gif.js (node).
+// The solo auto's branches on one field, as SVG: shared by solo.html (the player) and build.js (node).
 // Data: solo-trace.js, written by SoloAutoSimTest with WRITE_SOLO_TRACE=1. Field coordinates are metres, red's
 // half at the bottom, the audience wall on the right, as tools/shots/maps/volley_spots.svg. The field picture is
 // AdvantageScope's 2026-2027 FTC field (build.js finds it): red's wall on its left, so it is drawn turned a quarter.
@@ -6,11 +6,11 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SoloView = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
-  const W = 1000, H = 810;
+  const W = 1000, H = 840;
   const OX = 30, OY = 78, SIZE = 600;
   const PANEL_X = 660;
   const SHARED = '#6a51a3';
-  const RUN_COLORS = ['#1b9e77', '#e8590c'];
+  const RUN_COLORS = ['#1b9e77', '#e8590c', '#d6336c'];
   const CATEGORY = {
     shoot: ['#d62728', 'shoot'], garden: ['#bcbd22', 'Garden'], check: ['#9467bd', 'Hive check'],
     flower: ['#2ca02c', 'Flower'], drive: ['#8c8c8c', 'drive'],
@@ -20,9 +20,9 @@
     SWEEP_GARDEN: 'sweeping the Garden', CHECK_TIP: 'checking the Hive', SHOOT_NEAR: 'shooting, near Cell',
     SHOOT_PARK: 'shooting from the park, far Cell', SHOOT_FAR: 'shooting, far Cell',
     DRIVE_TO_WALL_FLOWER: "to our wall's Flower", LOWER_ARM_WALL: 'arm down', INTAKE_WALL_FLOWER: 'taking the Flower',
-    BACK_FROM_WALL_FLOWER: 'backing out', RAISE_ARM_WALL: 'arm up', DRIVE_TO_REAR_FLOWER: 'to the rear Flower',
-    LOWER_ARM_REAR: 'arm down', INTAKE_REAR_FLOWER: 'taking the Flower', BACK_FROM_REAR_FLOWER: 'backing out',
-    RAISE_ARM_REAR: 'arm up', DRIVE_TO_PARK: 'to the park', PARKED: 'parked, shooting',
+    BACK_FROM_WALL_FLOWER: 'backing out', DRIVE_TO_REAR_FLOWER: 'to the rear Flower', LOWER_ARM_REAR: 'arm down',
+    INTAKE_REAR_FLOWER: 'taking the Flower', BACK_FROM_REAR_FLOWER: 'backing out', DRIVE_TO_PARK: 'to the park',
+    PARKED: 'parked, shooting',
   };
 
   /** The panel's and timeline's entry for a step: its name and category. */
@@ -56,6 +56,8 @@
   const px = (x) => OX + (x + 1.83) * S;
   const py = (y) => OY + (1.83 - y) * S;
   const f = (v) => v.toFixed(1);
+  /** When the run goes its own way: the Hive check's split, or later where it leaves its parent run. */
+  const start = (data, run) => (run.parent >= 0 ? run.branchS : data.splitS);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const text = (x, y, s, a = '') => `<text x="${f(x)}" y="${f(y)}" ${a}>${esc(s)}</text>`;
   const rect = (x0, x1, y0, y1, a) =>
@@ -87,7 +89,8 @@
       stroke-linecap="round" ${extra}/>`;
   }
 
-  function robot(data, p, color, label, sub) {
+  /** The robot at p; its labels lifted liftPx, clear of another robot's close by. */
+  function robot(data, p, color, label, sub, liftPx = 0) {
     const half = data.field.robotHalf * S;
     const deg = -p.h * 180 / Math.PI;
     return `<g transform="translate(${f(px(p.x))} ${f(py(p.y))})">
@@ -97,10 +100,10 @@
         <rect x="${f(half - 6)}" y="${f(-half + 4)}" width="6" height="${f(2 * half - 8)}" fill="#111"/>
         <circle cx="${f(-half + 9)}" cy="0" r="5" fill="#fff" stroke="#111"/>
       </g>
-      ${text(0, -half - 22, label, `text-anchor="middle" font-weight="bold" fill="${color}" stroke="#fff"
+      ${text(0, -half - 22 - liftPx, label, `text-anchor="middle" font-weight="bold" fill="${color}" stroke="#fff"
         stroke-width="4" paint-order="stroke"`)}
-      ${text(0, -half - 8, sub, `text-anchor="middle" font-size="12" fill="#222" stroke="#fff" stroke-width="3"
-        paint-order="stroke"`)}
+      ${text(0, -half - 8 - liftPx, sub, `text-anchor="middle" font-size="12" fill="#222" stroke="#fff"
+        stroke-width="3" paint-order="stroke"`)}
     </g>`;
   }
 
@@ -135,7 +138,7 @@
       const x = px(s.x), y = py(s.y);
       o.push(`<path d="M${f(x)} ${f(y - 6)} L${f(x + 6)} ${f(y)} L${f(x)} ${f(y + 6)} L${f(x - 6)} ${f(y)} Z"
         fill="#fff" stroke="#222"/>`);
-      const nearWall = s.x > 1.2; // Labels by the audience wall go left of the spot, on the field
+      const nearWall = s.x > 0.8; // Labels toward the audience wall go left of the spot, on the field
       o.push(text(nearWall ? x - 9 : x + 9, y + (nearWall ? -10 : 17), s.name, `font-size="11"
         fill="#111" ${nearWall ? 'text-anchor="end"' : ''} ${halo}`));
     }
@@ -157,8 +160,8 @@
         fill="${past || now ? '#111' : '#999'}"`));
       y += 17;
     };
-    const shared = segs[0].filter((s) => s.t1 <= data.splitS + 1e-6);
-    o.push(text(PANEL_X, y, 'Both robots', `font-weight="bold" fill="${SHARED}"`));
+    const shared = segs[0].filter((s) => s.t0 < data.splitS - 1e-6);
+    o.push(text(PANEL_X, y, 'Every run', `font-weight="bold" fill="${SHARED}"`));
     y += 20;
     shared.forEach((s) => row(s, SHARED));
     y += 4;
@@ -171,7 +174,12 @@
       o.push(text(PANEL_X + 120, y, `${p.shot} of 16 shot · parked ${run.parkedS.toFixed(1)} s`, `font-size="12"
         fill="#333"`));
       y += 20;
-      segs[i].filter((s) => s.t0 >= data.splitS - 1e-6).forEach((s) => row(s, RUN_COLORS[i]));
+      if (run.parent >= 0) {
+        o.push(text(PANEL_X, y, `Left ${data.runs[run.parent].name} at ${run.branchS.toFixed(1)} s: ${run.why}`,
+          'font-size="12" font-style="italic" fill="#555"'));
+        y += 18;
+      }
+      segs[i].filter((s) => s.t0 >= start(data, run) - 1e-6).forEach((s) => row(s, RUN_COLORS[i]));
       y += 14;
     });
     return o.join('\n');
@@ -180,6 +188,7 @@
   function timeline(data, segs, t) {
     const o = [];
     const x0 = OX + 90, x1 = W - 20, y0 = OY + SIZE + 42;
+    const base = y0 + data.runs.length * 24 - 4; // Below the last run's row
     const tx = (v) => x0 + (x1 - x0) * v / 30;
     data.runs.forEach((run, i) => {
       const y = y0 + i * 24;
@@ -188,19 +197,23 @@
         o.push(`<rect x="${f(tx(s.t0))}" y="${y}" width="${f(Math.max(1, tx(s.t1) - tx(s.t0)))}" height="16"
           fill="${CATEGORY[s.cat][0]}" stroke="#fff" stroke-width="0.5"/>`);
       }
+      if (run.parent >= 0) {
+        o.push(`<line x1="${f(tx(run.branchS))}" y1="${y - 26}" x2="${f(tx(run.branchS))}" y2="${y + 18}"
+          stroke="${RUN_COLORS[i]}" stroke-width="2" stroke-dasharray="3 2"/>`);
+      }
     });
     for (let v = 0; v <= 30; v += 5) {
-      o.push(`<line x1="${f(tx(v))}" y1="${y0 + 44}" x2="${f(tx(v))}" y2="${y0 + 49}" stroke="#555"/>`);
-      o.push(text(tx(v), y0 + 61, `${v} s`, 'text-anchor="middle" font-size="11" fill="#555"'));
+      o.push(`<line x1="${f(tx(v))}" y1="${base}" x2="${f(tx(v))}" y2="${base + 5}" stroke="#555"/>`);
+      o.push(text(tx(v), base + 17, `${v} s`, 'text-anchor="middle" font-size="11" fill="#555"'));
     }
-    o.push(`<line x1="${f(tx(data.splitS))}" y1="${y0 - 6}" x2="${f(tx(data.splitS))}" y2="${y0 + 46}"
+    o.push(`<line x1="${f(tx(data.splitS))}" y1="${y0 - 6}" x2="${f(tx(data.splitS))}" y2="${base + 2}"
       stroke="${SHARED}" stroke-dasharray="3 2"/>`);
-    o.push(`<line x1="${f(tx(t))}" y1="${y0 - 8}" x2="${f(tx(t))}" y2="${y0 + 48}" stroke="#000"
+    o.push(`<line x1="${f(tx(t))}" y1="${y0 - 8}" x2="${f(tx(t))}" y2="${base + 4}" stroke="#000"
       stroke-width="2.5"/>`);
     let lx = x0;
     for (const [c, name] of Object.values(CATEGORY)) {
-      o.push(`<rect x="${f(lx)}" y="${y0 + 70}" width="10" height="10" fill="${c}"/>`);
-      o.push(text(lx + 14, y0 + 79, name, 'font-size="11" fill="#333"'));
+      o.push(`<rect x="${f(lx)}" y="${base + 26}" width="10" height="10" fill="${c}"/>`);
+      o.push(text(lx + 14, base + 35, name, 'font-size="11" fill="#333"'));
       lx += 24 + name.length * 7;
     }
     return o.join('\n');
@@ -231,30 +244,38 @@
     const split = Math.min(t, data.splitS);
     const o = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"
       font-family="DejaVu Sans, Arial, sans-serif" font-size="13">`, `<rect width="${W}" height="${H}" fill="#fff"/>`];
-    o.push(text(OX, 26, `Solo ${data.alliance === 'RED' ? 'Red' : 'Blue'}: both branches, simulated`,
+    o.push(text(OX, 26, `Solo ${data.alliance === 'RED' ? 'Red' : 'Blue'}: every branch, simulated`,
       'font-size="20" font-weight="bold"'));
-    o.push(text(OX, 46, 'Pedro on the simulated robot (SoloAutoSimTest); real drives are slower. Black bar: intake,'
-      + ' white dot: shooter', 'font-size="12" fill="#666"'));
+    o.push(text(OX, 46, 'Pedro on the simulated robot (SoloAutoSimTest), its drives matched to the regionals logs.'
+      + ' Black bar: intake, white dot: shooter', 'font-size="12" fill="#666"'));
     o.push(text(W - 20, 40, `t = ${t.toFixed(1)} s`, 'text-anchor="end" font-size="26" font-weight="bold"'));
     o.push(field(data, img));
     o.push(trail(data.runs[0], 0, split, SHARED, 'stroke-opacity="0.9"'));
+    // A run is drawn from where it goes its own way; before that it is its parent, or the shared robot
+    const live = data.runs.map((run) => t > start(data, run));
+    const marker = (p, color, label) => {
+      o.push(`<circle cx="${f(px(p.x))}" cy="${f(py(p.y))}" r="7" fill="#fff" stroke="${color}" stroke-width="3"/>`);
+      o.push(text(px(p.x) - 12, py(p.y) + 4, label, `text-anchor="end" font-size="12" font-weight="bold"
+        fill="${color}" stroke="#fff" stroke-width="3" paint-order="stroke"`));
+    };
     if (t > data.splitS) {
-      data.runs.forEach((run, i) => o.push(trail(run, data.splitS, t, RUN_COLORS[i])));
-      const p = at(data.runs[0], data.splitS);
-      o.push(`<circle cx="${f(px(p.x))}" cy="${f(py(p.y))}" r="7" fill="#fff" stroke="${SHARED}"
-        stroke-width="3"/>`);
-      o.push(text(px(p.x) - 12, py(p.y) + 4, 'split', `text-anchor="end" font-size="12" font-weight="bold"
-        fill="${SHARED}" stroke="#fff" stroke-width="3" paint-order="stroke"`));
+      data.runs.forEach((run, i) => live[i] && o.push(trail(run, start(data, run), t, RUN_COLORS[i])));
+      marker(at(data.runs[0], data.splitS), SHARED, 'split');
+      data.runs.forEach((run, i) => live[i] && run.parent >= 0 && marker(at(run, run.branchS), RUN_COLORS[i], 'recheck'));
     }
     if (t <= data.splitS) {
       const p = at(data.runs[0], t);
       o.push(balls(data.runs[0], t, SHARED));
-      o.push(robot(data, p, SHARED, 'both', DETAIL[data.steps[p.step]]));
+      o.push(robot(data, p, SHARED, 'every run', DETAIL[data.steps[p.step]]));
     } else {
-      data.runs.forEach((run, i) => o.push(balls(run, t, RUN_COLORS[i])));
+      data.runs.forEach((run, i) => live[i] && o.push(balls(run, t, RUN_COLORS[i])));
+      const drawn = [];
       data.runs.forEach((run, i) => {
+        if (!live[i]) return;
         const p = at(run, t);
-        o.push(robot(data, p, RUN_COLORS[i], run.name, DETAIL[data.steps[p.step]]));
+        const near = drawn.filter((q) => Math.hypot(q.x - p.x, q.y - p.y) < 0.45).length;
+        o.push(robot(data, p, RUN_COLORS[i], run.name, DETAIL[data.steps[p.step]], near * 30));
+        drawn.push(p);
       });
     }
     o.push(panel(data, segs, t));

@@ -7,7 +7,6 @@ import static org.junit.Assert.assertTrue;
 import com.pedropathing.follower.Follower;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -22,19 +21,31 @@ import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.field.Units;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleySettings;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleySettingsAccess;
+import org.firstinspires.ftc.teamcode.shooting.volley.VolleySpotDrive;
 import org.junit.Test;
 
 /**
- * The whole solo auto on PedroFollowSimTest's simulated robot: SoloAuto's own drives and arrivals with SoloSequence,
- * the heading lock, the walls, and modelled volleys and pickups. Each branch must stay out of the Hive and our wall's
- * Flower outside its pickup, shoot every ball, and be parked before the end.
+ * The whole solo auto on a simulated robot: SoloAuto's own drives and arrivals with SoloSequence, the heading lock,
+ * the walls, and modelled volleys and pickups. Each branch must stay out of the Hive and our wall's Flower outside its
+ * pickup, shoot every ball, and be parked before the end.
  *
- * <p>WRITE_SOLO_TRACE=1 writes both red runs on one timeline to tools/solo/solo-trace.js for the viewer there.
+ * <p>The drive is the real one's: Pedro's powers, scaled down together past full power on a wheel as
+ * MecanumDriveSubsystem.mix does, so a diagonal or a turn on the way is slower than straight ahead. Replayed on the 11
+ * drives of the regionals autos, from each one's start to where it stopped, it came to rest 0.05 s sooner than the
+ * real robot on average, and within 0.35 s on 10 of them.
+ *
+ * <p>WRITE_SOLO_TRACE=1 writes the red runs on one timeline to tools/solo/solo-trace.js for the viewer there.
  */
 public class SoloAutoSimTest {
   private static final double DT = 0.02;
-  private static final double MAX_FORWARD_MPS = 55 * Units.M_PER_IN;
-  private static final double MAX_STRAFE_MPS = 45 * Units.M_PER_IN;
+  /**
+   * Full power, each way. Strafe is Pedro's tuned 48 in/s. Forward is under its tuned 65: the regionals logs reached
+   * 1.49 m/s (59 in/s) in 9 of 10 full-power samples, 1.67 at most; diagonally about 1.1, strafing 1.3.
+   */
+  private static final double MAX_FORWARD_MPS = 60 * Units.M_PER_IN;
+  private static final double MAX_STRAFE_MPS = 48 * Units.M_PER_IN;
   private static final double MAX_TURN_RAD_S = 5.0;
   private static final double LAG_S = 0.12;
   private static final double LOCK_GAIN = 2.5;
@@ -77,9 +88,12 @@ public class SoloAutoSimTest {
     final StringBuilder timeline = new StringBuilder();
     double parkedS = Double.NaN;
     double decidedS = Double.NaN;
+    double recheckedS = Double.NaN;
+    double worstAimDeg;
     int shot;
     int picked;
     Boolean tipped;
+    Boolean farTipped;
   }
 
   private double x;
@@ -89,13 +103,19 @@ public class SoloAutoSimTest {
   private double vLeft;
   private double omega;
 
+  /** One auto, the far Cell tipping back as the recheck at our wall's Flower looks (the tags show it). */
+  private Run run(Alliance alliance, Boolean tags, boolean predicted) {
+    return run(alliance, tags, predicted, Boolean.TRUE);
+  }
+
   /**
    * One auto from the start to 30 s.
    *
-   * @param tags      the near Cell is down by the tags, null for no tags at all
-   * @param predicted the ball count's prediction
+   * @param tags      the near Cell is down by the tags at the check, null for no tags at all
+   * @param predicted the ball count's prediction: the near Cell is down
+   * @param farTipped tipped, the far Cell has tipped back by the tags at the recheck, null for no tags then
    */
-  private Run run(Alliance alliance, Boolean tags, boolean predicted) {
+  private Run run(Alliance alliance, Boolean tags, boolean predicted, Boolean farTipped) {
     Probe auto = new Probe(alliance);
     double[] start = AutoField.forAlliance(SoloSequence.START, alliance);
     x = start[0];
@@ -118,11 +138,17 @@ public class SoloAutoSimTest {
     for (double t = DT; t <= 30.0; t += DT) {
       sense(auto);
       double inStepS = t - stepStartS;
-      Boolean verdict = step == Step.CHECK_TIP && inStepS >= TAGS_AFTER_S ? tags : null;
+      Boolean verdict = null;
+      if (step == Step.CHECK_TIP) {
+        verdict = inStepS >= TAGS_AFTER_S ? tags : null;
+      } else if (auto.plan.watchingHive()) { // The recheck: the near Cell is down while the far one is still up
+        verdict = farTipped == null ? null : !farTipped;
+      }
       auto.plan.tipCheck(verdict, predicted);
 
       double px = x;
       double py = y;
+      boolean intaking = step == Step.INTAKE_WALL_FLOWER || step == Step.INTAKE_REAR_FLOWER;
       auto.follower.update(DT);
       double[] p = auto.drivetrain.powers().clone();
       if (!Double.isNaN(auto.locked)) {
@@ -141,16 +167,18 @@ public class SoloAutoSimTest {
           ballLeft = true;
           double[] aim = AutoField.autoAimPoint(alliance, auto.aimCell());
           run.balls.add(new double[] {t, x, y, aim[0], aim[1]});
+          double off = Angles.normalize(h + Math.PI - Math.atan2(aim[1] - y, aim[0] - x));
+          run.worstAimDeg = Math.max(run.worstAimDeg, Math.toDegrees(Math.abs(off)));
         }
       }
-      boolean intaking = step == Step.INTAKE_WALL_FLOWER || step == Step.INTAKE_REAR_FLOWER;
       if (intaking && !filled && inStepS >= FLOWER_FILL_S) {
         filled = true;
         run.picked += 4 - held;
         held = 4;
       }
       boolean arrived = auto.stepArrived(step, auto.plan.isFacingStep(), inStepS, speed);
-      auto.plan.update(t, arrived, ballLeft, held == 0, intaking && held >= 4);
+      // Never full: at regionals every Flower ran its dwell, 1.86 to 2.04 s in it (here about 2.15 s)
+      auto.plan.update(t, arrived, ballLeft, held == 0, false);
       if (auto.plan.takeNewStep()) {
         if (step == Step.SWEEP_GARDEN) { // The Garden's 4 in the intake by the end of the sweep
           run.picked += 4 - held;
@@ -158,6 +186,9 @@ public class SoloAutoSimTest {
         }
         if (step == Step.CHECK_TIP) {
           run.decidedS = t;
+        }
+        if (step == Step.BACK_FROM_WALL_FLOWER && auto.plan.farTipped() != null && Double.isNaN(run.recheckedS)) {
+          run.recheckedS = t;
         }
         step = auto.plan.step();
         stepStartS = t;
@@ -177,6 +208,7 @@ public class SoloAutoSimTest {
       }
     }
     run.tipped = auto.plan.tipped();
+    run.farTipped = auto.plan.farTipped();
     return run;
   }
 
@@ -187,12 +219,17 @@ public class SoloAutoSimTest {
     auto.at = new FieldPose(x, y, h);
   }
 
-  /** The powers move the robot, each speed lagging its command; the walls stop it. */
+  /**
+   * The powers move the robot, each speed lagging its command; the walls stop it. A wheel's power is forward,
+   * strafe and turn added (MecanumDriveSubsystem.mix), so past 1 in all they are scaled down together.
+   */
   private void move(double[] p) {
+    double sum = Math.abs(p[0]) + Math.abs(p[1]) + Math.abs(p[2]);
+    double k = sum > 1 ? 1 / sum : 1;
     double a = DT / LAG_S;
-    vForward += (p[0] * MAX_FORWARD_MPS - vForward) * a;
-    vLeft += (p[1] * MAX_STRAFE_MPS - vLeft) * a;
-    omega += (p[2] * MAX_TURN_RAD_S - omega) * a;
+    vForward += (p[0] * k * MAX_FORWARD_MPS - vForward) * a;
+    vLeft += (p[1] * k * MAX_STRAFE_MPS - vLeft) * a;
+    omega += (p[2] * k * MAX_TURN_RAD_S - omega) * a;
     x += (vForward * Math.cos(h) - vLeft * Math.sin(h)) * DT;
     y += (vForward * Math.sin(h) + vLeft * Math.cos(h)) * DT;
     x = Math.max(-AutoField.AT_WALL_M, Math.min(AutoField.AT_WALL_M, x));
@@ -206,8 +243,8 @@ public class SoloAutoSimTest {
     assertFalse("in the Hive, " + where, Math.abs(x) < 0.75 && Math.abs(y) < 0.95);
     double[] red = AutoField.forAlliance(new double[] {x, y, h}, alliance);
     double[] keepOut = AutoField.WALL_FLOWER_KEEP_OUT;
-    boolean takingIt = Arrays.asList(Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
-        Step.RAISE_ARM_WALL).contains(step);
+    boolean takingIt = Arrays.asList(Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER)
+        .contains(step);
     boolean inKeepOut = red[0] > keepOut[0] && red[0] < keepOut[1] && red[1] < keepOut[2];
     assertFalse("in our wall's Flower, " + where, inKeepOut && !takingIt);
   }
@@ -229,6 +266,7 @@ public class SoloAutoSimTest {
     assertTrue(detail + "parked at " + run.parkedS, run.parkedS <= 28.5);
     assertEquals(detail + "picked", 12, run.picked);
     assertEquals(detail + "shot", 16, run.shot);
+    assertTrue(detail + "a ball left " + run.worstAimDeg + " deg off its Cell", run.worstAimDeg <= 3);
   }
 
   @Test
@@ -246,21 +284,45 @@ public class SoloAutoSimTest {
     for (Alliance a : Alliance.values()) {
       Run run = run(a, true, false);
       assertEquals(Boolean.TRUE, run.tipped);
+      assertEquals(Boolean.TRUE, run.farTipped);
       assertFullRun(a + " tipped", run,
           Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_PARK, Step.SHOOT_FAR, Step.SHOOT_NEAR, Step.PARKED));
     }
   }
 
   @Test
-  public void writesTheTraceForTheViewer() throws IOException {
+  public void tippedWithTheFarCellStillUpShootsItAgainFromThePark() {
+    for (Alliance a : Alliance.values()) {
+      Run run = run(a, true, false, false);
+      assertEquals(Boolean.FALSE, run.farTipped);
+      assertFullRun(a + " tipped, far Cell still up", run,
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_PARK, Step.SHOOT_FAR, Step.SHOOT_PARK, Step.PARKED));
+    }
+  }
+
+  @Test
+  public void withNoTagsAtTheWallFlowerThePredictionDecidesTheRecheck() {
+    for (Alliance a : Alliance.values()) {
+      for (boolean nearDown : new boolean[] {false, true}) {
+        Run run = run(a, true, nearDown, null);
+        assertEquals(a + " near Cell down " + nearDown, !nearDown, run.farTipped);
+        assertTrue(a + " parked at " + run.parkedS, run.parkedS <= 28.5);
+        assertEquals(16, run.shot);
+      }
+    }
+  }
+
+  @Test
+  public void writesTheTraceForTheViewer() throws Exception {
     if (!"1".equals(System.getenv("WRITE_SOLO_TRACE"))) {
       return;
     }
     Alliance a = Alliance.RED;
     Run notTipped = run(a, false, false);
     Run tipped = run(a, true, false);
+    Run farStillUp = run(a, true, false, false);
     StringBuilder j = new StringBuilder();
-    j.append("// Written by SoloAutoSimTest with WRITE_SOLO_TRACE=1: both red runs of the solo auto, simulated.\n");
+    j.append("// Written by SoloAutoSimTest with WRITE_SOLO_TRACE=1: the red runs of the solo auto, simulated.\n");
     j.append("var SOLO_TRACE = {\n");
     j.append("\"alliance\": \"").append(a).append("\",\n");
     j.append("\"splitS\": ").append(num(notTipped.decidedS)).append(",\n");
@@ -290,24 +352,39 @@ public class SoloAutoSimTest {
     double[] lz = AutoField.LOADING_ZONE;
     j.append("\"loadingZone\": [").append(num(lz[0])).append(", ").append(num(lz[1])).append(", ")
         .append(num(lz[2])).append(", ").append(num(lz[3])).append("],\n");
-    double[] start = AutoField.forAlliance(SoloSequence.START, a);
-    double[] pre = SoloSequence.preloadSpot(a);
-    double[] near = AutoField.shotSpot(a, SoloSequence.nearCell(a));
-    double[] far = AutoField.shotSpot(a, SoloSequence.parkCell(a));
-    double[] park = SoloSequence.parkSpot(a);
-    j.append("\"spots\": [").append(spot("start", start)).append(", ").append(spot("preloads", pre)).append(", ")
-        .append(spot("near spot", near)).append(", ").append(spot("far spot", far)).append(", ")
-        .append(spot("park", park)).append("]\n},\n");
+    // Each volley's spot by its Volley Tuning name and IN rate at the 15 Nov competition
+    VolleySettings tuned = AutoVolleySettingsTest.comp();
+    Cell near = SoloSequence.nearCell(a);
+    Cell far = SoloSequence.parkCell(a);
+    j.append("\"spots\": [").append(spot("start", AutoField.forAlliance(SoloSequence.START, a))).append(", ")
+        .append(spot(tunedName(tuned, a, near, AutoField.shotSpot(a, near)), AutoField.shotSpot(a, near)))
+        .append(", ").append(spot(tunedName(tuned, a, far, AutoField.shotSpot(a, far)), AutoField.shotSpot(a, far)))
+        .append(", ").append(spot(tunedName(tuned, a, far, SoloSequence.parkSpot(a)), SoloSequence.parkSpot(a)))
+        .append("]\n},\n");
     j.append("\"runs\": [\n");
-    j.append(runJson("Not tipped", notTipped)).append(",\n").append(runJson("Tipped", tipped)).append("\n]\n};\n");
+    j.append(runJson("Not tipped", notTipped, -1, notTipped.decidedS, "")).append(",\n")
+        .append(runJson("Tipped", tipped, -1, tipped.decidedS, "")).append(",\n")
+        .append(runJson("Far still up", farStillUp, 1, farStillUp.recheckedS, "the far Cell had not tipped back"))
+        .append("\n]\n};\n");
     File module = new File("src/test").isDirectory() ? new File(".") : new File("TeamCode");
     File out = new File(module, "../tools/solo/solo-trace.js");
     Files.write(out.toPath(), j.toString().getBytes(StandardCharsets.UTF_8));
   }
 
-  private static String runJson(String name, Run run) {
+  private static String tunedName(VolleySettings tuned, Alliance a, Cell cell, double[] p) {
+    double[] aim = AutoField.autoAimPoint(a, cell);
+    int spot = tuned.spotFor(new FieldPose(p[0], p[1], p[2]), aim[0], aim[1]);
+    String name = VolleySpotDrive.name(spot);
+    return String.format(Locale.US, "%s%s · %.0f%% IN", name.equals("PARK") ? "" : "spot ", name,
+        100 * VolleySettingsAccess.rate(tuned, spot));
+  }
+
+  /** A run, the same as run parent (-1: the shared start) until branchS, where why sent it its own way. */
+  private static String runJson(String name, Run run, int parent, double branchS, String why) {
     StringBuilder j = new StringBuilder("{\"name\": \"").append(name).append("\", \"parkedS\": ")
-        .append(num(run.parkedS)).append(", \"shot\": ").append(run.shot).append(",\n\"trace\": [");
+        .append(num(run.parkedS)).append(", \"shot\": ").append(run.shot).append(", \"parent\": ").append(parent)
+        .append(", \"branchS\": ").append(num(branchS)).append(", \"why\": \"").append(why)
+        .append("\",\n\"trace\": [");
     for (int i = 0; i < run.trace.size(); i++) {
       double[] r = run.trace.get(i);
       j.append(i == 0 ? "" : ",").append(i % 8 == 0 ? "\n" : "").append(String.format(Locale.US,

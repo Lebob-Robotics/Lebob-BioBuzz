@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.auto;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.List;
 
 import org.firstinspires.ftc.teamcode.auto.SoloSequence.Step;
 import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Cell;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.junit.Test;
@@ -67,9 +69,9 @@ public class SoloSequenceTest {
     assertTrue(seq.tipFromTags());
     assertEquals(Arrays.asList(Step.SHOOT_NEAR,
         Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
-        Step.RAISE_ARM_WALL, Step.SHOOT_PARK,
+        Step.SHOOT_PARK,
         Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR, Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER,
-        Step.RAISE_ARM_REAR, Step.DRIVE_TO_PARK, Step.PARKED), seen);
+        Step.DRIVE_TO_PARK, Step.PARKED), seen);
   }
 
   @Test
@@ -78,13 +80,103 @@ public class SoloSequenceTest {
     quickTo(Step.CHECK_TIP);
     seen.clear();
     seq.tipCheck(true, false);
+    quickTo(Step.SHOOT_PARK);
+    seq.tipCheck(false, true); // At our wall's Flower the tags show the near Cell up again: the far Cell tipped back
     quickTo(Step.PARKED);
     assertEquals(Boolean.TRUE, seq.tipped());
+    assertEquals(Boolean.TRUE, seq.farTipped());
+    assertTrue(seq.farTipFromTags());
     assertEquals(Arrays.asList(Step.SHOOT_PARK,
         Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR, Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER,
-        Step.RAISE_ARM_REAR, Step.SHOOT_FAR,
+        Step.SHOOT_FAR,
         Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
-        Step.RAISE_ARM_WALL, Step.SHOOT_NEAR, Step.DRIVE_TO_PARK, Step.PARKED), seen);
+        Step.SHOOT_NEAR, Step.DRIVE_TO_PARK, Step.PARKED), seen);
+  }
+
+  @Test
+  public void tippedWithTheFarCellStillUpShootsItAgainFromTheParkAndStays() {
+    seq.tipCheck(null, false);
+    quickTo(Step.CHECK_TIP);
+    seen.clear();
+    seq.tipCheck(true, false); // The near Cell stays down: the far Cell has not tipped back by the recheck
+    quickTo(Step.PARKED);
+    assertEquals(Boolean.FALSE, seq.farTipped());
+    assertTrue(seq.farTipFromTags());
+    assertEquals(Arrays.asList(Step.SHOOT_PARK,
+        Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR, Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER,
+        Step.SHOOT_FAR,
+        Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
+        Step.SHOOT_PARK, Step.PARKED), seen);
+  }
+
+  @Test
+  public void withNoTagsAtTheWallFlowerTheBallCountDecidesTheRecheck() {
+    for (boolean nearDown : new boolean[] {false, true}) {
+      SoloSequence s = new SoloSequence(0);
+      double now = 0;
+      s.tipCheck(true, false);
+      while (s.step() != Step.BACK_FROM_WALL_FLOWER) {
+        s.update(now += DT, true, false, true, true);
+      }
+      s.tipCheck(null, nearDown);
+      while (s.step() == Step.BACK_FROM_WALL_FLOWER) {
+        s.update(now += DT, true, false, true, true);
+      }
+      assertEquals(!nearDown, s.farTipped());
+      assertFalse(s.farTipFromTags());
+      assertEquals(nearDown ? Step.SHOOT_PARK : Step.SHOOT_NEAR, s.step());
+    }
+  }
+
+  @Test
+  public void theRecheckWatchesTheHiveOnlyAtOurWallsFlowerOnTheTippedRoute() {
+    seq.tipCheck(null, false);
+    quickTo(Step.CHECK_TIP);
+    assertTrue("the check", seq.watchingHive());
+    seq.tipCheck(true, false);
+    quickTo(Step.SHOOT_FAR);
+    assertFalse("the far Cell's volley still landing", seq.watchingHive());
+    quickTo(Step.DRIVE_TO_WALL_FLOWER);
+    assertFalse("turning on the way", seq.watchingHive());
+    for (Step s : Arrays.asList(Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER)) {
+      quickTo(s);
+      assertTrue(s + ": camera to the Hive", seq.watchingHive());
+    }
+    seq.tipCheck(false, false);
+    assertEquals("the near Cell up again", Step.SHOOT_NEAR, seq.nextVolley());
+    seq.tipCheck(null, true);
+    assertEquals("no tags: the ball count says still up", Step.SHOOT_PARK, seq.nextVolley());
+    seq.tipCheck(false, true);
+    quickTo(Step.SHOOT_NEAR);
+    assertFalse("rechecked", seq.watchingHive());
+
+    SoloSequence notTipped = new SoloSequence(0);
+    double now = 0;
+    notTipped.tipCheck(false, false);
+    while (notTipped.step() != Step.INTAKE_WALL_FLOWER) {
+      notTipped.update(now += DT, true, false, true, false);
+      assertTrue(notTipped.step() == Step.CHECK_TIP || !notTipped.watchingHive());
+    }
+  }
+  @Test
+  public void theArmGoesDownOnTheApproachAndUpOnTheNextDriveWithNoStopForIt() {
+    seq.tipCheck(false, false);
+    quickTo(Step.DRIVE_TO_WALL_FLOWER);
+    assertFalse(seq.armDown());
+    loop(true, false, false, false); // Near enough the stop: it closes the rest as the arm goes down
+    assertEquals(Step.LOWER_ARM_WALL, seq.step());
+    assertTrue("going down short of the stop", seq.armDown());
+    double lowering = t;
+    while (seq.step() == Step.LOWER_ARM_WALL) {
+      loop(true, false, false, false); // At the stop at once
+    }
+    assertEquals(Step.INTAKE_WALL_FLOWER, seq.step());
+    assertEquals("in once the arm has had its move", lowering + AutoSequence.ARM_MOVE_S, t, DT * 1.5);
+    quickTo(Step.BACK_FROM_WALL_FLOWER);
+    assertTrue("down backing out", seq.armDown());
+    loop(true, false, false, false);
+    assertEquals("on from backing out at once", Step.SHOOT_PARK, seq.step());
+    assertFalse("coming up on the drive", seq.armDown());
   }
 
   @Test
@@ -229,8 +321,45 @@ public class SoloSequenceTest {
     assertEquals("touching the audience wall", AutoField.FIELD_HALF_M, s[0] + AutoField.ROBOT_HALF_M, 1e-9);
     assertEquals("side 2 cm past the Garden's tile", -1.22 + 0.02, s[1] - AutoField.ROBOT_HALF_M, 0.005);
     assertTrue("out of the loading zone", s[0] - AutoField.ROBOT_HALF_M > AutoField.LOADING_ZONE[1]);
-    double[] p = SoloSequence.PRELOAD_SPOT;
+    double[] p = SoloSequence.preloadSpot(Alliance.RED);
     double halfDiagonal = AutoField.ROBOT_HALF_M * Math.sqrt(2);
     assertTrue("room to turn off the wall", p[0] + halfDiagonal < AutoField.FIELD_HALF_M);
+  }
+
+  @Test
+  public void longDrivesGoOnOneOfTheRobotsAxesNeverDiagonally() {
+    for (double from = -3.1; from < Math.PI; from += 0.3) {
+      for (double to = -3.1; to < Math.PI; to += 0.3) {
+        for (double travel = -3.1; travel < Math.PI; travel += 0.4) {
+          double off = Angles.normalize(SoloSequence.alongAxis(from, to, travel, 2.0) - travel);
+          assertEquals(0, off - Math.round(off / (Math.PI / 2)) * (Math.PI / 2), 1e-9);
+        }
+      }
+    }
+    assertEquals("facing the way it goes at both ends: straight ahead", 0.3,
+        SoloSequence.alongAxis(0.3, 0.3, 0.3, 2.0), 1e-9);
+    double sideOn = 0.3 + Math.PI / 2;
+    assertEquals("side-on at both ends: a strafe, no turning", sideOn,
+        SoloSequence.alongAxis(sideOn, sideOn, 0.3, 2.0), 1e-9);
+  }
+
+  @Test
+  public void theDriveToTheParkBendsOnlyWhereStraightWouldCrossOurWallsFlower() {
+    double[] park = SoloSequence.parkSpot(Alliance.RED);
+    assertNull("from the preload spot: straight", SoloSequence.parkControl(SoloSequence.preloadSpot(Alliance.RED)));
+    double[] corner = {1.43, -1.43, 0}; // The Garden's corner, where the tip check decides
+    assertTrue(SoloSequence.crossesWallFlower(corner, park));
+    double[] c = SoloSequence.parkControl(corner);
+    assertSame(SoloSequence.PARK_ENTRY_CONTROL, c);
+    double[] keepOut = AutoField.WALL_FLOWER_KEEP_OUT;
+    for (int i = 0; i <= 200; i++) {
+      double s = i / 200.0;
+      double u = 1 - s;
+      double x = u * u * corner[0] + 2 * u * s * c[0] + s * s * park[0];
+      double y = u * u * corner[1] + 2 * u * s * c[1] + s * s * park[1];
+      if (x > keepOut[0] && x < keepOut[1]) {
+        assertTrue("bent drive at " + x + ", " + y, y > keepOut[2] + 0.05);
+      }
+    }
   }
 }

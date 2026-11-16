@@ -4,6 +4,9 @@ import static org.firstinspires.ftc.teamcode.auto.AutoField.pedro;
 
 import com.pedropathing.api.Paths;
 import com.pedropathing.math.Pose;
+import com.pedropathing.paths.Path;
+import com.pedropathing.paths.interpolator.Interpolator;
+import com.pedropathing.paths.interpolator.PiecewiseInterpolator;
 
 import java.util.Locale;
 
@@ -20,6 +23,22 @@ import org.psilynx.psikit.core.Logger;
  * the Hive tipped.
  */
 public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence> {
+  /**
+   * The drive to a Flower hands over to lowering the arm this far from the stop short of it, facing it within
+   * FACE_FLOWER_RAD: the arm comes down (AutoSequence.ARM_MOVE_S) as the robot covers the rest, not after it stops.
+   */
+  public static double LOWER_ARM_FROM_M = 0.25;
+  /**
+   * A drive this long or longer goes on one of the robot's axes ({@link #turning}): forward, back or sideways, never
+   * diagonally, where a mecanum drive is slowest. At full power in the regionals logs: 1.5 m/s forward, 1.3
+   * strafing, 1.1 diagonally.
+   */
+  public static double ALONG_MIN_M = 0.8;
+  /** Along such a drive, as fractions of it: on the axis by the first, turning on from the second, done by the third. */
+  public static double ALONG_ON_AXIS_BY = 0.10;
+  public static double ALONG_TURN_FROM = 0.80;
+  public static double ALONG_END_BY = 0.90;
+
   private TipPredictor tips;
   private Cell checkUpAtStart;
   private int checkFramesAtStart;
@@ -57,15 +76,18 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
   @Override
   protected void onLoopStart(double t) {
     tips.onVision(robot.getUpCell(), robot.getUpCellAgreeingFrames(), t);
-    if (plan.step() == SoloSequence.Step.CHECK_TIP) {
+    if (plan.watchingHive()) {
       Cell up = robot.getUpCell();
-      if (checkUpAtStart == null) { // Only frames from the check on count: the Hive may tip after the preloads
+      if (checkUpAtStart == null) { // Only frames from the watch's start count: the Hive may have tipped just before
         checkUpAtStart = up;
         checkFramesAtStart = robot.getUpCellAgreeingFrames();
       }
       boolean fresh = up != checkUpAtStart
           || robot.getUpCellAgreeingFrames() - checkFramesAtStart >= SoloSequence.TIP_CHECK_FRAMES;
       tagsTipped = fresh ? up != SoloSequence.nearCell(alliance) : null;
+    } else {
+      checkUpAtStart = null;
+      tagsTipped = null;
     }
     plan.tipCheck(tagsTipped, tips.cell() != SoloSequence.nearCell(alliance));
   }
@@ -86,14 +108,25 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
     Logger.recordOutput("Auto/PredictedCell", tips.cell().name());
     Logger.recordOutput("Auto/SoloTipped", tipped == null ? "" : tipped ? "TIPPED" : "NOT_TIPPED");
     Logger.recordOutput("Auto/SoloTipFromTags", plan.tipFromTags());
+    Boolean farTipped = plan.farTipped();
+    Logger.recordOutput("Auto/SoloFarTipped", farTipped == null ? "" : farTipped ? "TIPPED" : "NOT_TIPPED");
+    Logger.recordOutput("Auto/SoloFarTipFromTags", plan.farTipFromTags());
   }
 
   /**
    * The step's drive is done, as {@link ScoringAuto#stepArrived}: pushed into a Flower or the Garden's corner, on a
-   * facing step's spot at its heading, else Pedro's path finished.
+   * facing step's spot at its heading, near enough a Flower's stop to lower the arm, else Pedro's path finished.
    */
   @Override
   protected boolean stepArrived(SoloSequence.Step step, boolean facingStep, double inStepS, double robotSpeedMps) {
+    if (step == SoloSequence.Step.DRIVE_TO_WALL_FLOWER || step == SoloSequence.Step.DRIVE_TO_REAR_FLOWER) {
+      double[] stop = AutoField.forAlliance(
+          step == SoloSequence.Step.DRIVE_TO_WALL_FLOWER ? AutoField.WALL_FLOWER : AutoField.REAR_FLOWER, alliance);
+      FieldPose pose = pose();
+      boolean armRoom = Math.hypot(pose.xM - stop[0], pose.yM - stop[1]) <= LOWER_ARM_FROM_M
+          && Math.abs(Angles.normalize(pose.headingRad - stop[2])) <= FACE_FLOWER_RAD;
+      return armRoom || !follower.following();
+    }
     if ((step == SoloSequence.Step.INTAKE_WALL_FLOWER || step == SoloSequence.Step.INTAKE_REAR_FLOWER)
         && inStepS >= FLOWER_STALL_AFTER_S && robotSpeedMps <= FLOWER_STALLED_MPS) {
       return true;
@@ -158,30 +191,32 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
         break;
       }
       case CHECK_TIP: // Out of the corner, cameras to the Hive, to where the not-tipped volley is shot
-      case SHOOT_NEAR:
         line(here, AutoField.pedroShotSpot(alliance, SoloSequence.nearCell(alliance)), true);
+        break;
+      case SHOOT_NEAR:
+        lineTo(here, AutoField.pedroShotSpot(alliance, SoloSequence.nearCell(alliance)));
         break;
       case SHOOT_PARK:
       case DRIVE_TO_PARK:
         toPark(here, now, park);
         break;
       case SHOOT_FAR:
-        line(here, AutoField.pedroShotSpot(alliance, SoloSequence.parkCell(alliance)), true);
+        lineTo(here, AutoField.pedroShotSpot(alliance, SoloSequence.parkCell(alliance)));
         break;
       case DRIVE_TO_WALL_FLOWER:
-        line(here, pedro(AutoField.WALL_FLOWER, alliance), true);
+        lineTo(here, pedro(AutoField.WALL_FLOWER, alliance));
         break;
-      case LOWER_ARM_WALL: // Faces the Flower where the drive stopped; the arm goes down once it does
+      case LOWER_ARM_WALL: // The rest of the way to the stop, facing the Flower, the arm going down
         follower.hold(pedro(AutoField.WALL_FLOWER, alliance));
         break;
       case INTAKE_WALL_FLOWER: // Arm down, straight in still facing it
         line(here, pedro(AutoField.WALL_FLOWER_INTAKE, alliance), false);
         break;
-      case BACK_FROM_WALL_FLOWER: // Arm still down, straight back out to the stop
+      case BACK_FROM_WALL_FLOWER: // Arm still down, straight back out to the stop; it comes up on the next drive
         line(here, pedro(AutoField.WALL_FLOWER, alliance), false);
         break;
       case DRIVE_TO_REAR_FLOWER: // From the park or the near spot's side, up beside the Hive
-        line(here, pedro(AutoField.REAR_FLOWER, alliance), true);
+        lineTo(here, pedro(AutoField.REAR_FLOWER, alliance));
         break;
       case LOWER_ARM_REAR:
         follower.hold(pedro(AutoField.REAR_FLOWER, alliance));
@@ -192,25 +227,51 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
       case BACK_FROM_REAR_FLOWER:
         line(here, pedro(AutoField.REAR_FLOWER, alliance), false);
         break;
-      case RAISE_ARM_WALL: // Still while the arm comes up
-      case RAISE_ARM_REAR:
-        follower.hold(here);
-        break;
       case PARKED: // Held off our wall, back to the park's Cell, shooting until the end
         follower.hold(park);
         break;
     }
   }
 
-  /** To the park, back (shooter) to its Cell; from the Garden's side of our wall's Flower, bent over it. */
+  /** To the park, back (shooter) to its Cell: straight, or bent over our wall's Flower where straight crosses it. */
   private void toPark(Pose here, FieldPose now, Pose park) {
-    double[] red = AutoField.forAlliance(new double[] {now.xM, now.yM, now.headingRad}, alliance);
-    if (red[0] > AutoField.WALL_FLOWER_KEEP_OUT[1] && here.distance(park) >= MIN_PATH_IN) {
-      follower.follow(Paths.curve(here, pedro(SoloSequence.PARK_ENTRY_CONTROL, alliance), park)
-          .linear(here.heading(), park.heading()));
+    double[] control = SoloSequence.parkControl(
+        AutoField.forAlliance(new double[] {now.xM, now.yM, now.headingRad}, alliance));
+    if (control != null && here.distance(park) >= MIN_PATH_IN) {
+      follower.follow(turning(Paths.curve(here, pedro(control, alliance), park), here, park));
     } else {
-      line(here, park, true);
+      lineTo(here, park);
     }
+  }
+
+  /** Straight to the end, turning to its heading on the way as {@link #turning} does. */
+  private void lineTo(Pose here, Pose end) {
+    if (here.distance(end) < MIN_PATH_IN) {
+      follower.hold(end);
+      return;
+    }
+    follower.follow(turning(Paths.line(here, end), here, end));
+  }
+
+  /**
+   * The path's headings from here's to the end's: evenly on a short drive. From {@link #ALONG_MIN_M} on, it turns
+   * early onto the quickest of the robot's axes along the drive ({@link SoloSequence#alongAxis}), holds it, and is at
+   * the end's heading before it arrives, so the volley or the Flower's arm does not wait for the turn.
+   */
+  private static Path turning(Path path, Pose here, Pose end) {
+    if (here.distance(end) * Units.M_PER_IN < ALONG_MIN_M) {
+      return path.linear(here.heading(), end.heading());
+    }
+    double axis = SoloSequence.alongAxis(here.heading(), end.heading(),
+        Math.atan2(end.y() - here.y(), end.x() - here.x()), here.distance(end) * Units.M_PER_IN);
+    PiecewiseInterpolator headings = Interpolator.piecewise()
+        .until(ALONG_ON_AXIS_BY, Interpolator.linear(here.heading(), axis))
+        .until(ALONG_TURN_FROM, Interpolator.constant(axis))
+        .until(ALONG_END_BY, Interpolator.linear(axis, end.heading()));
+    if (ALONG_END_BY < 1) {
+      headings.until(1, Interpolator.constant(end.heading()));
+    }
+    return path.heading(headings);
   }
 
   /** The heading the lock holds taking the Garden or a Flower, else NaN to leave the turn to Pedro. */
@@ -223,12 +284,10 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
       case LOWER_ARM_WALL:
       case INTAKE_WALL_FLOWER:
       case BACK_FROM_WALL_FLOWER:
-      case RAISE_ARM_WALL:
         return AutoField.forAlliance(AutoField.WALL_FLOWER, alliance)[2];
       case LOWER_ARM_REAR:
       case INTAKE_REAR_FLOWER:
       case BACK_FROM_REAR_FLOWER:
-      case RAISE_ARM_REAR:
         return AutoField.forAlliance(AutoField.REAR_FLOWER, alliance)[2];
       default:
         return Double.NaN;

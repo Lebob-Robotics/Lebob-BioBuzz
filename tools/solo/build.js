@@ -1,4 +1,4 @@
-// node tools/solo/build.js [--gif] [--mp4]: solo.html, a player for the solo auto's two branches on the real field,
+// node tools/solo/build.js [--gif] [--mp4]: solo.html, a player for the solo auto's branches on the real field,
 // from solo-trace.js (SoloAutoSimTest with WRITE_SOLO_TRACE=1). --gif writes solo.gif (ImageMagick's magick), --mp4
 // solo.mp4 in real time (magick and ffmpeg: $FFMPEG, else ffmpeg on the PATH).
 // The field picture is AdvantageScope's 2026-2027 FTC field from its assets folder, which AdvantageScope downloads
@@ -53,7 +53,7 @@ const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Solo auto: both branches</title>
+<title>Solo auto: every branch</title>
 <style>
   body { font-family: "DejaVu Sans", Arial, sans-serif; margin: 16px; background: #fafafa; }
   #controls { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; max-width: 1000px; }

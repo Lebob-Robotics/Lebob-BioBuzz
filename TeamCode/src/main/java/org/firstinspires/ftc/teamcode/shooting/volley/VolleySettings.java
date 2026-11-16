@@ -101,6 +101,9 @@ public final class VolleySettings {
 
   boolean isConfirmed(int spot) { return spot >= 0 && confirmed[spot]; }
 
+  /** The confirmed spot's estimated share of balls in; 0 for one not confirmed. */
+  double rate(int spot) { return spot >= 0 ? rates[spot] : 0; }
+
   public boolean isNear(FieldPose pose, double cellX, double cellY, int spot) {
     if (spot < 0 || pose == null) { return false; }
     double[] p = VolleySpotDrive.point(spot, cellX, cellY);
