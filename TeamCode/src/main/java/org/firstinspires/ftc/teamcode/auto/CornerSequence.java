@@ -14,8 +14,8 @@ import org.firstinspires.ftc.teamcode.field.Cell;
  *   <li>Drive along our wall, just off it, to our wall's Flower (between the loading zone and the Garden) and take it
  *       with the Pollen arm, as {@link AutoSequence} does.
  *   <li>Shoot into the other Cell, AUDIENCE, from spot 5 in front of it.
- *   <li>Drive back and park at the loading zone's end nearest the Garden, back to {@link #parkCell}, and shoot
- *       whatever is left.
+ *   <li>Drive back and park at {@link AutoField#EDGE_PARK}, beside the loading zone and just over its line, leaving
+ *       the zone to a partner.
  * </ol>
  *
  * <p>Whatever it is doing at {@link #PARK_BY_S}, it goes to park; in the Flower it starts backing out
@@ -27,7 +27,7 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
     SHOOT_PRELOAD(true), FACE_WALL(false), BACK_TO_CORNER(false), WAIT_IN_CORNER(false),
     DRIVE_TO_FLOWER(false), LOWER_ARM(false), INTAKE_FLOWER(false), BACK_FROM_FLOWER(false), RAISE_ARM(false),
     SHOOT_GARDEN_SIDE(true),
-    DRIVE_TO_PARK(false), PARKED(true);
+    DRIVE_TO_PARK(false), PARKED(false);
 
     /** A volley is shot here, once the robot has stopped at the step's spot. */
     public final boolean shooting;
@@ -65,13 +65,6 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
   /** The drive along our wall ends here, its robot clear of the Flower, and bends up to the Flower's stop. */
   public static final double[] EDGE_END = {-0.05, -(AutoField.AT_WALL_M - EDGE_GAP_M), -Math.PI / 2};
   public static final double[] FLOWER_BEND = {0.0, AutoField.WALL_FLOWER[1], 0};
-  /**
-   * Parked at the loading zone's end nearest the Garden, its centre 0.16 m inside the zone's line (the robot over it
-   * by 7 cm), {@link AutoField#PARK_WALL_GAP_M} off our wall, intake to it. Its x is the park's; {@link #parkSpot}
-   * turns it to shoot.
-   */
-  public static final double[] CORNER_PARK = {AutoField.LOADING_ZONE[1] - AutoField.ROBOT_HALF_M + 0.07,
-      -(AutoField.AT_WALL_M - AutoField.PARK_WALL_GAP_M), -Math.PI / 2};
 
   private Step step = Step.SHOOT_PRELOAD;
   private final StepTracker tracker;
@@ -90,17 +83,9 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
     return Cell.AUDIENCE;
   }
 
-  /** The leftovers' Cell, shot parked: SCORING, the nearer, and the one Volley Tuning's PARK spot is for. */
-  public static Cell parkCell(Alliance alliance) {
-    return Cell.SCORING;
-  }
-
-  /**
-   * Where it parks, for the alliance: {@link #CORNER_PARK}'s x, back (shooter) to {@link #parkCell}, the turned
-   * robot's nearest corner {@link AutoField#PARK_WALL_GAP_M} off our wall.
-   */
+  /** Where it parks, for the alliance: {@link AutoField#EDGE_PARK}. */
   public static double[] parkSpot(Alliance alliance) {
-    return AutoField.parkSpot(alliance, parkCell(alliance), CORNER_PARK);
+    return AutoField.edgePark(alliance);
   }
 
 
@@ -243,7 +228,6 @@ public final class CornerSequence implements AutoPlan<CornerSequence.Step> {
       case BACK_FROM_FLOWER:
       case RAISE_ARM:
       case SHOOT_GARDEN_SIDE: // The whole volley, drive too: the Flower's balls sit in the intake's mouth
-      case PARKED:
         return true;
       default:
         return false;

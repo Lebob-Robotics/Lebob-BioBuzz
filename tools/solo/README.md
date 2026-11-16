@@ -1,8 +1,8 @@
 # Solo auto viewer
 
-Every branch of the solo auto (`auto/SoloAuto`, Solo Red / Solo Blue) on one timeline, on AdvantageScope's 2026-2027
+Every branch of the solo auto (`auto/SoloAuto`, Lets Solo Double Red / Blue) on one timeline, on AdvantageScope's 2026-2027
 field picture: one robot until the Hive check, then "Not tipped" and "Tipped", and from the recheck at our wall's
-Flower "Far still up" (tipped, but the far Cell has not tipped back, so it is shot again from the park). The drives
+Flower "Far still up" (tipped, but the far Cell has not tipped back, so it is shot again before parking). The drives
 are `SoloAuto`'s own Pedro paths on `SoloAutoSimTest`'s simulated robot, whose drive model matches the regionals
 autos' drives to 0.05 s on average.
 

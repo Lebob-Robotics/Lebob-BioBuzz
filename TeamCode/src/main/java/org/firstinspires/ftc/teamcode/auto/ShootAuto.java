@@ -19,9 +19,10 @@ import org.firstinspires.ftc.teamcode.robot.Robot;
 
 /**
  * Drives forward (as the left stick pushed forward: away from the alliance's wall), aims at the Hive and fires the
- * whole load as one volley, as RB does in Lebot Teleop, then parks wholly in the LOADING ZONE: tile A5 against the
- * alliance's own wall, 0.915 m to the driver's left of its middle (red {-0.915, -1.52}, blue {+0.915, +1.52}), by a
- * lane clear of the Hive and the wall's Flower. It starts in the corner of its own wall and the side wall on the driver's right, square, the camera side toward the middle, and takes
+ * whole load as one volley, as RB does in Lebot Teleop, then parks beside the LOADING ZONE (tile A5 against the
+ * alliance's own wall) at its rear end, just over its line, 1.34 m to the driver's left of the wall's middle (red
+ * {-1.34, -1.52}, blue {+1.34, +1.52}), by a lane clear of the Hive and the wall's Flower, and stays off the wall
+ * (LEAVE). It starts in the corner of its own wall and the side wall on the driver's right, square, the camera side toward the middle, and takes
  * that as its pose: it turns straight to its Hive from there, and the tags correct it once they come into view.
  * The park is Pedro Pathing's: one curve through the lane's corners, followed from the Robot's tag-corrected pose.
  * With the odometry faulted it backs straight to its own wall instead of parking by pose.
@@ -53,10 +54,13 @@ public class ShootAuto extends LebotOpMode {
   public static double SEARCH_PAUSE_S = 0.6;
   public static int BALLS = 4;
   public static double PARK_BY_S = 22; // Gives up on the rest of the balls and parks this long after the start
-  // The LOADING ZONE, from the game manual's field (feature/auto's AutoField): red tile A5, x -1.22 to -0.61 on the
-  // -y wall, so its middle is 0.915 m to the driver's left of the wall's middle. Blue's is red's turned half a turn
-  public static double PARK_LEFT_M = 0.915;
-  public static double PARK_OFF_WALL_M = 0.31; // Robot centre this far off its own wall: wholly in the zone (1.52 m)
+  // Robot centre this far to the driver's left of the wall's middle: beside the LOADING ZONE (red x -1.22 to -0.61 on
+  // the -y wall) at its rear end, 11 cm over its line, the rest left to a partner. AutoField.EDGE_PARK is 5 cm over;
+  // this stops anywhere within PARK_DONE_M and is not held there, so it aims that much further in. Blue's is red's
+  // turned half a turn
+  public static double PARK_LEFT_M = 1.34;
+  // Robot centre this far off its own wall (1.52 m): its side 0.08 m off the wall, inside the 11 in. (0.28 m) zone
+  public static double PARK_OFF_WALL_M = 0.31;
   // Out of the way to it: this far off the wall, clear of the Hive (robot centre |y| > 1.0) and of the Flower that
   // stands by our wall, then along to the zone and straight in
   public static double PARK_LANE_OFF_WALL_M = 0.73;
@@ -75,12 +79,10 @@ public class ShootAuto extends LebotOpMode {
   public static double PARK_VEL_GAIN = 1.0;
   public static double PARK_TIMEOUT_S = 7.0;
   public static double PARK_DONE_M = 0.06;
-  // And this slow: "there" while still moving along the wall, the push carried it on over the zone's edge
+  // And this slow: "there" while still moving along the wall, it carried on over the zone's edge
   public static double PARK_DONE_MPS = 0.15;
-  public static double PARK_PUSH_POWER = 0.5; // Then into the wall this hard for PARK_PUSH_S
-  public static double PARK_PUSH_S = 0.8;
 
-  private enum Phase { DRIVE, SETTLE, SHOOT, PARK, PUSH, DONE }
+  private enum Phase { DRIVE, SETTLE, SHOOT, PARK, DONE }
 
   private Robot robot;
   private Phase phase = Phase.DRIVE;
@@ -241,17 +243,8 @@ public class ShootAuto extends LebotOpMode {
         }
         robot.setDriveOverride(stick);
         Logger.recordOutput("Auto/ParkLeg", parkLeg);
-        if (there || inPhaseS >= PARK_TIMEOUT_S) {
+        if (there || inPhaseS >= PARK_TIMEOUT_S) { // No push into the wall: LEAVE needs the robot off it
           follower.stop();
-          next(Phase.PUSH, nowS);
-        }
-        break;
-      }
-      case PUSH: {
-        double f = robot.driverForwardHeadingRad();
-        robot.setDriveOverride(new double[] {-PARK_PUSH_POWER * Math.cos(f), -PARK_PUSH_POWER * Math.sin(f)});
-        if (inPhaseS >= PARK_PUSH_S) {
-          robot.setDriveOverride(null);
           next(Phase.DONE, nowS);
         }
         break;

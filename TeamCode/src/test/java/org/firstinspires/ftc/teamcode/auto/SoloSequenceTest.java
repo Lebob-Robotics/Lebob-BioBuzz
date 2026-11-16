@@ -59,7 +59,7 @@ public class SoloSequenceTest {
   }
 
   @Test
-  public void notTippedShootsTheGardenNearThenWallFlowerParkRearFlowerAndParks() {
+  public void notTippedShootsTheGardenNearThenWallFlowerFarRearFlowerFarAndParks() {
     seq.tipCheck(null, true); // The prediction says tipped, the tags say not: the tags win
     quickTo(Step.CHECK_TIP);
     seen.clear();
@@ -69,24 +69,24 @@ public class SoloSequenceTest {
     assertTrue(seq.tipFromTags());
     assertEquals(Arrays.asList(Step.SHOOT_NEAR,
         Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
-        Step.SHOOT_PARK,
+        Step.SHOOT_FAR,
         Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR, Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER,
-        Step.DRIVE_TO_PARK, Step.PARKED), seen);
+        Step.SHOOT_FAR, Step.DRIVE_TO_PARK, Step.PARKED), seen);
   }
 
   @Test
-  public void tippedShootsTheGardenFromTheParkThenRearFlowerFarWallFlowerNearAndParks() {
+  public void tippedShootsTheGardenFarThenRearFlowerFarWallFlowerNearAndParks() {
     seq.tipCheck(null, false);
     quickTo(Step.CHECK_TIP);
     seen.clear();
     seq.tipCheck(true, false);
-    quickTo(Step.SHOOT_PARK);
+    quickTo(Step.SHOOT_FAR);
     seq.tipCheck(false, true); // At our wall's Flower the tags show the near Cell up again: the far Cell tipped back
     quickTo(Step.PARKED);
     assertEquals(Boolean.TRUE, seq.tipped());
     assertEquals(Boolean.TRUE, seq.farTipped());
     assertTrue(seq.farTipFromTags());
-    assertEquals(Arrays.asList(Step.SHOOT_PARK,
+    assertEquals(Arrays.asList(Step.SHOOT_FAR,
         Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR, Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER,
         Step.SHOOT_FAR,
         Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
@@ -94,7 +94,7 @@ public class SoloSequenceTest {
   }
 
   @Test
-  public void tippedWithTheFarCellStillUpShootsItAgainFromTheParkAndStays() {
+  public void tippedWithTheFarCellStillUpShootsItAgainThenParks() {
     seq.tipCheck(null, false);
     quickTo(Step.CHECK_TIP);
     seen.clear();
@@ -102,11 +102,11 @@ public class SoloSequenceTest {
     quickTo(Step.PARKED);
     assertEquals(Boolean.FALSE, seq.farTipped());
     assertTrue(seq.farTipFromTags());
-    assertEquals(Arrays.asList(Step.SHOOT_PARK,
+    assertEquals(Arrays.asList(Step.SHOOT_FAR,
         Step.DRIVE_TO_REAR_FLOWER, Step.LOWER_ARM_REAR, Step.INTAKE_REAR_FLOWER, Step.BACK_FROM_REAR_FLOWER,
         Step.SHOOT_FAR,
         Step.DRIVE_TO_WALL_FLOWER, Step.LOWER_ARM_WALL, Step.INTAKE_WALL_FLOWER, Step.BACK_FROM_WALL_FLOWER,
-        Step.SHOOT_PARK, Step.PARKED), seen);
+        Step.SHOOT_FAR, Step.DRIVE_TO_PARK, Step.PARKED), seen);
   }
 
   @Test
@@ -124,7 +124,7 @@ public class SoloSequenceTest {
       }
       assertEquals(!nearDown, s.farTipped());
       assertFalse(s.farTipFromTags());
-      assertEquals(nearDown ? Step.SHOOT_PARK : Step.SHOOT_NEAR, s.step());
+      assertEquals(nearDown ? Step.SHOOT_FAR : Step.SHOOT_NEAR, s.step());
     }
   }
 
@@ -145,7 +145,7 @@ public class SoloSequenceTest {
     seq.tipCheck(false, false);
     assertEquals("the near Cell up again", Step.SHOOT_NEAR, seq.nextVolley());
     seq.tipCheck(null, true);
-    assertEquals("no tags: the ball count says still up", Step.SHOOT_PARK, seq.nextVolley());
+    assertEquals("no tags: the ball count says still up", Step.SHOOT_FAR, seq.nextVolley());
     seq.tipCheck(false, true);
     quickTo(Step.SHOOT_NEAR);
     assertFalse("rechecked", seq.watchingHive());
@@ -175,7 +175,7 @@ public class SoloSequenceTest {
     quickTo(Step.BACK_FROM_WALL_FLOWER);
     assertTrue("down backing out", seq.armDown());
     loop(true, false, false, false);
-    assertEquals("on from backing out at once", Step.SHOOT_PARK, seq.step());
+    assertEquals("on from backing out at once", Step.SHOOT_FAR, seq.step());
     assertFalse("coming up on the drive", seq.armDown());
   }
 
@@ -187,7 +187,7 @@ public class SoloSequenceTest {
     assertEquals(Step.CHECK_TIP, seq.step());
     seq.tipCheck(true, false);
     loop(false, false, false, false);
-    assertEquals("on to the park at once", Step.SHOOT_PARK, seq.step());
+    assertEquals("on to the far Cell's spot at once", Step.SHOOT_FAR, seq.step());
   }
 
   @Test
@@ -199,7 +199,7 @@ public class SoloSequenceTest {
     runFor(SoloSequence.TIP_CHECK_WAIT_S - 0.05, true);
     assertEquals("waits a moment at the spot", Step.CHECK_TIP, seq.step());
     runFor(0.1, true);
-    assertEquals(Step.SHOOT_PARK, seq.step());
+    assertEquals(Step.SHOOT_FAR, seq.step());
     assertFalse(seq.tipFromTags());
   }
 
@@ -244,14 +244,24 @@ public class SoloSequenceTest {
   }
 
   @Test
-  public void atTheParkByTimeAVolleyFromTheParkJustStaysParked() {
+  public void atTheParkByTimeAVolleyStopsForTheDriveToPark() {
     seq.tipCheck(true, false);
-    quickTo(Step.SHOOT_PARK);
+    quickTo(Step.SHOOT_FAR);
     while (t < SoloSequence.PARK_BY_S - DT) {
       seq.update(t += DT, false, false, false, false);
     }
     loop(false, false, false, false);
-    assertEquals(Step.PARKED, seq.step());
+    assertEquals(Step.DRIVE_TO_PARK, seq.step());
+  }
+
+  @Test
+  public void parkedItShootsNothingWithTheIntakeOff() {
+    seq.tipCheck(false, false);
+    quickTo(Step.PARKED);
+    loop(true, false, false, false);
+    assertFalse(seq.shoot(t));
+    assertFalse(seq.intake());
+    assertEquals(Step.PARKED, seq.nextVolley());
   }
 
   @Test
@@ -274,11 +284,11 @@ public class SoloSequenceTest {
     assertEquals("likely not tipped", Step.SHOOT_NEAR, seq.nextVolley());
     seq.tipCheck(null, true);
     quickTo(Step.CHECK_TIP);
-    assertEquals("likely tipped", Step.SHOOT_PARK, seq.nextVolley());
+    assertEquals("likely tipped", Step.SHOOT_FAR, seq.nextVolley());
     seq.tipCheck(false, true);
     assertEquals("the tags say not", Step.SHOOT_NEAR, seq.nextVolley());
     quickTo(Step.DRIVE_TO_WALL_FLOWER);
-    assertEquals(Step.SHOOT_PARK, seq.nextVolley());
+    assertEquals(Step.SHOOT_FAR, seq.nextVolley());
   }
 
   @Test

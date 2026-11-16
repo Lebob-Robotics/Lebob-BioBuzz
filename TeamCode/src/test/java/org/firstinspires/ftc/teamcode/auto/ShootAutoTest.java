@@ -9,15 +9,20 @@ import org.junit.Test;
 
 public class ShootAutoTest {
   @Test
-  public void parksWhollyInTheManualsLoadingZone() {
+  public void parksJustOverTheLoadingZonesRearLineAsTheOtherAutos() {
     double half = 0.23; // Robot centre to bumper
     double[] red = ShootAuto.parkPoint(FieldGeometry.ALLIANCE_FORWARD_RED_RAD);
-    assertEquals(-0.915, red[0], 1e-9); // Tile A5: x -1.22 to -0.61
+    assertEquals(-1.34, red[0], 1e-9);
     assertEquals(-1.52, red[1], 1e-9);
-    assertTrue(red[0] - half >= -1.22 && red[0] + half <= -0.61);
-    assertTrue(red[1] - half >= -FieldGeometry.FIELD_HALF_SIZE_M && red[1] + half <= -1.22);
+    double[] zone = AutoField.LOADING_ZONE;
+    double over = red[0] + half - zone[0];
+    assertEquals("as far over the zone's line as the other autos, stopped its loosest", AutoField.PARK_IN_ZONE_M,
+        over - ShootAuto.PARK_DONE_M, 1e-9);
+    assertTrue("leaves most of the zone to a partner", over < 0.15);
+    assertTrue("its side by our wall within the zone's depth", red[1] - half > zone[2] && red[1] - half < zone[3]);
+    assertTrue("off our wall", red[1] - half > -AutoField.FIELD_HALF_M + 0.05);
     double[] blue = ShootAuto.parkPoint(FieldGeometry.ALLIANCE_FORWARD_BLUE_RAD);
-    assertEquals(0.915, blue[0], 1e-9); // Red's turned half a turn
+    assertEquals(-red[0], blue[0], 1e-9); // Red's turned half a turn
     assertEquals(1.52, blue[1], 1e-9);
   }
 
@@ -38,7 +43,7 @@ public class ShootAutoTest {
       }
       from = to;
     }
-    assertEquals(0.915, route[2][0], 1e-9);
+    assertEquals(1.34, route[2][0], 1e-9);
     assertEquals(1.52, route[2][1], 1e-9);
   }
 
@@ -101,8 +106,12 @@ public class ShootAutoTest {
       minX = Math.min(minX, x);
     }
     assertTrue("timed out", t < ShootAuto.PARK_TIMEOUT_S);
-    assertTrue("ran to x " + minX, minX > -1.22 + 0.10); // Robot centre: never more than half off the zone's far edge
-    assertEquals(-0.915, x, ShootAuto.PARK_DONE_M);
+    double[] park = ShootAuto.parkPoint(f);
+    // Through the lane's last corner it runs on past the park's x before turning in to it
+    assertTrue("ran to x " + minX, minX > park[0] - 0.15);
+    assertTrue("clear of the rear wall", minX - 0.23 > -AutoField.FIELD_HALF_M + 0.05);
+    assertEquals(park[0], x, ShootAuto.PARK_DONE_M);
+    assertTrue("stopped partly in the zone", x + 0.23 > AutoField.LOADING_ZONE[0]);
     assertEquals(-1.52, y, ShootAuto.PARK_DONE_M);
   }
 

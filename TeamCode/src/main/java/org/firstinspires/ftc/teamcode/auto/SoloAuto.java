@@ -196,7 +196,6 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
       case SHOOT_NEAR:
         lineTo(here, AutoField.pedroShotSpot(alliance, SoloSequence.nearCell(alliance)));
         break;
-      case SHOOT_PARK:
       case DRIVE_TO_PARK:
         toPark(here, now, park);
         break;
@@ -227,13 +226,13 @@ public abstract class SoloAuto extends BaseAuto<SoloSequence.Step, SoloSequence>
       case BACK_FROM_REAR_FLOWER:
         line(here, pedro(AutoField.REAR_FLOWER, alliance), false);
         break;
-      case PARKED: // Held off our wall, back to the park's Cell, shooting until the end
+      case PARKED: // Held off our wall, square to it
         follower.hold(park);
         break;
     }
   }
 
-  /** To the park, back (shooter) to its Cell: straight, or bent over our wall's Flower where straight crosses it. */
+  /** To the park: straight, or bent over our wall's Flower where straight crosses it. */
   private void toPark(Pose here, FieldPose now, Pose park) {
     double[] control = SoloSequence.parkControl(
         AutoField.forAlliance(new double[] {now.xM, now.yM, now.headingRad}, alliance));

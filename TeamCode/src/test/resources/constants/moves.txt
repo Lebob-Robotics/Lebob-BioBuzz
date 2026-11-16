@@ -276,3 +276,9 @@ org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.BALL_DIP_RPM -> org.fir
 org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning.BALL_DIP_WINDOW_S -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.WINDOW_S
 org.firstinspires.ftc.teamcode.opmodes.tuning.SpecialShotCalibration.BALL_DIP_RPM -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.DIP_RPM
 org.firstinspires.ftc.teamcode.opmodes.tuning.SpecialShotCalibration.BALL_DIP_WINDOW_S -> org.firstinspires.ftc.teamcode.tuning.BallDipDetector.WINDOW_S
+
+# 16 Nov: every auto parks at AutoField.EDGE_PARK, beside the loading zone at its rear end
+org.firstinspires.ftc.teamcode.auto.CornerSequence.CORNER_PARK -> (deleted)
+# Shoot Auto no longer pushes into our wall once parked: LEAVE needs the robot off it
+org.firstinspires.ftc.teamcode.auto.ShootAuto.PARK_PUSH_POWER -> (deleted)
+org.firstinspires.ftc.teamcode.auto.ShootAuto.PARK_PUSH_S -> (deleted)

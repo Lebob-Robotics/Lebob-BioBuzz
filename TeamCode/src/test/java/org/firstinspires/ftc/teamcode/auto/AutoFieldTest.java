@@ -8,6 +8,8 @@ import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.vision.VisionCorrector;
 import org.firstinspires.ftc.teamcode.field.Cell;
+import static org.junit.Assert.assertArrayEquals;
+import org.firstinspires.ftc.teamcode.field.Units;
 import org.junit.Test;
 
 public class AutoFieldTest {
@@ -67,14 +69,15 @@ public class AutoFieldTest {
       assertLineClear(spot, AutoField.WALL_FLOWER, "from " + cell + " to the wall Flower");
       assertShotDriveClear(AutoField.WALL_FLOWER, AutoSequence.Step.SHOOT_WALL_FLOWER, spot,
           "from the wall Flower to " + cell);
-      assertLineClear(spot, AutoField.PARK, "from " + cell + " to park, skipping the rear Flower");
+      assertLineClear(spot, AutoField.EDGE_PARK, "from " + cell + " to park, skipping the rear Flower");
       assertCurveClear(spot, AutoField.REAR_CONTROL, AutoField.REAR_FLOWER, "from " + cell + " to the rear Flower");
     }
     assertLineClear(AutoField.GARDEN_IN, AutoField.GARDEN_WALL, "onto the Garden wall");
     assertLineClear(AutoField.GARDEN_WALL, AutoField.GARDEN_OUT, "sweep");
     assertLineClear(AutoField.GARDEN_OUT, AutoField.WALL_FLOWER, "to the wall Flower");
     assertLineClear(AutoField.REAR_FLOWER, AutoField.REAR_FLOWER_INTAKE, "into the rear Flower");
-    assertLineClear(AutoField.REAR_FLOWER, AutoField.PARK, "to park, backed out");
+    assertLineClear(AutoField.REAR_FLOWER, AutoField.EDGE_PARK, "to park, backed out");
+    assertLineClear(AutoField.WALL_FLOWER, AutoField.EDGE_PARK, "to park from our wall's Flower");
   }
 
   @Test
@@ -152,15 +155,35 @@ public class AutoFieldTest {
   }
 
   @Test
-  public void startsOutsideTheLoadingZoneAndParksWhollyInIt() {
+  public void everyAutoParksSquareJustOverTheLoadingZonesRearLine() {
     double[] zone = AutoField.LOADING_ZONE;
+    double[] p = AutoField.EDGE_PARK;
+    double half = AutoField.ROBOT_HALF_M;
+    assertEquals("square, intake to our wall", -Math.PI / 2, p[2], 1e-12);
+    assertEquals("over the rear line by", AutoField.PARK_IN_ZONE_M, p[0] + half - zone[0], 1e-9);
+    assertTrue("partly in: its side by our wall within the zone's depth", p[1] - half > zone[2] && p[1] - half < zone[3]);
+    assertEquals("off our wall", AutoField.PARK_WALL_GAP_M, p[1] - half + AutoField.FIELD_HALF_M, 1e-9);
+    assertTrue("off the rear wall", p[0] - half > -AutoField.FIELD_HALF_M + 0.10);
+    double partner = 18 * Units.M_PER_IN; // The largest robot allowed at the start
+    assertTrue("room left for a partner", zone[1] - (p[0] + half) > partner + 0.05);
+    for (Alliance a : Alliance.values()) {
+      assertArrayEquals(AutoField.edgePark(a), SoloSequence.parkSpot(a), 1e-12);
+    }
+    double[] blue = AutoField.edgePark(Alliance.BLUE);
+    assertEquals("blue's on its own wall", AutoField.FIELD_HALF_M - half - AutoField.PARK_WALL_GAP_M, blue[1], 1e-9);
+  }
+
+  @Test
+  public void startsOutsideTheLoadingZoneAndParksPartlyInIt() {
+    double[] zone = AutoField.LOADING_ZONE;
+    assertEquals("11 in. deep", 0.2794, zone[3] - zone[2], 1e-4);
     double half = AutoField.ROBOT_HALF_M;
     double[] s = AutoField.START;
     assertTrue("start overlaps the loading zone", s[0] - half > zone[1] || s[0] + half < zone[0]);
     assertEquals("start not touching the wall", -AutoField.FIELD_HALF_M, s[1] - half, 1e-9);
     double[] p = AutoField.PARK;
     assertTrue(p[0] - half >= zone[0] && p[0] + half <= zone[1]);
-    assertTrue(p[1] - half >= zone[2] && p[1] + half <= zone[3]);
+    assertTrue("side nearest our wall in the zone", p[1] - half > zone[2] && p[1] - half < zone[3]);
   }
 
   @Test
@@ -200,9 +223,9 @@ public class AutoFieldTest {
         double[] p = AutoField.parkSpot(alliance, cell);
         double[] red = alliance == Alliance.RED ? p : new double[] {-p[0], -p[1]};
         double[] zone = AutoField.LOADING_ZONE;
-        assertTrue(alliance + " " + cell + " in the loading zone", red[0] > zone[0] && red[0] < zone[1]
-            && red[1] > zone[2] && red[1] < zone[3]);
         double reach = AutoField.ROBOT_HALF_M * (Math.abs(Math.sin(p[2])) + Math.abs(Math.cos(p[2])));
+        assertTrue(alliance + " " + cell + " partly in the loading zone", red[0] > zone[0] && red[0] < zone[1]
+            && red[1] - reach > zone[2] && red[1] - reach < zone[3]);
         assertEquals(alliance + " " + cell + " corner 10 cm off the wall", AutoField.FIELD_HALF_M - 0.10,
             Math.abs(p[1]) + reach, 1e-3);
         double[] aim = AutoField.autoAimPoint(alliance, cell);

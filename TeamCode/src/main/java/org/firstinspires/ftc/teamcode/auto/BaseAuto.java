@@ -208,7 +208,7 @@ public abstract class BaseAuto<S extends Enum<S>, P extends AutoPlan<S>> extends
     double[] aimPoint = AutoField.autoAimPoint(alliance, aimCell());
     robot.setAimPointOverride(aimPoint);
     if (volley != null && !shotLastLoop) {
-      // The tuned spot nearest where it is about to shoot: spot 4 (VOLLEY_SPOT) at each Cell, the park spot at the end
+      // The tuned spot nearest where it is about to shoot: spot 4 (VOLLEY_SPOT) at each Cell
       int spot = volley.spotFor(robot.getPose(), aimPoint[0], aimPoint[1]);
       VolleySettings.apply(robot, volley.get(spot));
       Logger.recordOutput("Auto/VolleySpot", spot);

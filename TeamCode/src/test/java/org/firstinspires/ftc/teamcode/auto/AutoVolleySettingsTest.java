@@ -52,7 +52,6 @@ public class AutoVolleySettingsTest {
           {"preloads", SoloSequence.preloadSpot(a), near, 4},
           {"near Cell", AutoField.shotSpot(a, near), near, 4},
           {"far Cell", AutoField.shotSpot(a, far), far, 4},
-          {"park", SoloSequence.parkSpot(a), far, 10}, // PARK
       };
       for (Object[] volley : volleys) {
         double[] s = (double[]) volley[1];

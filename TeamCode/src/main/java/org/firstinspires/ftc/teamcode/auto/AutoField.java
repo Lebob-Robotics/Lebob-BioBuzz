@@ -89,18 +89,21 @@ public final class AutoField {
 
   /** Bends the drive from a shooting spot to the rear Flower round the Hive. */
   public static final double[] REAR_CONTROL = {-1.30, -1.50, 0};
-  /** In the middle of the loading zone, camera side toward the Hive as at the start, so the TeleOp's placed heading holds. */
+  /**
+   * Volley Tuning's PARK spot, at the loading zone's middle: where the autos parked, and shot what they held, until
+   * 16 Nov. Camera side toward the Hive as at the start. The autos park at {@link #EDGE_PARK} now.
+   */
   public static final double[] PARK = {-0.915, -1.52, -Math.PI / 2};
   /**
-   * Parked this far off our wall, never touching it (not allowed to touch the wall on PARK). The centre stays
-   * in the loading zone (PARK needs the robot partly in it): at most 0.33 + 0.10 m from the wall, the zone 0.61 m deep.
+   * Parked this far off our wall, never touching it: LEAVE, scored with PARK at the end of AUTO, needs the robot off
+   * the perimeter wall. PARK needs the robot partly in the loading zone ({@link #LOADING_ZONE_DEPTH_M} deep): the
+   * robot's side nearest our wall is this far from it, inside the zone.
    */
   public static final double PARK_WALL_GAP_M = 0.10;
 
   /**
-   * Where to park, for the alliance (field coordinates, as {@link #shotSpot}): {@link #PARK}'s x, back (shooter) to
-   * this Cell so the leftovers can be shot, with the turned robot's nearest corner {@link #PARK_WALL_GAP_M} off our
-   * wall.
+   * Volley Tuning's PARK spot, for the alliance (field coordinates, as {@link #shotSpot}): {@link #PARK}'s x, back
+   * (shooter) to this Cell, with the turned robot's nearest corner {@link #PARK_WALL_GAP_M} off our wall.
    */
   public static double[] parkSpot(Alliance alliance, Cell cell) {
     return parkSpot(alliance, cell, PARK);
@@ -121,20 +124,33 @@ public final class AutoField {
     return new double[] {base[0], y, heading};
   }
 
-  /** As a Pedro pose (inches). */
-  public static Pose pedroParkSpot(Alliance alliance, Cell cell) {
-    double[] p = parkSpot(alliance, cell);
-    return new Pose(p[0] / Units.M_PER_IN, p[1] / Units.M_PER_IN, p[2]);
-  }
-
   /** {forward, strafe left} drive powers, for a robot at this heading, that push it toward our wall at {@code power}. */
   public static double[] wallPush(Alliance alliance, double headingRad, double power) {
     double ourWall = alliance == Alliance.RED ? -1 : 1;
     return new double[] {power * ourWall * Math.sin(headingRad), power * ourWall * Math.cos(headingRad)};
   }
 
-  /** Red loading zone, tile A5: {xMin, xMax, yMin, yMax}. */
-  public static final double[] LOADING_ZONE = {-1.22, -0.61, -FIELD_HALF_M, -1.22};
+  /** The loading zone runs 11 in. out from our wall (game manual 9.3). */
+  public static final double LOADING_ZONE_DEPTH_M = 11 * Units.M_PER_IN;
+  /** Red loading zone, {xMin, xMax, yMin, yMax}: tile A5's width along our wall, by its depth. */
+  public static final double[] LOADING_ZONE = {-1.22, -0.61, -FIELD_HALF_M, -FIELD_HALF_M + LOADING_ZONE_DEPTH_M};
+  /**
+   * How far the parked robot reaches over the loading zone's line (its tape counts as in the zone). Little, to leave
+   * the rest of the zone to a partner's park.
+   */
+  public static final double PARK_IN_ZONE_M = 0.05;
+  /**
+   * Where every auto parks (red): beside the loading zone at its rear end, reaching {@link #PARK_IN_ZONE_M} over its
+   * line, {@link #PARK_WALL_GAP_M} off our wall, square to it with the intake to it. The rear end as the last volleys
+   * go into the Cell on that side; square, as a robot turned to a Cell reaches diagonally into the zone's middle.
+   */
+  public static final double[] EDGE_PARK = {LOADING_ZONE[0] + PARK_IN_ZONE_M - ROBOT_HALF_M,
+      -(AT_WALL_M - PARK_WALL_GAP_M), -Math.PI / 2};
+
+  /** {@link #EDGE_PARK} for the alliance. */
+  public static double[] edgePark(Alliance alliance) {
+    return forAlliance(EDGE_PARK, alliance);
+  }
 
   private AutoField() {}
 

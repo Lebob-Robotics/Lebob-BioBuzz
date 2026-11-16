@@ -26,7 +26,7 @@ public final class VolleySpotDrive {
   private double[] drive = new double[] {0, 0};
 
   /**
-   * The spot after the grid: where the Scoring Auto parks (AutoField.parkSpot), against our wall in the loading
+   * The spot after the grid: where the autos parked until 16 Nov (AutoField.parkSpot), against our wall in the loading
    * zone. The drive stops {@link #PARK_APPROACH_M} from the middle, inside the route's field limit, then creeps
    * toward the wall until the wall stops it, and holds there pushed against it as the auto does.
    */

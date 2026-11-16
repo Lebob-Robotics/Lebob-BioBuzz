@@ -96,6 +96,8 @@ public class SoloAutoSimTest {
     Boolean farTipped;
   }
 
+  /** Volley times (FIRST_BALL_S, BALL_GAP_S) multiplied by this. */
+  private double volleySlowdown = 1;
   private double x;
   private double y;
   private double h;
@@ -160,7 +162,7 @@ public class SoloAutoSimTest {
       boolean ballLeft = false;
       if (auto.plan.shoot(t)) {
         shootingS += DT;
-        if (held > 0 && shootingS >= FIRST_BALL_S + volleyBalls * BALL_GAP_S) {
+        if (held > 0 && shootingS >= (FIRST_BALL_S + volleyBalls * BALL_GAP_S) * volleySlowdown) {
           held--;
           volleyBalls++;
           run.shot++;
@@ -275,7 +277,7 @@ public class SoloAutoSimTest {
       Run run = run(a, false, false);
       assertEquals(Boolean.FALSE, run.tipped);
       assertFullRun(a + " not tipped", run,
-          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_NEAR, Step.SHOOT_PARK, Step.PARKED));
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_NEAR, Step.SHOOT_FAR, Step.SHOOT_FAR));
     }
   }
 
@@ -286,17 +288,17 @@ public class SoloAutoSimTest {
       assertEquals(Boolean.TRUE, run.tipped);
       assertEquals(Boolean.TRUE, run.farTipped);
       assertFullRun(a + " tipped", run,
-          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_PARK, Step.SHOOT_FAR, Step.SHOOT_NEAR, Step.PARKED));
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_NEAR));
     }
   }
 
   @Test
-  public void tippedWithTheFarCellStillUpShootsItAgainFromThePark() {
+  public void tippedWithTheFarCellStillUpShootsItAgainThenParks() {
     for (Alliance a : Alliance.values()) {
       Run run = run(a, true, false, false);
       assertEquals(Boolean.FALSE, run.farTipped);
       assertFullRun(a + " tipped, far Cell still up", run,
-          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_PARK, Step.SHOOT_FAR, Step.SHOOT_PARK, Step.PARKED));
+          Arrays.asList(Step.SHOOT_PRELOAD, Step.SHOOT_FAR, Step.SHOOT_FAR, Step.SHOOT_FAR));
     }
   }
 
@@ -359,7 +361,7 @@ public class SoloAutoSimTest {
     j.append("\"spots\": [").append(spot("start", AutoField.forAlliance(SoloSequence.START, a))).append(", ")
         .append(spot(tunedName(tuned, a, near, AutoField.shotSpot(a, near)), AutoField.shotSpot(a, near)))
         .append(", ").append(spot(tunedName(tuned, a, far, AutoField.shotSpot(a, far)), AutoField.shotSpot(a, far)))
-        .append(", ").append(spot(tunedName(tuned, a, far, SoloSequence.parkSpot(a)), SoloSequence.parkSpot(a)))
+        .append(", ").append(spot("park", SoloSequence.parkSpot(a)))
         .append("]\n},\n");
     j.append("\"runs\": [\n");
     j.append(runJson("Not tipped", notTipped, -1, notTipped.decidedS, "")).append(",\n")
@@ -410,6 +412,24 @@ public class SoloAutoSimTest {
 
   private static String num(double v) {
     return String.format(Locale.US, "%.3f", v);
+  }
+
+  @Test
+  public void slowerVolleysStillParkInTime() {
+    // Each slower run meets the park's deadline at a later step: in a volley, a Flower, backing out, on a drive
+    for (Alliance a : Alliance.values()) {
+      for (boolean tipped : new boolean[] {false, true}) {
+        for (Boolean farTipped : new Boolean[] {true, false}) {
+          for (int i = 0; i <= 30; i++) {
+            volleySlowdown = 1 + i * 0.05;
+            Run run = run(a, tipped, tipped, farTipped);
+            String what = String.format(Locale.US, "%s tipped %b far %b volleys x%.2f%n%s", a, tipped, farTipped,
+                volleySlowdown, run.timeline);
+            assertTrue(what + "parked at " + run.parkedS, run.parkedS <= 28.5);
+          }
+        }
+      }
+    }
   }
 
   @Test

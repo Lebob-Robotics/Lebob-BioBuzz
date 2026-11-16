@@ -26,7 +26,8 @@ import org.junit.Test;
  *
  * <p>{@code src/test/resources/constants/snapshot.txt} holds the original values. {@code moves.txt} says where a
  * class or a constant went: {@code old -> new} for a class or a single constant, or {@code old -> (deleted)} for
- * one removed as unused. Set WRITE_CONSTANTS_SNAPSHOT=1 to rewrite the snapshot from the current code.
+ * one removed. {@code changes.txt} holds the values changed on purpose since, {@code key = value} by the constant's
+ * name now. Set WRITE_CONSTANTS_SNAPSHOT=1 to rewrite the snapshot from the current code.
  */
 public class ConstantsSnapshotTest {
   private static final String ROOT = "org.firstinspires.ftc.teamcode";
@@ -47,22 +48,28 @@ public class ConstantsSnapshotTest {
         return;
       }
       Map<String, String> moves = readMoves(new File(dir, "moves.txt"));
+      Map<String, String> changes = readChanges(new File(dir, "changes.txt"));
+      Map<String, String> unusedChanges = new TreeMap<>(changes);
       List<String> problems = new ArrayList<>();
       int checked = 0;
       for (String line : Files.readAllLines(snapshotFile.toPath(), StandardCharsets.UTF_8)) {
         int eq = line.indexOf(" = ");
         String key = line.substring(0, eq);
-        String expected = line.substring(eq + 3);
         String where = resolve(key, moves);
         if (DELETED.equals(where)) {
           continue;
         }
+        unusedChanges.remove(where);
+        String expected = changes.getOrDefault(where, line.substring(eq + 3));
         String actual = read(loader, where);
         checked++;
         if (!expected.equals(actual)) {
           problems.add(key + (where.equals(key) ? "" : " (now " + where + ")") + ": was " + expected + ", now "
               + actual);
         }
+      }
+      for (String stale : unusedChanges.keySet()) {
+        problems.add("changes.txt: " + stale + " is no constant from the snapshot");
       }
       if (!problems.isEmpty()) {
         fail(problems.size() + " constants changed or went missing:\n" + String.join("\n", problems));
@@ -103,6 +110,22 @@ public class ConstantsSnapshotTest {
       moves.put(parts[0], parts[1]);
     }
     return moves;
+  }
+
+  private static Map<String, String> readChanges(File file) throws IOException {
+    Map<String, String> changes = new LinkedHashMap<>();
+    if (!file.exists()) {
+      return changes;
+    }
+    for (String raw : Files.readAllLines(file.toPath(), StandardCharsets.UTF_8)) {
+      String line = raw.trim();
+      if (line.isEmpty() || line.startsWith("#")) {
+        continue;
+      }
+      int eq = line.indexOf(" = ");
+      changes.put(line.substring(0, eq), line.substring(eq + 3));
+    }
+    return changes;
   }
 
   private static File resourceDir() {

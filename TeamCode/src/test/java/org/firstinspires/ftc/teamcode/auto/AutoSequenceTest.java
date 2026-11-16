@@ -234,7 +234,7 @@ public class AutoSequenceTest {
   }
 
   @Test
-  public void theRearFlowerIsTakenTheSameWayThenParksAndShoots() {
+  public void theRearFlowerIsTakenTheSameWayThenParks() {
     AutoSequence.SECOND_FLOWER = true;
     t = 1.0;
     quickTo(Step.DRIVE_TO_REAR_FLOWER);
@@ -245,7 +245,8 @@ public class AutoSequenceTest {
     assertFalse(seq.armDown());
     t += DT;
     seq.update(t, true, false, false);
-    assertTrue("parked: shoots what it holds", seq.shoot(t));
+    assertFalse("parked: holds the rear Flower's balls for the TeleOp", seq.shoot(t));
+    assertFalse(seq.intake());
   }
 
   @Test
@@ -372,7 +373,7 @@ public class AutoSequenceTest {
   }
 
   @Test
-  public void parkedItKeepsShootingToTheEnd() {
+  public void parkedItShootsNothingWithTheIntakeOff() {
     while (seq.step() != Step.PARKED) {
       t += DT;
       seq.update(t, true, false, true, false);
@@ -383,7 +384,7 @@ public class AutoSequenceTest {
     for (double end = t + 3; t < end; t += DT) {
       seq.update(t, true, false, true, false);
     }
-    assertTrue("still shooting long after the feeder found nothing", seq.shoot(t));
-    assertTrue("pushing up what's left in the intake", seq.intake());
+    assertFalse("square to our wall, facing no Cell", seq.shoot(t));
+    assertFalse(seq.intake());
   }
 }

@@ -18,11 +18,11 @@
   const DETAIL = {
     SHOOT_PRELOAD: 'shooting the preloads', FACE_GARDEN: 'turning to the Garden', ONTO_GARDEN_WALL: 'onto the wall',
     SWEEP_GARDEN: 'sweeping the Garden', CHECK_TIP: 'checking the Hive', SHOOT_NEAR: 'shooting, near Cell',
-    SHOOT_PARK: 'shooting from the park, far Cell', SHOOT_FAR: 'shooting, far Cell',
+    SHOOT_FAR: 'shooting, far Cell',
     DRIVE_TO_WALL_FLOWER: "to our wall's Flower", LOWER_ARM_WALL: 'arm down', INTAKE_WALL_FLOWER: 'taking the Flower',
     BACK_FROM_WALL_FLOWER: 'backing out', DRIVE_TO_REAR_FLOWER: 'to the rear Flower', LOWER_ARM_REAR: 'arm down',
     INTAKE_REAR_FLOWER: 'taking the Flower', BACK_FROM_REAR_FLOWER: 'backing out', DRIVE_TO_PARK: 'to the park',
-    PARKED: 'parked, shooting',
+    PARKED: 'parked',
   };
 
   /** The panel's and timeline's entry for a step: its name and category. */
@@ -31,12 +31,11 @@
     if (/GARDEN/.test(step)) return ['Garden', 'garden'];
     if (step === 'CHECK_TIP') return ['Check the Hive', 'check'];
     if (step === 'SHOOT_NEAR') return ['Shoot into the near Cell', 'shoot'];
-    if (step === 'SHOOT_PARK') return ['Shoot from the park, far Cell', 'shoot'];
     if (step === 'SHOOT_FAR') return ['Shoot into the far Cell', 'shoot'];
     if (/WALL$|WALL_FLOWER/.test(step)) return ["Our wall's Flower", 'flower'];
     if (/REAR/.test(step)) return ['Rear Flower', 'flower'];
     if (step === 'DRIVE_TO_PARK') return ['To the park', 'drive'];
-    return ['Parked, shooting to the end', 'shoot'];
+    return ['Parked', 'drive'];
   }
 
   function segments(data, run) {

@@ -11,8 +11,12 @@ import org.firstinspires.ftc.teamcode.field.Cell;
  *       audience wall; sweep along it against it.
  *   <li>Drive to the other Cell, now up, and shoot.
  *   <li>Take our wall's Flower, then shoot.
- *   <li>Take the rear Flower, then park; parked, it shoots what it holds.
+ *   <li>Take the rear Flower ({@link #SECOND_FLOWER}), then park. Parked, it shoots nothing, so the rear Flower's
+ *       balls are kept for TeleOp.
  * </ol>
+ *
+ * <p>It parks at {@link AutoField#EDGE_PARK}, beside the loading zone and just over its line, leaving the zone to a
+ * partner.
  *
  * <p>The robot holds 4, so each pickup is shot before the next. Every volley is shot stopped, from a spot straight
  * out from the up Cell ({@link AutoField#shotSpot}); a drive only drives.
@@ -34,7 +38,7 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
     SHOOT_WALL_FLOWER(true),
     DRIVE_TO_REAR_FLOWER(false), LOWER_ARM_REAR(false), INTAKE_REAR_FLOWER(false), BACK_FROM_REAR_FLOWER(false),
     RAISE_ARM_REAR(false),
-    DRIVE_TO_PARK(false), PARKED(true);
+    DRIVE_TO_PARK(false), PARKED(false);
 
     /** A volley is shot here, once the robot has stopped at the step's spot. */
     public final boolean shooting;
@@ -256,11 +260,10 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
     return tracker.takeNewStep();
   }
 
-  /** Shooting: stopped at a shooting spot, its volley not finished. Parked, until the end. */
+  /** Shooting: stopped at a shooting spot, its volley not finished. */
   @Override
   public boolean shoot(double nowS) {
-    // Parked, it keeps on to the end, for any ball still stuck: the indexer's retry pulses free it
-    return step.shooting && tracker.arrived() && (step == Step.PARKED || !tracker.volleyDone(nowS));
+    return step.shooting && tracker.arrived() && !tracker.volleyDone(nowS);
   }
 
   /** The intake runs at the Garden, at the Flowers from lowering the arm to raising it, and through each volley. */
@@ -269,8 +272,6 @@ public final class AutoSequence implements AutoPlan<AutoSequence.Step> {
     switch (step) {
       case SHOOT_PRELOAD: // Once stopped only, for the 4th ball in the intake: on the way, with the wheels spinning,
         return tracker.arrived(); // the full stack pushed a ball through the held feeder
-      case PARKED: // Once there, pushing any ball left in the intake up (against our wall: nothing to pick up)
-        return tracker.arrived();
       case SHOOT_GARDEN: // The whole volley, drive and shots. Off for the drive, the Garden's balls sat in the
       case SHOOT_WALL_FLOWER: // intake's mouth and none were shot; off once stopped, every volley left its last
         return true; // balls in

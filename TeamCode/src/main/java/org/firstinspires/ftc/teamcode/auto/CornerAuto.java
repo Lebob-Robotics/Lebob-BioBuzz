@@ -79,9 +79,6 @@ public abstract class CornerAuto extends BaseAuto<CornerSequence.Step, CornerSeq
       return CornerSequence.nearCell(alliance);
     }
     int step = current.ordinal();
-    if (step >= CornerSequence.Step.DRIVE_TO_PARK.ordinal()) {
-      return CornerSequence.parkCell(alliance);
-    }
     return step >= CornerSequence.Step.DRIVE_TO_FLOWER.ordinal()
         ? CornerSequence.gardenCell(alliance) : CornerSequence.nearCell(alliance);
   }
@@ -104,10 +101,9 @@ public abstract class CornerAuto extends BaseAuto<CornerSequence.Step, CornerSeq
     drivetrain.setScale(intoFlower ? SWEEP_POWER_SCALE : 1.0);
     drivetrain.setStrafeBias(0.0);
     drivetrain.setForwardBias(0.0);
-    // Square to our wall everywhere but the AUDIENCE volley and the park, which Pedro turns on the way.
-    // Shooting, the aim's lock turns the robot instead
-    boolean turning = step == CornerSequence.Step.SHOOT_GARDEN_SIDE || step == CornerSequence.Step.DRIVE_TO_PARK
-        || step == CornerSequence.Step.PARKED;
+    // Square to our wall everywhere but the AUDIENCE volley and the drive back from it, which Pedro turns on the
+    // way. Shooting, the aim's lock turns the robot instead
+    boolean turning = step == CornerSequence.Step.SHOOT_GARDEN_SIDE || step == CornerSequence.Step.DRIVE_TO_PARK;
     lockHeading(turning ? Double.NaN : wallHeading());
     Pose preload = poseOf(CornerSequence.preloadSpot(alliance));
     Pose flowerStop = pedro(AutoField.WALL_FLOWER, alliance);
@@ -151,7 +147,7 @@ public abstract class CornerAuto extends BaseAuto<CornerSequence.Step, CornerSeq
       case SHOOT_GARDEN_SIDE: // Back (shooter) to the AUDIENCE Cell, from the spot in front of it
         line(here, AutoField.pedroShotSpot(alliance, CornerSequence.gardenCell(alliance)), true);
         break;
-      case DRIVE_TO_PARK: // Turning on the way, back to the park's Cell
+      case DRIVE_TO_PARK: // Turning square to our wall on the way
         line(here, poseOf(CornerSequence.parkSpot(alliance)), true);
         break;
       case PARKED:

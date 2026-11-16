@@ -8,6 +8,7 @@ import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.auto.CornerSequence.Step;
 import org.firstinspires.ftc.teamcode.field.Angles;
 import org.firstinspires.ftc.teamcode.field.Cell;
+import static org.junit.Assert.assertArrayEquals;
 import org.junit.Test;
 
 public class CornerSequenceTest {
@@ -87,7 +88,7 @@ public class CornerSequenceTest {
   }
 
   @Test
-  public void shootsOnlyStoppedAtASpotAndParked() {
+  public void shootsOnlyStoppedAtASpot() {
     assertFalse(seq.shoot(0.1));
     assertFalse("intake off on the way out", seq.intake());
     t = 0.5;
@@ -104,8 +105,8 @@ public class CornerSequenceTest {
     runTo(Step.PARKED, 30);
     t += DT;
     seq.update(t, true, false, false, false);
-    assertTrue("the leftovers, parked", seq.shoot(t));
-    assertTrue(seq.intake());
+    assertFalse("parked: square to our wall, facing no Cell", seq.shoot(t));
+    assertFalse(seq.intake());
     assertFalse(seq.armDown());
   }
 
@@ -134,15 +135,13 @@ public class CornerSequenceTest {
   }
 
   @Test
-  public void startsOutsideAndParksAtTheGardenEndOfTheLoadingZoneOffOurWall() {
+  public void startsOutsideTheLoadingZoneAndParksAtItsEdge() {
     double[] zone = AutoField.LOADING_ZONE;
     double[] c = CornerSequence.CORNER;
     assertTrue("start clear of the zone", c[0] + AutoField.ROBOT_HALF_M < zone[0]);
-    double[] p = CornerSequence.CORNER_PARK;
-    assertTrue("centre in the zone", p[0] > zone[0] && p[0] < zone[1]);
-    assertTrue("over its Garden-side line by under 10 cm", p[0] + AutoField.ROBOT_HALF_M - zone[1] < 0.10);
-    assertTrue(p[1] > zone[2] && p[1] < zone[3]);
-    assertEquals(AutoField.PARK_WALL_GAP_M, p[1] - AutoField.ROBOT_HALF_M + AutoField.FIELD_HALF_M, 1e-9);
+    for (Alliance a : Alliance.values()) {
+      assertArrayEquals(AutoField.edgePark(a), CornerSequence.parkSpot(a), 1e-12);
+    }
   }
 
   @Test
@@ -167,23 +166,6 @@ public class CornerSequenceTest {
     t += DT;
     seq.update(t, true, false, false, false); // Arrived: the volley's retry takes over
     assertFalse(seq.indexerPaused(s));
-  }
-
-  @Test
-  public void parksBackToScoringWithItsTurnedCornerOffOurWallAndInTheZone() {
-    double[] zone = AutoField.LOADING_ZONE;
-    for (Alliance a : Alliance.values()) {
-      assertEquals(Cell.SCORING, CornerSequence.parkCell(a));
-      double[] red = AutoField.forAlliance(CornerSequence.parkSpot(a), a);
-      assertEquals(CornerSequence.CORNER_PARK[0], red[0], 1e-9);
-      double reach = AutoField.ROBOT_HALF_M * (Math.abs(Math.sin(red[2])) + Math.abs(Math.cos(red[2])));
-      assertEquals(AutoField.PARK_WALL_GAP_M, red[1] - reach + AutoField.FIELD_HALF_M, 1e-6);
-      assertTrue("centre in the zone", red[1] > zone[2] && red[1] < zone[3]);
-      double[] spot = CornerSequence.parkSpot(a);
-      double[] aim = AutoField.autoAimPoint(a, Cell.SCORING);
-      double back = Math.atan2(spot[1] - aim[1], spot[0] - aim[0]);
-      assertEquals("shooter to SCORING", 0, Angles.normalize(spot[2] - back), 1e-3);
-    }
   }
 
   private static boolean inFlowerKeepOut(double x, double y) {

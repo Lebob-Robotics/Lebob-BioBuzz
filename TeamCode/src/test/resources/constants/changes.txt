@@ -1,0 +1,7 @@
+# Constants changed on purpose since the regionals code (main 28246ea), with their new values. See
+# ConstantsSnapshotTest. key = value, the key as the constant is named now (after moves.txt).
+
+# 16 Nov: the loading zone is 11 in. deep (game manual 9.3), not a whole tile
+org.firstinspires.ftc.teamcode.auto.AutoField.LOADING_ZONE = [-1.22, -0.61, -1.83, -1.5506000000000002]
+# 16 Nov: every auto parks beside the loading zone at its rear end, leaving the zone to a partner
+org.firstinspires.ftc.teamcode.auto.ShootAuto.PARK_LEFT_M = 1.34

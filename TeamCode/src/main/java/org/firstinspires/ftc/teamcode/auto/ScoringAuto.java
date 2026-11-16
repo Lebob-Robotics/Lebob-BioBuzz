@@ -208,13 +208,11 @@ public abstract class ScoringAuto extends BaseAuto<AutoSequence.Step, AutoSequen
       case RAISE_ARM_REAR:
         follower.hold(here);
         break;
-      case DRIVE_TO_PARK: // Back (shooter) to the Hive, to shoot what it holds once parked
-        shotSpotCell = AutoSequence.plannedCell(firstCell, AutoSequence.Step.PARKED);
-        line(here, AutoField.pedroParkSpot(alliance, shotSpotCell), true);
+      case DRIVE_TO_PARK: // Turning square to our wall on the way
+        line(here, pedro(AutoField.EDGE_PARK, alliance), true);
         break;
-      case PARKED: // Held off our wall, turned to the Cell, shooting until the end
-        shotSpotCell = AutoSequence.plannedCell(firstCell, step);
-        follower.hold(AutoField.pedroParkSpot(alliance, shotSpotCell));
+      case PARKED: // Held off our wall, square to it
+        follower.hold(pedro(AutoField.EDGE_PARK, alliance));
         break;
     }
   }
