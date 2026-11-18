@@ -19,8 +19,8 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
   private static final double FEED_POWER = 1.0;
   private static final double EJECT_POWER = 1.0;
   private static final double LAST_ROLLER_LOAD_POWER = 0.30;
-  /** IndexerServo3's direction: the Servo Direction Test shows whether + (not reversed) moves balls to the shooter. */
-  private static final boolean SERVO_3_REVERSED = true;
+  /** IndexerServo3's direction: in the Servo Direction Test, + (not reversed) pulls the balls in. */
+  private static final boolean SERVO_3_REVERSED = false;
 
   // ---- Hardware --------------------------------------------------------
   private final CrServo indexerServoL;
