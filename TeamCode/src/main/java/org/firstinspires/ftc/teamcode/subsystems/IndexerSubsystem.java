@@ -1,14 +1,16 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.hardware.CrServo;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Controls two independent indexer stages. IndexerServoL on Expansion Hub port 0 drives
- * the upstream rollers; IndexerServoR on Control Hub port 0 drives the last roller.
+ * Controls two independent indexer stages. IndexerServoL on Expansion Hub port 0 and IndexerServo3 on Control Hub
+ * port 5 drive the upstream rollers together; IndexerServoR on Control Hub port 0 drives the last roller.
  * Loading advances the last roller gently against the backward-held feeder until capacity.
  * Between shot feeds the upstream stage keeps indexing while the last roller holds still.
  */
@@ -17,10 +19,14 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
   private static final double FEED_POWER = 1.0;
   private static final double EJECT_POWER = 1.0;
   private static final double LAST_ROLLER_LOAD_POWER = 0.30;
+  /** IndexerServo3's direction: the Servo Direction Test shows whether + (not reversed) moves balls to the shooter. */
+  private static final boolean SERVO_3_REVERSED = true;
 
   // ---- Hardware --------------------------------------------------------
   private final CrServo indexerServoL;
   private final CrServo indexerServoR;
+  /** Null until the robot configuration has it. */
+  private final CrServo indexerServo3;
 
   public enum IndexerState {
     STOP, LOAD, STAGE, FEED, EJECT
@@ -31,6 +37,8 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
     // Independent stages, retaining their verified forward directions.
     indexerServoL = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_LEFT, true);
     indexerServoR = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_RIGHT, false);
+    indexerServo3 = OptionalHardware.find(hardwareMap, CRServo.class, HardwareNames.INDEXER_SERVO_3) == null
+        ? null : new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_3, SERVO_3_REVERSED);
 
     setIndexerState(IndexerState.STOP);
   }
@@ -68,6 +76,9 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
     double[] powers = powersFor(state, feedPower);
     indexerServoL.setPower(powers[0]);
     indexerServoR.setPower(powers[1]);
+    if (indexerServo3 != null) {
+      indexerServo3.setPower(powers[0]);
+    }
   }
 
   public IndexerState getIndexerState() {
@@ -80,5 +91,6 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
     Logger.recordOutput("Indexer/CommandedPower", indexerServoL.getCommandedPower());
     Logger.recordOutput("Indexer/UpstreamPower", indexerServoL.getCommandedPower());
     Logger.recordOutput("Indexer/LastRollerPower", indexerServoR.getCommandedPower());
+    Logger.recordOutput("Indexer/Servo3Power", indexerServo3 == null ? Double.NaN : indexerServo3.getCommandedPower());
   }
 }

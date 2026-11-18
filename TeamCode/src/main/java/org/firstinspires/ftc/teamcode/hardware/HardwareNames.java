@@ -21,6 +21,8 @@ public final class HardwareNames {
   public static final String INDEXER_SERVO_LEFT = "IndexerServoL";
   /** Last indexer roller, Control Hub servo port 0. */
   public static final String INDEXER_SERVO_RIGHT = "IndexerServoR";
+  /** More upstream indexer rollers, run with IndexerServoL, Control Hub servo port 5. */
+  public static final String INDEXER_SERVO_3 = "IndexerServo3";
   /** The feeder on the current robot, Control Hub servo port 1. */
   public static final String FEEDER_SERVO = "FeederServo";
   /** A paired feeder's names; FeederServoR is used ahead of FeederServo when the configuration has it. */

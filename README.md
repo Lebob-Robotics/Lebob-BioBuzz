@@ -24,6 +24,7 @@ our own code in `TeamCode`.
 | Odometry Calibration | Tuning | `opmodes/check/OdometryCalibration` | Measures the Pinpoint pod offsets by spinning in place, for `hardware/PinpointSettings` |
 | Indexer Intake Test | Test | `opmodes/check/IndexerIntakeTest` | Runs each indexer servo and the intake alone and shows what each draws |
 | Ramp Servo Check | Test | `opmodes/check/RampServoCheck` | Finds the Pollen ramp's stowed and deployed servo pulses |
+| Servo Direction Test | Test | `opmodes/check/ServoDirectionTest` | Runs any servo in the configuration either way (Y +, A -), with the indexer feeding on X, to find which way a new servo has to turn |
 
 Each class's comment lists its controls. The autos preselect Lebot Teleop.
 
@@ -44,6 +45,7 @@ The names in the Control Hub's robot configuration, from `hardware/HardwareNames
 | `HoodMotor` | Motor | | Hood |
 | `IndexerServoL` | Continuous rotation servo | Expansion Hub servo 0 | Upstream indexer rollers |
 | `IndexerServoR` | Continuous rotation servo | Control Hub servo 0 | Last indexer roller |
+| `IndexerServo3` | Continuous rotation servo | Control Hub servo 5 | More upstream indexer rollers, run with `IndexerServoL`; optional |
 | `FeederServo` | Continuous rotation servo | Control Hub servo 1 | Feeder |
 | `FeederServoR` | Continuous rotation servo | | Optional paired feeder; used ahead of `FeederServo` when present |
 | `FeederServoL` | Continuous rotation servo | | Optional paired feeder |

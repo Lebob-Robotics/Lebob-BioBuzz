@@ -114,7 +114,7 @@ final class RobotSim {
       hardwareMap.devices.put(motor, device(DcMotorEx.class, motor, true));
     }
     for (String servo : new String[] {HardwareNames.INDEXER_SERVO_LEFT, HardwareNames.INDEXER_SERVO_RIGHT,
-        HardwareNames.FEEDER_SERVO}) {
+        HardwareNames.INDEXER_SERVO_3, HardwareNames.FEEDER_SERVO}) {
       hardwareMap.devices.put(servo, device(CRServo.class, servo, true));
     }
     hardwareMap.devices.put(HardwareNames.RAMP_SERVO, device(Servo.class, HardwareNames.RAMP_SERVO, true));

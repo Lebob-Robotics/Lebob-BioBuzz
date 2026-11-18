@@ -122,6 +122,7 @@ Indexer/CommandedPower
 Indexer/LastRollerPower
 Indexer/Retry/FullPower
 Indexer/Retry/Paused
+Indexer/Servo3Power
 Indexer/State
 Indexer/UpstreamPower
 Intake/Amps
