@@ -21,6 +21,12 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
   private static final double LAST_ROLLER_LOAD_POWER = 0.30;
   /** IndexerServo3's direction: in the Servo Direction Test, + (not reversed) pulls the balls in. */
   private static final boolean SERVO_3_REVERSED = false;
+  /**
+   * The SDK's 600-2400 us may stop the Super Servo Plus short of its top speed (melonbotics publishes no range): balls
+   * wedged on the early rollers at "full" power (19 Nov Volley Tuning). 600/2400 puts back the SDK's default.
+   */
+  public static double PWM_LOWER_US = 500;
+  public static double PWM_UPPER_US = 2500;
 
   // ---- Hardware --------------------------------------------------------
   private final CrServo indexerServoL;
@@ -39,6 +45,9 @@ public class IndexerSubsystem extends StatePowerSubsystem<IndexerSubsystem.Index
     indexerServoR = new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_RIGHT, false);
     indexerServo3 = OptionalHardware.find(hardwareMap, CRServo.class, HardwareNames.INDEXER_SERVO_3) == null
         ? null : new CrServo(hardwareMap, HardwareNames.INDEXER_SERVO_3, SERVO_3_REVERSED);
+    for (CrServo s : new CrServo[] {indexerServoL, indexerServoR, indexerServo3}) {
+      if (s != null) { s.setPwmRange(PWM_LOWER_US, PWM_UPPER_US); }
+    }
 
     setIndexerState(IndexerState.STOP);
   }

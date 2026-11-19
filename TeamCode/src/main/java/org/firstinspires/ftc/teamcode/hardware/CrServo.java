@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.hardware;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PwmControl;
 
 public class CrServo {
   /** Power changes smaller than this are not re-sent to the hub. */
@@ -35,6 +36,13 @@ public class CrServo {
     }
     lastPower = power;
     servo.setPower(power);
+  }
+
+  /** Sets the pulse widths that power -1 and +1 send; the SDK's default is 600-2400 us. */
+  public void setPwmRange(double lowerUs, double upperUs) {
+    if (servo instanceof PwmControl) {
+      ((PwmControl) servo).setPwmRange(new PwmControl.PwmRange(lowerUs, upperUs));
+    }
   }
 
   public void stop() {
