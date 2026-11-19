@@ -113,6 +113,8 @@ final class FireControl {
     volleyFeedGate.setLeadBelowRpm(robot.autonomous ? VolleyConstants.AUTO_VOLLEY_LEAD_BELOW_RPM
         : VolleyConstants.VOLLEY_LEAD_BELOW_RPM);
     volleyFeedGate.setMinFeedSpacingS(VolleyConstants.VOLLEY_MIN_FEED_SPACING_S);
+    // The auto keeps its pulses: an empty pulse is how it knows the robot is empty
+    volleyFeedGate.setPulsing(robot.autonomous || VolleyConstants.VOLLEY_FEED_PULSES);
     boolean readyButWheels = aim != null && motionSteady && hoodReady && ShootOnTheMove.readyToFire(aim, true,
         hoodReady, pose.headingRad, velocity[2], robot.driveControl.turningRateRadPerSec,
         robot.closeMovingGateBypassed);

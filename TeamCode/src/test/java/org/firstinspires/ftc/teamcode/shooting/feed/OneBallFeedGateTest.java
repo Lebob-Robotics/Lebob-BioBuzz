@@ -57,6 +57,19 @@ public class OneBallFeedGateTest {
     assertTrue(gate.feedStarted());
   }
 
+  @Test public void withoutPulsesAFeedRunsUntilItsBallLeaves() {
+    // 19 Nov Volley Tuning: a slow ball sat 4-6 s through pulses and pauses
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.3, 0.2, 0.05, true);
+    gate.setPulsing(false);
+    assertTrue(gate.update(0.00, true, true, 3505, TARGET));
+    for (double t = 0.02; t < 5.0; t += 0.02) {
+      assertTrue("stopped at " + t, gate.update(t, true, true, 3505, TARGET));
+    }
+    assertFalse(gate.feederEmpty());
+    assertFalse(gate.update(5.0, true, false, 3300, TARGET)); // The ball left
+    assertTrue(gate.ballLeft());
+  }
+
   @Test public void feederEmptyAfterAPulseWithNoBallUntilOneLeaves() {
     OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.3, 0.35, 0);
     assertTrue(gate.update(0.00, true, true, 3505, TARGET));

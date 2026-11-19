@@ -75,7 +75,10 @@ public final class VolleyConstants {
   // The auto's: its last roller keeps loading between balls, so the next is already at the wheels and the lead's
   // 0.26 s isn't there. With a lead the 4th preload left too soon after the 3rd, wheels well under, and missed
   public static double AUTO_VOLLEY_LEAD_BELOW_RPM = 0;
-  // As AIMED_FEED_PULSE_S and AIMED_FEED_PAUSE_S, for a volley
+  // As AIMED_FEED_PULSE_S and AIMED_FEED_PAUSE_S, for a volley: in the auto, or with VOLLEY_FEED_PULSES. Otherwise
+  // a volley's feed runs until its ball leaves: the indexer pushes a slow ball through, where each pause stopped its
+  // last roller and ran the feeder back, and the ball sat there for 4-6 s
+  public static boolean VOLLEY_FEED_PULSES = false;
   public static double VOLLEY_FEED_PULSE_S = 0.30;
   public static double VOLLEY_FEED_PAUSE_S = 0.20;
   // Between balls of a volley the feeder runs backward, as before the first ball, so every ball starts from the

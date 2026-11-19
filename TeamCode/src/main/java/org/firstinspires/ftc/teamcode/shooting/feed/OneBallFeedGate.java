@@ -38,6 +38,7 @@ public final class OneBallFeedGate {
   public static double VOLLEY_DIP_RPM = 150;
   public static double VOLLEY_PEAK_DROP_RPM = 170;
   private double minFeedSpacingS = 0;
+  private boolean pulsing = true;
   private double lastFeedStartS = Double.NEGATIVE_INFINITY;
   private State state = State.WAITING;
   private double readySinceS = Double.NaN;
@@ -181,7 +182,8 @@ public final class OneBallFeedGate {
           leave(nowS, oneBall, rpm);
         } else if (shotLost || (!atSpeed && nowS - feedingSinceS >= stopUnreadyAfterS)) {
           state = State.WAITING;
-        } else if (nowS - feedingSinceS >= Math.min(PULSE_LIMIT_S, pulseS + emptyPulses * PULSE_GROWTH_S)) {
+        } else if (pulsing
+            && nowS - feedingSinceS >= Math.min(PULSE_LIMIT_S, pulseS + emptyPulses * PULSE_GROWTH_S)) {
           state = State.PAUSED;
           pausedSinceS = nowS;
         }
@@ -248,6 +250,14 @@ public final class OneBallFeedGate {
    */
   public void setPulseS(double pulseS) {
     this.pulseS = pulseS;
+  }
+
+  /**
+   * False: a feed runs until its ball leaves, with no pulse and pause. Each pause stopped the last roller and ran the
+   * feeder back, and a ball slow to come up sat there for 4-6 s of pulses (19 Nov Volley Tuning).
+   */
+  public void setPulsing(boolean pulsing) {
+    this.pulsing = pulsing;
   }
 
   /** For the log: WAITING, FEEDING, PAUSED, RECOVERING or DONE. */
