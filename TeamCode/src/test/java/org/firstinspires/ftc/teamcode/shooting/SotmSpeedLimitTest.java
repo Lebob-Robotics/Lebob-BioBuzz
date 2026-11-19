@@ -56,6 +56,22 @@ public class SotmSpeedLimitTest {
   }
 
   @Test
+  public void aSlowRobotIsNotHeldToItsOwnSpeed() {
+    // Log 200150: strafing at 1.0 m from the lip at 0.1 m/s, the stick asking 1.2 m/s
+    double k = SotmSpeedLimit.shareForStick(false, 1.0, 0, 1.2, 0, 0.1, 0.3, 1.2, false, 0.25);
+    assertEquals(SotmSpeedLimit.share(false, 1.0, 0, 1.2, 1.2, false, 0.25), k, 1e-9);
+    assertTrue(k * 1.2 > 0.8);
+  }
+
+  @Test
+  public void drivingInItSlowsBeforeTheSlowZone() {
+    double ahead = SotmSpeedLimit.shareForStick(false, 0.8, 1.0, 0, 0.8, 0, 0.3, 1.2, false, 0.25);
+    assertEquals(0.25, ahead * 1.0, 1e-9); // 0.24 m on at 0.8 m/s is inside 0.7 m
+    double still = SotmSpeedLimit.shareForStick(false, 0.8, 1.0, 0, 0, 0, 0.3, 1.2, false, 0.25);
+    assertTrue(still > ahead);
+  }
+
+  @Test
   public void outOfRangeTheDriverCanStillDriveIn() {
     assertEquals(1.0, SotmSpeedLimit.share(false, 10.0, 2.0, 0, 1.2, false, 0), 0);
     assertEquals(1.0, SotmSpeedLimit.share(false, 1.0, 0, 0, 1.2, false, 0), 0);

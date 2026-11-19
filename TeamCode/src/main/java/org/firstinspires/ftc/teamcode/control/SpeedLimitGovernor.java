@@ -36,12 +36,19 @@ public final class SpeedLimitGovernor {
       return release();
     }
     double errorMps = limitMps - speedMps;
+    double feedforward = startPower + limitMps * powerAsked / askedMps;
     if (!Double.isNaN(lastS)) {
       double dtS = Math.min(0.1, Math.max(0.0, nowS - lastS));
-      integral = Math.max(-MAX_INTEGRAL_POWER, Math.min(MAX_INTEGRAL_POWER, integral + ki * dtS * errorMps));
+      double unclamped = feedforward + kp * errorMps + integral;
+      // Not while the power is already at 0 or full and the error pushes it further: braking hard from fast wound it
+      // to -0.3, and the robot then sat still under its limit
+      boolean saturated = unclamped <= 0 && errorMps < 0 || unclamped >= powerAsked && errorMps > 0;
+      if (!saturated) {
+        integral = Math.max(-MAX_INTEGRAL_POWER, Math.min(MAX_INTEGRAL_POWER, integral + ki * dtS * errorMps));
+      }
     }
     lastS = nowS;
-    double power = startPower + limitMps * powerAsked / askedMps + kp * errorMps + integral;
+    double power = feedforward + kp * errorMps + integral;
     scale = Math.max(0.0, Math.min(1.0, power / powerAsked));
     return scale;
   }

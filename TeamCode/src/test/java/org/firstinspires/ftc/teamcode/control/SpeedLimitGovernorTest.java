@@ -47,6 +47,14 @@ public class SpeedLimitGovernorTest {
   }
 
   @Test
+  public void afterBrakingHardItComesBackUpToTheLimit() {
+    // Driving in at 1 m/s: the limit drops to 0.25 and the power goes to 0 while the robot slows
+    double[] r = run(1.0, 0.25, 2.0);
+    assertEquals(0.25, r[0], 0.02);
+    assertTrue("dipped to " + r[1], r[1] > 0.18);
+  }
+
+  @Test
   public void aFastLimitIsHeld() {
     assertEquals(0.9, run(0, 0.9, 3.0)[0], 0.03);
   }

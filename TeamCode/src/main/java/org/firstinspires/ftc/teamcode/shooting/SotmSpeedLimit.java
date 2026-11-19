@@ -60,6 +60,30 @@ public final class SotmSpeedLimit {
     return good;
   }
 
+  /**
+   * {@link #share} for the stick's velocity {toward, sideways}, checked here and where the robot will be lookaheadS on
+   * at its measured speed toward the Cell (driving in at 0.7 m/s it crossed into the slow zone close to the lip and
+   * took 0.2 s to get down to its speed), and also in the direction the robot really moves, which drifts off the
+   * stick's (at 1.14 m/s it had no safe shot while the stick's direction did). That direction is checked at the
+   * stick's speed: limited to its own measured speed, a slow robot could never speed up again and crept to a stop.
+   */
+  public static double shareForStick(boolean backward, double distanceToLipM, double towardMps, double sidewaysMps,
+      double measuredTowardMps, double measuredSidewaysMps, double lookaheadS, double marginScale,
+      boolean closeMovingAllowed, double minSpeedMps) {
+    double asked = Math.hypot(towardMps, sidewaysMps);
+    double dAhead = distanceToLipM - Math.max(0.0, measuredTowardMps) * lookaheadS;
+    double k = Math.min(share(backward, distanceToLipM, towardMps, sidewaysMps, marginScale, closeMovingAllowed,
+            minSpeedMps),
+        share(backward, dAhead, towardMps, sidewaysMps, marginScale, closeMovingAllowed, minSpeedMps));
+    double measured = Math.hypot(measuredTowardMps, measuredSidewaysMps);
+    if (measured > 0.05 && asked > 1e-6) {
+      double s = asked / measured;
+      k = Math.min(k, share(backward, distanceToLipM, measuredTowardMps * s, measuredSidewaysMps * s, marginScale,
+          closeMovingAllowed, minSpeedMps));
+    }
+    return k;
+  }
+
   private static boolean fits(boolean backward, double d, double toward, double sideways, double scale,
       boolean closeMovingAllowed) {
     return hasShot(backward, d, toward, sideways, closeMovingAllowed)
