@@ -23,6 +23,12 @@ public final class VolleyAutoTuner {
    */
   public static final int SOLID_GOOD = 4;
   /**
+   * And confirming also needs this share of the balls IN over the setting's last RECENT_VOLLEYS scored volleys:
+   * two 3-IN volleys after 2-IN ones confirmed spot 7 with half its balls in (19 Nov).
+   */
+  public static final int RECENT_VOLLEYS = 4;
+  public static final double MIN_RECENT_IN_SHARE = 0.75;
+  /**
    * A setting is dropped early when its first POOR_TRIALS scored volleys all had at most POOR_INS IN and at least
    * POOR_BOUNCES bounce-outs. Short/long misses don't count: those say the trim is off, which the search fixes.
    */
@@ -58,6 +64,8 @@ public final class VolleyAutoTuner {
   // Every scored volley's balls and single INs, per setting, for estimate()
   private final int[] scoredBalls = new int[PROFILES.length];
   private final int[] scoredIns = new int[PROFILES.length];
+  // Single INs of each setting's last RECENT_VOLLEYS scored volleys, newest last
+  private final List<List<Integer>> recentIns = new ArrayList<>();
   private int timeoutsHere;
   private int confirmed;
   private int confirmTries;
@@ -72,6 +80,7 @@ public final class VolleyAutoTuner {
 
   public VolleyAutoTuner() {
     for (int i = 0; i < models.length; i++) {
+      recentIns.add(new ArrayList<>());
       models[i] = new VolleyCalibration(PROFILES[i][0], false);
       headings[i] = new AimTrimSearch(1, 0.25);
     }
@@ -121,6 +130,9 @@ public final class VolleyAutoTuner {
     int scoredProfile = current().profile;
     scoredBalls[scoredProfile] += balls.size();
     scoredIns[scoredProfile] += ins;
+    List<Integer> recent = recentIns.get(scoredProfile);
+    recent.add(ins);
+    if (recent.size() > RECENT_VOLLEYS) { recent.remove(0); }
     if (done) {
       if (good) { streak++; status = "Recheck: " + streak + "/" + SOLID_GOOD + " good in a row"; return; }
       // A miss after confirming starts a fresh confirmation; this volley is its first attempt.
@@ -138,7 +150,7 @@ public final class VolleyAutoTuner {
     if (confirming) {
       confirmTries++;
       if (good) { confirmed++; }
-      if (confirmed >= CONFIRM_GOOD) {
+      if (confirmed >= CONFIRM_GOOD && recentShareOk(scoredProfile)) {
         done = true;
         status = "CONFIRMED: " + CONFIRM_GOOD + " of " + confirmTries + " volleys had " + GOOD_INS + "+ IN";
       } else if (confirmTries - confirmed > CONFIRM_ATTEMPTS - CONFIRM_GOOD) {
@@ -158,7 +170,8 @@ public final class VolleyAutoTuner {
     trialsHere++;
     goodHere = good ? goodHere + 1 : 0;
     if (ins <= POOR_INS && bounces >= POOR_BOUNCES) { poorHere++; }
-    if (goodHere >= CONFIRM_GOOD) {
+    boolean shareLow = goodHere >= CONFIRM_GOOD && !recentShareOk(firedProfile);
+    if (goodHere >= CONFIRM_GOOD && !shareLow) {
       // Good twice in a row at one setting confirms it. Searching on through all ten settings for a faster one
       // took 20+ volleys a spot
       // At the middle of the trims that scored, as estimate()
@@ -171,8 +184,10 @@ public final class VolleyAutoTuner {
       return;
     }
     boolean poor = trialsHere >= POOR_TRIALS && poorHere == trialsHere;
-    status = poor ? "Setting scored poorly: moving on" : good ? "Good: one more confirms it"
-        : "Automatically searching the next trial";
+    status = poor ? "Setting scored poorly: moving on"
+        : shareLow ? "Good, but " + Math.round(100 * recentShare(firedProfile)) + "% IN over its last "
+            + recentIns.get(firedProfile).size() + " volleys: needs " + Math.round(100 * MIN_RECENT_IN_SHARE) + "%"
+        : good ? "Good: one more confirms it" : "Automatically searching the next trial";
     if (trialsHere >= MAX_TRIALS_PER_PROFILE || poor) { advance(); }
   }
 
@@ -213,6 +228,19 @@ public final class VolleyAutoTuner {
       if (d <= bestDistance) { best = i; bestDistance = d; } // Ties go to the later setting
     }
     return best;
+  }
+
+  /** IN share of this setting's last {@link #RECENT_VOLLEYS} scored volleys; 0 with none. */
+  double recentShare(int p) {
+    List<Integer> recent = recentIns.get(p);
+    if (recent.isEmpty()) { return 0; }
+    int ins = 0;
+    for (int i : recent) { ins += i; }
+    return ins / (double) (recent.size() * VolleyTrial.BALLS);
+  }
+
+  private boolean recentShareOk(int p) {
+    return recentShare(p) >= MIN_RECENT_IN_SHARE - 1e-9;
   }
 
   public static int profileCount() { return PROFILES.length; }
@@ -324,6 +352,7 @@ public final class VolleyAutoTuner {
     confirming = done = false;
     best = null; bestIns = 0; bestSeconds = Double.POSITIVE_INFINITY;
     Arrays.fill(scoredBalls, 0); Arrays.fill(scoredIns, 0);
+    for (List<Integer> r : recentIns) { r.clear(); }
   }
 
   private static String field(String[] c, Map<String, Integer> cols, String key) {

@@ -97,10 +97,28 @@ public class VolleyAutoTunerTest {
     trial(t, "IN", 2);
     double secondGood = t.current().firstTrim;
     trial(t, "IN", 2);
+    assertFalse("the SHORT volley holds the last ones' share at 67%", t.done());
+    double thirdGood = t.current().firstTrim;
+    trial(t, "IN", 2);
     assertTrue(t.done());
-    double lo = Math.min(firstGood, secondGood), hi = Math.max(firstGood, secondGood);
+    double lo = Math.min(firstGood, Math.min(secondGood, thirdGood));
+    double hi = Math.max(firstGood, Math.max(secondGood, thirdGood));
     assertTrue(t.best().firstTrim >= lo - 1e-9 && t.best().firstTrim <= hi + 1e-9);
     assertEquals(t.calibration().firstSearch().centre(), t.best().firstTrim, 1e-9);
+  }
+
+  @Test public void twoGoodVolleysAfterHalfInOnesDontConfirm() {
+    // 19 Nov spot 7: 2, 2 then 3, 3 IN confirmed it with half the balls in
+    VolleyAutoTuner t = new VolleyAutoTuner();
+    trial(t, 2, "IN", "LONG", "IN", "LONG");
+    trial(t, 2, "IN", "BOUNCE", "IN", "BOUNCE");
+    trial(t, 2, "IN", "LONG", "IN", "IN");
+    trial(t, 2, "IN", "LONG", "IN", "IN");
+    assertFalse(t.done());
+    assertTrue(t.status(), t.status().contains("needs 75%"));
+    trial(t, "IN", 2);
+    trial(t, "IN", 2); // 3, 3, 4, 4 of the last four: 88%
+    assertTrue(t.done());
   }
 
   @Test public void aMissBetweenGoodVolleysStartsTheCountOver() {

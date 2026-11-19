@@ -127,11 +127,9 @@ final class BallPath {
     intakeOn = intakeWanted;
     robot.intake.setIntakeState(intakeCommand(full || fourthBall.fourCounted(), ejecting, intakeWanted));
     boolean feeding = enabledShot && (!aiming || ready);
-    // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
-    // the stack at full power against its stopped last roller, or the 4th ball is slow to come up
-    // The auto feeds at full power: its slowed last roller brought the next ball up too little
-    double indexerPower = robot.volleyMode && fire.volleyShot && feeding && !robot.autonomous
-        ? robot.volleyIndexerPower() : 1.0;
+    // Full power, a volley's feed too: its indexer share (0.75) left balls sitting 3-6 s with the feed running
+    // (19 Nov Volley Tuning), as the auto's slowed last roller brought the next ball up too little
+    double indexerPower = 1.0;
     IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
         robot.holdFire || fire.loadingShooter.blocksSpin(), full);
     indexerCommand = packedLoad(indexerCommand, stackPacked || (!robot.autonomous && DriverConstants.LOAD_LAST_ROLLER_COASTS));
