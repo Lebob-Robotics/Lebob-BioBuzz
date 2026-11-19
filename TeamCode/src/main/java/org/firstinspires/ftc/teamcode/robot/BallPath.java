@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
+import org.firstinspires.ftc.teamcode.shooting.feed.FeedShots;
 import org.firstinspires.ftc.teamcode.shooting.feed.FourthBall;
 import org.firstinspires.ftc.teamcode.shooting.feed.IndexerRetry;
 import org.firstinspires.ftc.teamcode.shooting.feed.StackPressure;
@@ -20,6 +21,7 @@ final class BallPath {
   boolean intakeOn = true;
   private boolean wasFull = false;
   private final FourthBall fourthBall = new FourthBall();
+  private final FeedShots feedShots = new FeedShots();
   private final WheelContact wheelContact = new WheelContact();
   private boolean wheelContactFull = false; // A loading ball touched the wheels: the stack is full
   private final StackPressure stackPressure = new StackPressure();
@@ -96,8 +98,11 @@ final class BallPath {
     Logger.recordOutput("Intake/StackPacked", stackPacked);
     Logger.recordOutput("Intake/Eased", intakeEased);
     robot.intake.setIntakePower(intakeEased ? StackPressure.PACKED_INTAKE_POWER : 1.0);
-    boolean fourBalls = fourthBall.update(nowS, robot.intake.isBeamBlocked(),
-        fire.feedGate.ballLeft() || (wheelTouch && beams), ejecting, loading && loadsBalls(robot.indexer.getIndexerState()));
+    boolean shot = feedShots.update(fire.feedGate.feedStarted(), fire.feedGate.ballLeft(),
+        "PAUSED".equals(fire.feedGate.stateName()));
+    Logger.recordOutput("Intake/BallShot", shot);
+    boolean fourBalls = fourthBall.update(nowS, robot.intake.isBeamBlocked(), shot || (wheelTouch && beams), ejecting,
+        loading && loadsBalls(robot.indexer.getIndexerState()));
     Logger.recordOutput("Intake/BeamBlocked", robot.intake.isBeamBlocked());
     Logger.recordOutput("Intake/FourBalls", fourBalls);
     Logger.recordOutput("Intake/BeamBlockedLoadingS", fourthBall.blockedLoadingS());

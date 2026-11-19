@@ -127,6 +127,7 @@ Indexer/State
 Indexer/UpstreamPower
 Intake/Amps
 Intake/BallCount
+Intake/BallShot
 Intake/BeamBlocked
 Intake/BeamBlockedLoadingS
 Intake/BeamBreakBottom
