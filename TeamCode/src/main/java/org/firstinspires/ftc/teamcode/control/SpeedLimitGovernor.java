@@ -1,39 +1,48 @@
 package org.firstinspires.ftc.teamcode.control;
 
 /**
- * The share of the driver's power to keep so the robot drives at a speed limit: starts from the power the limit
- * needs by the drive's top speeds plus a start power, then follows the measured speed to the limit. Scaling the power
- * by the speed's share alone left too little to roll the robot, and it stopped.
+ * The share of the driver's power to keep so the robot drives at a speed limit: the power the limit needs (what the
+ * wheels need to roll, plus the limit by the drive's speed per power), corrected by how far the measured speed is
+ * off it, now and over time. Scaling the power by the speed's share alone left too little to roll the robot, and it
+ * stopped; following the speed by the error's sum alone was slow to brake and swung the speed 0 to 0.6 m/s.
  */
 public final class SpeedLimitGovernor {
+  private static final double MAX_INTEGRAL_POWER = 0.3;
+
   private double scale = 1.0;
+  private double integral = 0.0;
   private double lastS = Double.NaN; // NaN while not limiting
 
-  /** Not limiting: full power next time, and the next limit starts afresh. */
+  /** Not limiting: full power, and the next limit starts afresh. */
   public double release() {
     scale = 1.0;
+    integral = 0.0;
     lastS = Double.NaN;
     return scale;
   }
 
   /**
-   * @param share       the limit as a share of the speed the power asks for, by the top speeds
    * @param powerAsked  the driver's power, 0 to 1
+   * @param askedMps    the speed that power gives by the drive's top speeds
    * @param limitMps    the speed limit
    * @param speedMps    the robot's measured speed
-   * @param startPower  added to the first loop's share of the power: about what the wheels need to roll
-   * @param gain        power share per second per m/s the speed is off the limit
+   * @param startPower  what the wheels need to roll at all
+   * @param kp          power per m/s the speed is over or under the limit
+   * @param ki          power per second per m/s
    */
-  public double update(double nowS, double share, double powerAsked, double limitMps, double speedMps,
-      double startPower, double gain) {
-    if (Double.isNaN(lastS)) {
-      scale = share + (powerAsked > 1e-6 ? startPower / powerAsked : 0.0);
-    } else {
-      double dtS = Math.min(0.1, Math.max(0.0, nowS - lastS));
-      scale += gain * dtS * (limitMps - speedMps);
+  public double update(double nowS, double powerAsked, double askedMps, double limitMps, double speedMps,
+      double startPower, double kp, double ki) {
+    if (!(powerAsked > 1e-6) || !(askedMps > 1e-6)) {
+      return release();
     }
-    scale = Math.max(0.0, Math.min(1.0, scale));
+    double errorMps = limitMps - speedMps;
+    if (!Double.isNaN(lastS)) {
+      double dtS = Math.min(0.1, Math.max(0.0, nowS - lastS));
+      integral = Math.max(-MAX_INTEGRAL_POWER, Math.min(MAX_INTEGRAL_POWER, integral + ki * dtS * errorMps));
+    }
     lastS = nowS;
+    double power = startPower + limitMps * powerAsked / askedMps + kp * errorMps + integral;
+    scale = Math.max(0.0, Math.min(1.0, power / powerAsked));
     return scale;
   }
 

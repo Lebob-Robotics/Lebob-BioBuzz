@@ -19,10 +19,12 @@ public final class DriverConstants {
   public static double AIM_SPEED_LIMIT_MARGIN = 1.2;
   // But never slower than this: backing out past the table's far end has no shot at any speed
   public static double AIM_SPEED_LIMIT_MIN_MPS = 0.25;
-  // The limit's power follows the measured speed to it: this much power per second per m/s off, starting from the
-  // speed's power by the top speeds plus AIM_SPEED_LIMIT_START_POWER (about what the wheels need to start rolling)
-  public static double AIM_SPEED_LIMIT_GAIN = 3.0;
+  // The limit's power: AIM_SPEED_LIMIT_START_POWER (what the wheels need to roll; log 194737 fits speed = 1.5 m/s per
+  // power over 0.15) plus the limit's power by the top speeds, plus KP power per m/s the speed is off the limit and KI
+  // per second of it
   public static double AIM_SPEED_LIMIT_START_POWER = 0.15;
+  public static double AIM_SPEED_LIMIT_KP = 0.5;
+  public static double AIM_SPEED_LIMIT_KI = 1.5;
   // Speed at full power, for the limit: Pedro's measured top speeds (65 and 48 in/s)
   public static double DRIVE_FORWARD_MPS_AT_FULL_POWER = 1.65;
   public static double DRIVE_STRAFE_MPS_AT_FULL_POWER = 1.22;

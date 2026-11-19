@@ -305,9 +305,9 @@ final class DriveControl {
     }
     double limitMps = share * askedMps;
     double scale = share >= 1.0 ? speedLimit.release()
-        : speedLimit.update(robot.clock.seconds(), share, Math.hypot(translation[0], translation[1]), limitMps,
+        : speedLimit.update(robot.clock.seconds(), Math.hypot(translation[0], translation[1]), askedMps, limitMps,
             Math.hypot(robot.lastVelocity[0], robot.lastVelocity[1]), DriverConstants.AIM_SPEED_LIMIT_START_POWER,
-            DriverConstants.AIM_SPEED_LIMIT_GAIN);
+            DriverConstants.AIM_SPEED_LIMIT_KP, DriverConstants.AIM_SPEED_LIMIT_KI);
     Logger.recordOutput("Drive/AimSpeedShare", share);
     Logger.recordOutput("Drive/AimSpeedLimitMps", share >= 1.0 ? -1.0 : limitMps);
     Logger.recordOutput("Drive/AimSpeedScale", scale);
