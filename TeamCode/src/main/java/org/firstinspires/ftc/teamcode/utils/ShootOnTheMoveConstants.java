@@ -40,8 +40,9 @@ public final class ShootOnTheMoveConstants {
   // ---- Cameras (CAD lens centres: both face backward and 35 deg out, tilted up 41.1 deg) ----
   public static final CameraMount LEFT_CAMERA = new CameraMount(
       -0.1624, 0.0377, 0.2093, Math.PI - Math.toRadians(35), Math.toRadians(41.09));
+  // Connected camera is mounted upside down: roll must be undone before pitch and yaw.
   public static final CameraMount RIGHT_CAMERA = new CameraMount(
-      -0.1457, -0.0625, 0.2093, -(Math.PI - Math.toRadians(35)), Math.toRadians(41.09));
+      -0.1457, -0.0625, 0.2093, -(Math.PI - Math.toRadians(35)), Math.toRadians(41.09), Math.PI);
 
   // ---- Field frame -----------------------------------------------------
   // The odometry heading is in the field frame (0 along +x, anticlockwise positive), so the camera can

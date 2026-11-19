@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
@@ -10,25 +12,23 @@ import org.psilynx.psikit.core.Logger;
 /**
  * Subsystem to control the shooter hood.
  *
- * <p>The hood is driven by a goBILDA 435 RPM Yellow Jacket. A REV Through Bore
- * encoder (8192 ticks/rev) sits on the motor-side pinion of the 10:1 hood
- * reduction and is plugged into the
- * HoodMotor's encoder port, so {@link GobildaMotor#getPosition()} reads the
- * hood directly.
+ * <p>The 435 RPM Yellow Jacket output drives the pinion 1:1. Its own encoder remains on
+ * Expansion Hub encoder port 0 (HoodMotor). The REV Through Bore on the pinion is connected
+ * to Control Hub encoder port 0 (IntakeMotor); the intake is deliberately power-controlled.
+ * Hood position comes from the REV's 8192 counts/rev through the 10:1 hood reduction.
+ * The motor's approximately 384.5 counts/rev are an independent movement cross-check.
  *
- * <p>We run our own P loop in {@link #periodic()} instead of RUN_TO_POSITION.
- * The built-in position PID is tuned for the motor's own encoder, not an
- * 8192 CPR one, so it would behave badly with this feedback.
+ * <p>The Hub's velocity loop uses the native motor encoder. Our slower outer position loop
+ * uses the REV to approach the target without driving the mechanism at full power past it.
+ * The Hub can apply full electrical power as needed to maintain the requested motor speed.
  *
  * <p>The gains and geometry are live in Panels. Ticks are always derived from the current geometry,
  * so editing it takes effect immediately.
  */
 @Configurable
 public class HoodSubsystem extends SubsystemBase {
-  /** Proportional gain, in motor power per encoder tick of error. */
-  public static double KP = 0.002; // TODO tune on robot
-  /** Largest power the P loop may command. */
-  public static double MAX_POWER = 0.6;
+  /** Outer position gain: native motor velocity request fraction per REV tick of error. */
+  public static double KP = 0.00008;
   /** Errors smaller than this (ticks) are treated as on target. */
   public static int DEADBAND_TICKS = 30;
   /** Soft limit at the lower hard stop, where the encoder is zeroed. */
@@ -43,6 +43,13 @@ public class HoodSubsystem extends SubsystemBase {
   public static double TICKS_PER_DEG = 8192.0 * 10.0 / 360.0;
 
   private final GobildaMotor hoodMotor;
+  private final DcMotorEx revEncoderInput;
+  private final HoodEncoderGuard encoderGuard = new HoodEncoderGuard();
+  private final ElapsedTime clock = new ElapsedTime();
+  private int revZero;
+  private int motorZero;
+  private boolean zeroed;
+  private int lastMotorPosition;
 
   /** Hood positions, each given as a launch angle and held in Through Bore ticks. */
   public enum HoodPreset {
@@ -75,10 +82,11 @@ public class HoodSubsystem extends SubsystemBase {
   private boolean lastAtSoftLimit;
 
   public HoodSubsystem(HardwareMap hardwareMap) {
-    // reversed=false is a guess: verify on robot that positive power raises the hood.
-    // Power control, not speed control: the encoder port carries the 8192 count Through Bore, so the
-    // hub's speed control would misread the speed. Power is still capped at MAX_OUTPUT.
-    hoodMotor = GobildaMotor.powerControlled(hardwareMap, "HoodMotor", false, true);
+    // The motor port now carries its native encoder; the independent REV is on IntakeMotor.
+    // Native encoder speed regulation supplies starting torque without an open-loop power kick.
+    hoodMotor = GobildaMotor.speedControlled(hardwareMap, "HoodMotor", false, true);
+    // Read only: never change IntakeMotor's power, mode, direction or encoder zero here.
+    revEncoderInput = hardwareMap.get(DcMotorEx.class, "IntakeMotor");
   }
 
   /**
@@ -86,7 +94,14 @@ public class HoodSubsystem extends SubsystemBase {
    * be resting at its lower hard stop when this runs.
    */
   public void init() {
-    hoodMotor.resetEncoder();
+    hoodMotor.stop();
+    revZero = revEncoderInput.getCurrentPosition();
+    motorZero = hoodMotor.getPosition();
+    encoderGuard.reset();
+    clock.reset();
+    directMode = false;
+    preset = HoodPreset.STOW;
+    zeroed = true;
   }
 
   @Override
@@ -101,34 +116,55 @@ public class HoodSubsystem extends SubsystemBase {
     Logger.recordOutput("Hood/AngleDeg", ticksToAngle(lastPosition));
     Logger.recordOutput("Hood/ErrorTicks", lastError);
     Logger.recordOutput("Hood/CommandedPower", hoodMotor.getCommandedPower());
+    Logger.recordOutput("Hood/ControlMode", "NATIVE_VELOCITY_WITH_REV_POSITION");
+    Logger.recordOutput("Hood/VelocityTargetTicksPerSec", hoodMotor.getCommandedPower() * hoodMotor.getMaxVelocity());
+    Logger.recordOutput("Hood/VelocityActualTicksPerSec", hoodMotor.getVelocity());
     Logger.recordOutput("Hood/AtTarget", lastAtTarget);
     Logger.recordOutput("Hood/AtSoftLimit", lastAtSoftLimit);
+    Logger.recordOutput("Hood/EncoderGuard/Tripped", encoderGuard.isTripped());
+    Logger.recordOutput("Hood/EncoderGuard/MotorTicks", lastMotorPosition);
+    Logger.recordOutput("Hood/EncoderGuard/RevTicks", lastPosition);
+    Logger.recordOutput("Hood/EncoderGuard/DifferencePinionTurns", Math.abs(
+        lastPosition / HoodEncoderGuard.REV_COUNTS_PER_TURN
+        - lastMotorPosition / HoodEncoderGuard.MOTOR_COUNTS_PER_TURN));
   }
 
   /** One step of the P loop. Also stores what it saw so periodic() can log it. */
   private void runPositionLoop() {
-    int position = hoodMotor.getPosition();
+    int position = getPosition();
+    lastMotorPosition = hoodMotor.getPosition() - motorZero;
     int error = getTarget() - position;
     lastPosition = position;
     lastError = error;
-    lastAtTarget = Math.abs(error) < DEADBAND_TICKS;
+    lastAtTarget = zeroed && !encoderGuard.isTripped() && Math.abs(error) < DEADBAND_TICKS;
     lastAtSoftLimit = false;
+
+    if (!zeroed || encoderGuard.isTripped() || encoderGuard.update(clock.seconds(), position,
+        lastMotorPosition, Math.abs(hoodMotor.getCommandedPower()) > 0.0001)) {
+      lastAtTarget = false;
+      hoodMotor.cut(); // A fault must remove drive power, not hold zero speed with the Hub PID.
+      return;
+    }
 
     if (lastAtTarget) {
       hoodMotor.stop();
       return;
     }
 
-    double power = Math.max(-MAX_POWER, Math.min(MAX_POWER, KP * error));
+    double velocityRequest = positionVelocityRequest(error);
 
     // Soft limits: never drive further down below MIN_TICKS or up above maxTicks().
-    if ((power < 0 && position <= MIN_TICKS) || (power > 0 && position >= maxTicks())) {
+    if ((velocityRequest < 0 && position <= MIN_TICKS) || (velocityRequest > 0 && position >= maxTicks())) {
       lastAtSoftLimit = true;
-      hoodMotor.stop();
+      hoodMotor.cut();
       return;
     }
 
-    hoodMotor.setPower(power);
+    hoodMotor.setPower(velocityRequest); // RUN_USING_ENCODER: this requests speed, not raw electrical power.
+  }
+
+  static double positionVelocityRequest(int errorTicks) {
+    return Math.max(-1, Math.min(1, KP * errorTicks));
   }
 
   public void setPreset(HoodPreset newPreset) {
@@ -172,9 +208,26 @@ public class HoodSubsystem extends SubsystemBase {
     return ZERO_ANGLE_DEG - ticks / TICKS_PER_DEG;
   }
 
-  /** Hood position in Through Bore ticks. */
+  /** Hood position from the REV encoder input, relative to the lower-stop zero. */
   public int getPosition() {
-    return hoodMotor.getPosition();
+    return revEncoderInput.getCurrentPosition() - revZero;
+  }
+
+  /** Physical hood lift above the lower stop, independent of the launch-angle convention. */
+  public double getLiftDegrees() {
+    return getPosition() / TICKS_PER_DEG;
+  }
+
+  public double getTargetLiftDegrees() {
+    return getTarget() / TICKS_PER_DEG;
+  }
+
+  public void setTargetLiftDegrees(double liftDegrees) {
+    setTargetTicks((int) Math.round(liftDegrees * TICKS_PER_DEG));
+  }
+
+  public boolean hasEncoderFault() {
+    return encoderGuard.isTripped();
   }
 
   /** Target position in ticks: the direct override if set, else the preset's. */
@@ -184,11 +237,11 @@ public class HoodSubsystem extends SubsystemBase {
 
   /** True when the hood is within the deadband of its target. */
   public boolean atTarget() {
-    return Math.abs(getTarget() - getPosition()) < DEADBAND_TICKS;
+    return zeroed && !hasEncoderFault() && Math.abs(getTarget() - getPosition()) < DEADBAND_TICKS;
   }
 
   /** True when the hood is within toleranceTicks of its target. */
   public boolean atTarget(int toleranceTicks) {
-    return Math.abs(getTarget() - getPosition()) <= toleranceTicks;
+    return zeroed && !hasEncoderFault() && Math.abs(getTarget() - getPosition()) <= toleranceTicks;
   }
 }
