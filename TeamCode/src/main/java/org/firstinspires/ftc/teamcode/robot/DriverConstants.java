@@ -27,4 +27,7 @@ public final class DriverConstants {
   // LT loading stops the last roller (before the feeder): at 0.3 it pushed the front ball past the held-back feeder
   // into the wheels with 3 balls in. The auto keeps it running to bring its next ball up. Shots run it as before
   public static boolean LOAD_LAST_ROLLER_COASTS = true;
+  // RT or RB let go mid-feed keeps feeding until that feed ends, at most this long, so a ball halfway through the
+  // feeder goes out and is counted. Let go between feeds, they stop at once
+  public static double SHOT_RELEASE_HOLD_S = 0.25;
 }

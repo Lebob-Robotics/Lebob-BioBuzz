@@ -97,6 +97,10 @@ public class Robot {
   public final VisionSubsystem vision;
 
   public static final double TRIGGER_PRESSED = 0.5;
+  private final ShotHoldover rtHoldover = new ShotHoldover();
+  private final ShotHoldover rbHoldover = new ShotHoldover();
+  private boolean rtHeld = false; // RT as the robot acts on it: held over a feed in progress
+  private boolean rbHeld = false; // The same for RB
   boolean holdFire;
   boolean spinOnlyOnFire;
   final ElapsedTime clock = new ElapsedTime();
@@ -299,6 +303,11 @@ public class Robot {
     times.start = System.nanoTime();
     watchdog.feed();
     refreshDriver();
+    boolean feedRunning = fireControl.feedGate != null && "FEEDING".equals(fireControl.feedGate.stateName());
+    rtHeld = rtHoldover.update(clock.seconds(), driver.right_trigger > TRIGGER_PRESSED, feedRunning);
+    rbHeld = rbHoldover.update(clock.seconds(), driver.right_bumper, feedRunning);
+    Logger.recordOutput("Driver/RtHeld", rtHeld);
+    Logger.recordOutput("Driver/RbHeld", rbHeld);
     Pose2D pinpointPose = odometry.getPose(); // PsiKit has already updated the Pinpoint this loop
     FieldPose pose = new FieldPose(pinpointPose.getX(DistanceUnit.METER), pinpointPose.getY(DistanceUnit.METER),
         pinpointPose.getHeading(AngleUnit.RADIANS));
@@ -330,11 +339,11 @@ public class Robot {
     }
 
     double fireTrigger = fireTrigger();
-    boolean holdShot = driver.right_bumper && !tuningMode;
-    volleyRequested = volleyRequested(driver.right_bumper || scriptedVolley, fireTrigger, forceAim,
+    boolean holdShot = rbHeld && !tuningMode;
+    volleyRequested = volleyRequested(rbHeld || scriptedVolley, fireTrigger, forceAim,
         tuningMode, VolleyConstants.VOLLEY_ON_RT);
     boolean shootAll = fireTrigger > TRIGGER_PRESSED || holdShot || scriptedVolley;
-    boolean oneBallHeld = driver.right_bumper || scriptedOneBall;
+    boolean oneBallHeld = rbHeld || scriptedOneBall;
     boolean oneBall = tuningMode && oneBallHeld && fireTrigger <= TRIGGER_PRESSED; // RT wins
     boolean aiming = shootAll || oneBallHeld || forceAim;
     driveControl.updateHoldAnchor(holdShot, pose);
@@ -393,9 +402,12 @@ public class Robot {
     times.record();
   }
 
+  /** RB as the robot acts on it: held over a feed in progress. */
+  boolean rbHeld() { return rbHeld; }
+
   boolean shotRequested() {
     double fireTrigger = fireTrigger();
-    boolean requested = fireTrigger > TRIGGER_PRESSED || driver.right_bumper
+    boolean requested = fireTrigger > TRIGGER_PRESSED || rbHeld
         || scriptedOneBall || scriptedVolley || (driver.y && buttonsFree());
     return requested && !(tuningMode && fireTrigger <= TRIGGER_PRESSED
         && fireControl.feedGate != null && fireControl.feedGate.ballsLeft() > 0);
@@ -537,7 +549,7 @@ public class Robot {
 
   /** RT, or held fully down while the auto shoots: shotRequested reads it too, or the indexer never stages or feeds. */
   private double fireTrigger() {
-    return loadTrigger(driver.right_trigger, autoShoot);
+    return loadTrigger(rtHeld ? Math.max(1.0, driver.right_trigger) : driver.right_trigger, autoShoot);
   }
 
   /** Powers for the Scoring Auto's drive, from this loop's pose (vision corrected) and field-frame velocity. */

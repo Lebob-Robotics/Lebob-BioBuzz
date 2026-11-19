@@ -40,7 +40,7 @@ final class RobotLogger {
     Logger.recordOutput("SOTM/HeadingTrimDeg", robot.headingTrimDeg);
     Logger.recordOutput("SOTM/TableRpmOffset", robot.shooterControl.tableRpmOffset(aim));
     Logger.recordOutput("SOTM/HoodLiftTrimDeg", robot.hoodLiftTrimDeg);
-    Logger.recordOutput("Robot/OneBallShot", robot.tuningMode && (robot.driver.right_bumper || robot.scriptedOneBall)
+    Logger.recordOutput("Robot/OneBallShot", robot.tuningMode && (robot.rbHeld() || robot.scriptedOneBall)
         && robot.driver.right_trigger <= Robot.TRIGGER_PRESSED);
     Logger.recordOutput("Robot/TuningLive", robot.tuningLive);
     Logger.recordOutput("Robot/PositionHold", robot.driveControl.isHolding());

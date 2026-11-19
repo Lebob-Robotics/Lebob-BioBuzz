@@ -60,7 +60,9 @@ Drive/PositionHold/Returning
 Drive/WheelPowers
 Driver/LeftStick
 Driver/PanelsLeftStick
+Driver/RbHeld
 Driver/RightStickX
+Driver/RtHeld
 Driver/Triggers
 Feeder/BallLeft
 Feeder/CommandedPower
