@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.shooting.feed;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -7,18 +8,24 @@ import org.junit.Test;
 
 public class FeedShotsTest {
   private final FeedShots s = new FeedShots();
+  private double t = 0;
+
+  private boolean step(boolean feedStarted, boolean ballLeft, boolean paused, boolean feeding) {
+    t += 0.05;
+    return s.update(t, feedStarted, ballLeft, paused, feeding);
+  }
 
   @Test public void aDipIsOneBall() {
-    assertFalse(s.update(true, false, false));
-    assertTrue(s.update(false, true, false));
-    assertFalse(s.update(false, false, false));
+    assertFalse(step(true, false, false, true));
+    assertTrue(step(false, true, false, false));
+    assertFalse(step(false, false, false, false));
   }
 
   @Test public void aPulseRunningOutIsOneBall() {
-    s.update(true, false, false);
-    assertTrue(s.update(false, false, true));
-    assertFalse(s.update(false, false, true));
-    assertFalse(s.update(false, true, false)); // Its dip, late: the same ball
+    step(true, false, false, true);
+    assertTrue(step(false, false, true, false));
+    assertFalse(step(false, false, true, false));
+    assertFalse(step(false, true, false, false)); // Its dip, late: the same ball
   }
 
   @Test public void eachFeedCountsOnce() {
@@ -26,20 +33,28 @@ public class FeedShotsTest {
     // 19 Nov 173943: dip, pulse out, dip, pulse out
     boolean[][] feeds = {{true, false}, {false, true}, {true, false}, {false, true}};
     for (boolean[] f : feeds) {
-      s.update(true, false, false);
-      if (s.update(false, f[0], f[1])) { n++; }
-      s.update(false, false, false);
+      step(true, false, false, true);
+      if (step(false, f[0], f[1], false)) { n++; }
+      step(false, false, false, false);
     }
-    assertTrue("counted " + n, n == 4);
+    assertEquals(4, n);
   }
 
   @Test public void nothingWithoutAFeed() {
-    assertFalse(s.update(false, true, false));
-    assertFalse(s.update(false, false, true));
+    assertFalse(step(false, true, false, false));
+    assertFalse(step(false, false, true, false));
   }
 
-  @Test public void releasedMidFeedIsNotCounted() {
-    s.update(true, false, false);
-    assertFalse(s.update(false, false, false));
+  @Test public void aFeedLetGoAfterItsBallReachedTheWheelsCounts() {
+    step(true, false, false, true);
+    for (int i = 0; i < 4; i++) {
+      assertFalse(step(false, false, false, true));
+    }
+    assertTrue(step(false, false, false, false)); // 19 Nov 174626: let go 0.27 s in, as the ball left
+  }
+
+  @Test public void aFeedLetGoAtOnceIsNotCounted() {
+    step(true, false, false, true);
+    assertFalse(step(false, false, false, false));
   }
 }

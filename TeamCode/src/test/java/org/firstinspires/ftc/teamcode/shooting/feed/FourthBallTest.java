@@ -62,8 +62,12 @@ public class FourthBallTest {
   }
 
   @Test public void shotsTakeBallsOffAndLoadingRefillsToFour() {
-    step(true, false, false, false);
-    assertTrue(step(true, false, false, false)); // 4 preloaded
+    loadFor(false, 0.2);
+    pass();
+    pass();
+    pass();
+    loadFor(true, 0.04);
+    assertEquals(4, b.count());
     shot();
     assertEquals(3, b.count());
     run(true, false, 1.0); // The old 4th ball still in the beam, not loading
@@ -87,15 +91,15 @@ public class FourthBallTest {
     assertTrue(loadFor(true, FourthBall.STUCK_S + 0.1)); // Preloads the count never saw
   }
 
-  @Test public void startingClearIsEmpty() {
-    step(false, false, false, false);
-    run(true, false, 0.5);
+  @Test public void aBallInTheBeamAtTheStartIsNotFour() {
+    run(true, false, 0.5); // 19 Nov 174626: one of only 2 balls
     assertEquals(0, b.count());
+    assertTrue(loadFor(true, FourthBall.STUCK_S + 0.1)); // 4 preloads: LT can't move the 4th
   }
 
   @Test public void ejectEmptiesTheCount() {
-    step(true, false, false, false);
-    step(true, false, false, false);
+    loadFor(false, 0.2);
+    pass();
     step(true, false, true, false);
     assertEquals(0, b.count());
     assertFalse(step(false, false, false, false));

@@ -7,6 +7,8 @@ import com.bylazar.configurables.annotations.Configurable;
  * when it holds 4. The path is one ball wide, so every ball loaded passes through the beam: each one entering it
  * while LT loads adds one, each shot takes one off, and the 4th to enter stops loading where it sits in the beam.
  * Entries count only while loading: between shots the backward-held feeder rolls the last ball back into the beam.
+ * The count starts at 0: a ball in the beam at the start was one of only 2 (19 Nov 174626). Preloads the count never
+ * saw are caught by {@link #STUCK_S} once LT pushes them.
  */
 @Configurable
 public class FourthBall {
@@ -19,18 +21,15 @@ public class FourthBall {
    */
   public static double CLEAR_S = 0.15;
   /**
-   * Backup for a miscount: a ball held in the beam this long while loading is the 4th, stopped by a full stack. A
-   * slow ball passing took 0.48 s.
+   * Backup for a miscount: a ball held in the beam this long while loading is the 4th, stopped by a full stack. Balls
+   * passing took up to 0.55 s.
    */
   public static double STUCK_S = 1.0;
-  /** Loops the beam must read blocked at the start to count a full load of preloads. */
-  public static int PRELOAD_LOOPS = 2;
 
   private int count = 0;
   private boolean inBeam = false; // A ball is in the beam: blocked, or clear for less than CLEAR_S
   private int blockedLoops = 0;
   private double clearSinceS = Double.NaN;
-  private boolean starting = true;
   private double blockedLoadingS = 0;
   private double lastS = Double.NaN;
 
@@ -60,12 +59,7 @@ public class FourthBall {
         inBeam = false;
       }
     }
-    if (starting) {
-      if (entered) {
-        count = CAPACITY; // In the beam from the start: the stack ahead is full
-      }
-      starting = blocked && !entered && !loading && !ballLeft && !ejecting;
-    } else if (entered && loading && !ejecting) {
+    if (entered && loading && !ejecting) {
       count = Math.min(CAPACITY, count + 1);
     }
     if (ejecting) {

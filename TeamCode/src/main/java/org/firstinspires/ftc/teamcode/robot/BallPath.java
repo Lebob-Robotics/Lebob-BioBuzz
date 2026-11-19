@@ -98,8 +98,8 @@ final class BallPath {
     Logger.recordOutput("Intake/StackPacked", stackPacked);
     Logger.recordOutput("Intake/Eased", intakeEased);
     robot.intake.setIntakePower(intakeEased ? StackPressure.PACKED_INTAKE_POWER : 1.0);
-    boolean shot = feedShots.update(fire.feedGate.feedStarted(), fire.feedGate.ballLeft(),
-        "PAUSED".equals(fire.feedGate.stateName()));
+    boolean shot = feedShots.update(nowS, fire.feedGate.feedStarted(), fire.feedGate.ballLeft(),
+        "PAUSED".equals(fire.feedGate.stateName()), "FEEDING".equals(fire.feedGate.stateName()));
     Logger.recordOutput("Intake/BallShot", shot);
     boolean fourBalls = fourthBall.update(nowS, robot.intake.isBeamBlocked(), shot || (wheelTouch && beams), ejecting,
         loading && loadsBalls(robot.indexer.getIndexerState()));
