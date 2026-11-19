@@ -34,6 +34,14 @@ final class BallPath {
     this.robot = robot;
   }
 
+  /** Share: the driver says the robot is empty, so LT loads again. */
+  void resetBallCount() {
+    fourthBall.reset();
+    wheelContactFull = false;
+  }
+
+  int ballCount() { return fourthBall.count(); }
+
   /** True while the stack is full: a 4th ball in the beam, or a loading ball touched the wheels. */
   boolean stackFull() { return wasFull; }
 

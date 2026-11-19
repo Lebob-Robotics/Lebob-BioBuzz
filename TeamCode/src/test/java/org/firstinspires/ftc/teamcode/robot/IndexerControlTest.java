@@ -76,6 +76,14 @@ public class IndexerControlTest {
     assertEquals(IndexerState.EJECT, BallPath.packedLoad(IndexerState.EJECT, true));
   }
 
+  @Test public void holdingLtWhileFullRumblesInPulses() {
+    assertEquals(0, DriverPad.fullRumbleMs(false, true, 5, Double.NaN));
+    assertEquals(0, DriverPad.fullRumbleMs(true, false, 5, Double.NaN));
+    assertEquals(DriverPad.FULL_RUMBLE_MS, DriverPad.fullRumbleMs(true, true, 5, Double.NaN));
+    assertEquals(0, DriverPad.fullRumbleMs(true, true, 5.2, 5));
+    assertEquals(DriverPad.FULL_RUMBLE_MS, DriverPad.fullRumbleMs(true, true, 5 + DriverPad.FULL_RUMBLE_EVERY_S, 5));
+  }
+
   @Test public void trippedIntakeRumblesUntilReset() {
     assertEquals(0, DriverPad.intakeLockRumbleMs(false, 5, Double.NaN));
     assertEquals(DriverPad.INTAKE_LOCK_RUMBLE_MS, DriverPad.intakeLockRumbleMs(true, 5, Double.NaN)); // Trips

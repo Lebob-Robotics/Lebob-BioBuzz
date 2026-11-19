@@ -10,12 +10,17 @@ final class DriverPad {
   static final int INTAKE_LOCK_RUMBLE_MS = 1000;
   static final int INTAKE_LOCK_REMIND_MS = 400;
   static final double INTAKE_LOCK_REMIND_S = 2.0;
+  /** While LT is held with 4 balls in, a short rumble this often: loading has stopped, not jammed. */
+  static final int FULL_RUMBLE_MS = 200;
+  static final double FULL_RUMBLE_EVERY_S = 0.5;
 
   private final Robot robot;
   private boolean wasDpadUp = false;
   private boolean wasDpadDown = false;
   private boolean wasRampButton = false;
   private boolean wasLeftBumper = false;
+  private boolean wasShare = false;
+  private double fullRumbleS = Double.NaN; // Last rumble for LT held while full; NaN while not
   private boolean shooterWasStalled = false;
   private double intakeLockRumbleS = Double.NaN; // Last rumble for a tripped intake; NaN while it runs
 
@@ -40,7 +45,7 @@ final class DriverPad {
 
   /**
    * Left bumper deliberately rearms a cooled intake overload trip. D-pad up toggles the Pollen ramp when not aiming
-   * (aiming, it trims the RPM).
+   * (aiming, it trims the RPM). Share sets the ball count to 0 if it is wrong (in INIT it swaps the driver's side).
    */
   void updateToggles(boolean aiming) {
     if (robot.tuningMode) {
@@ -50,6 +55,11 @@ final class DriverPad {
       robot.intake.resetOverload();
     }
     wasLeftBumper = robot.driver.left_bumper;
+    if (justPressed(robot.driver.back, wasShare)) {
+      robot.ballPath.resetBallCount();
+      robot.physicalDriver.rumble(100);
+    }
+    wasShare = robot.driver.back;
     if (rampToggled(robot.driver.dpad_up, wasRampButton, aiming, robot.buttonsFree())) {
       robot.ramp.toggle();
     }
@@ -75,12 +85,31 @@ final class DriverPad {
     return nowS - lastRumbleS >= INTAKE_LOCK_REMIND_S ? INTAKE_LOCK_REMIND_MS : 0;
   }
 
+  /** How long to rumble this loop while LT is held with the robot full: a short pulse every FULL_RUMBLE_EVERY_S. */
+  static int fullRumbleMs(boolean full, boolean ltHeld, double nowS, double lastRumbleS) {
+    if (!full || !ltHeld) {
+      return 0;
+    }
+    return Double.isNaN(lastRumbleS) || nowS - lastRumbleS >= FULL_RUMBLE_EVERY_S ? FULL_RUMBLE_MS : 0;
+  }
+
   private static boolean justPressed(boolean pressedNow, boolean pressedLastLoop) {
     return pressedNow && !pressedLastLoop;
   }
 
-  /** Rumbles once when the shooter's stall guard trips, and for a tripped intake until LB rearms it. */
+  /**
+   * Rumbles once when the shooter's stall guard trips, for a tripped intake until LB rearms it, and in pulses while LT
+   * is held with 4 balls in.
+   */
   void updateRumbles() {
+    boolean ltHeld = robot.driver.left_trigger > Robot.TRIGGER_PRESSED && !robot.tuningMode;
+    int fullMs = fullRumbleMs(robot.isStackFull(), ltHeld, robot.clock.seconds(), fullRumbleS);
+    if (fullMs > 0) {
+      robot.physicalDriver.rumble(fullMs);
+      fullRumbleS = robot.clock.seconds();
+    } else if (!robot.isStackFull() || !ltHeld) {
+      fullRumbleS = Double.NaN;
+    }
     if (robot.shooter.isStalled() && !shooterWasStalled) {
       robot.physicalDriver.rumble(STALL_RUMBLE_MS);
     }

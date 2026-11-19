@@ -244,6 +244,8 @@ final class RobotTelemetry {
     if (deadCameras != null) {
       telemetry.addLine("! CAM " + deadCameras + " DEAD: fewer tag fixes");
     }
+    telemetry.addData("Balls", robot.isStackFull() ? "4  FULL: LT won't load  (Share if wrong: sets 0)"
+        : robot.ballPath.ballCount() + "  (Share if wrong: sets 0)");
     telemetry.addData("Ramp", !robot.ramp.isPresent() ? "! no " + HardwareNames.RAMP_SERVO + " in the configuration"
         : robot.ramp.isDeployed() ? "DEPLOYED  (D-pad up stows)" : "stowed  (D-pad up deploys)");
   }

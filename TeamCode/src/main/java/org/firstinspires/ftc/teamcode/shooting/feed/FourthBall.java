@@ -74,6 +74,12 @@ public class FourthBall {
     return count >= CAPACITY;
   }
 
+  /** The driver says the robot is empty (Share): the count was wrong. */
+  public void reset() {
+    count = 0;
+    blockedLoadingS = 0;
+  }
+
   /** Balls the robot holds, as counted. */
   public int count() {
     return count;

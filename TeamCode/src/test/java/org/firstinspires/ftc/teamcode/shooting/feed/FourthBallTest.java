@@ -105,6 +105,18 @@ public class FourthBallTest {
     assertFalse(step(false, false, false, false));
   }
 
+  @Test public void resetSetsTheCountToZero() {
+    loadFor(false, 0.2);
+    pass();
+    pass();
+    pass();
+    loadFor(true, 0.04);
+    assertEquals(4, b.count());
+    b.reset();
+    assertFalse(loadFor(true, 0.1)); // The ball still in the beam doesn't count again
+    assertEquals(0, b.count());
+  }
+
   @Test public void shotsNeverCountBelowZero() {
     shot();
     shot();
