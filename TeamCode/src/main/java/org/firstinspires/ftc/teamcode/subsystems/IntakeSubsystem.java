@@ -6,30 +6,23 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 import org.firstinspires.ftc.teamcode.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.hardware.OptionalHardware;
 import org.firstinspires.ftc.teamcode.control.MotorReversalGuard;
 
 import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 /**
- * Subsystem to control the intake motor and read the two beam breaks, which
- * both look at the last (4th) tunnel position and so tell when we are full.
+ * Subsystem to control the intake motor and read the two beam breaks, which both look at the last (4th) tunnel
+ * position. {@code FourthBall} turns them into "4 balls in". Either beam missing from the configuration reads clear.
  */
 public class IntakeSubsystem extends SubsystemBase {
-  /**
-   * The beam breaks are no longer used: never read, so they need not be in the configuration. The robot tells
-   * it is full by a loading ball touching the flywheels instead ({@code WheelContact}).
-   */
-  private static final boolean BEAM_BREAKS_WIRED = false;
   /**
    * The intake runs in power mode: under speed control it surged on and off, because
    * its encoder was unplugged or counted the wrong way. Set true once the log shows its velocity
    * rising when it intakes.
    */
   private static final boolean INTAKE_USES_ENCODER = false;
-  /** Loops a beam reading must hold before "full" changes, to ignore flicker. */
-  private static final int FULL_DEBOUNCE_LOOPS = 3; // TODO tune on robot
-
   private final GobildaMotor intakeMotor;
   private final DigitalChannel beamBreakTop;
   private final DigitalChannel beamBreakBottom;
@@ -50,21 +43,20 @@ public class IntakeSubsystem extends SubsystemBase {
   private final IntakeOverloadGuard overload = new IntakeOverloadGuard();
   private double amps;
 
-  private boolean full = false;
-  private int fullChangeLoops = 0;
-
   public IntakeSubsystem(HardwareMap hardwareMap) {
     intakeMotor = INTAKE_USES_ENCODER
         ? GobildaMotor.speedControlled(hardwareMap, HardwareNames.INTAKE_MOTOR, false, false)
         : GobildaMotor.powerControlled(hardwareMap, HardwareNames.INTAKE_MOTOR, false, false);
-    beamBreakTop = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, HardwareNames.BEAM_BREAK_TOP) : null;
-    beamBreakBottom = BEAM_BREAKS_WIRED ? createBeamBreak(hardwareMap, HardwareNames.BEAM_BREAK_BOTTOM) : null;
+    beamBreakTop = createBeamBreak(hardwareMap, HardwareNames.BEAM_BREAK_TOP);
+    beamBreakBottom = createBeamBreak(hardwareMap, HardwareNames.BEAM_BREAK_BOTTOM);
     setIntakeState(IntakeState.STOP);
   }
 
   private static DigitalChannel createBeamBreak(HardwareMap hardwareMap, String name) {
-    DigitalChannel beamBreak = hardwareMap.get(DigitalChannel.class, name);
-    beamBreak.setMode(DigitalChannel.Mode.INPUT);
+    DigitalChannel beamBreak = OptionalHardware.find(hardwareMap, DigitalChannel.class, name);
+    if (beamBreak != null) {
+      beamBreak.setMode(DigitalChannel.Mode.INPUT);
+    }
     return beamBreak;
   }
 
@@ -151,39 +143,29 @@ public class IntakeSubsystem extends SubsystemBase {
 
   /** True when a ball blocks the top beam. The receiver output goes low when broken. */
   public boolean isTopBroken() {
-    return BEAM_BREAKS_WIRED && !beamBreakTop.getState();
+    return beamBreakTop != null && !beamBreakTop.getState();
   }
 
   /** True when a ball blocks the bottom beam. The receiver output goes low when broken. */
   public boolean isBottomBroken() {
-    return BEAM_BREAKS_WIRED && !beamBreakBottom.getState();
+    return beamBreakBottom != null && !beamBreakBottom.getState();
   }
 
   /**
-   * True when a ball sits in the last tunnel position, so the tunnel holds 4.
-   * Either beam counts, so a blocked sensor errs toward rejecting extra balls.
+   * True when a ball sits in the last tunnel position. Either beam counts, so a blocked sensor errs toward
+   * stopping loading.
    */
-  public boolean isFull() {
-    return full;
+  public boolean isBeamBlocked() {
+    return isTopBroken() || isBottomBroken();
   }
 
-  /** Debounces the beams into {@link #full}. Counted in loops so replay matches. */
-  private void updateFull() {
-    boolean raw = isTopBroken() || isBottomBroken();
-    if (raw == full) {
-      fullChangeLoops = 0;
-      return;
-    }
-    fullChangeLoops++;
-    if (fullChangeLoops >= FULL_DEBOUNCE_LOOPS) {
-      full = raw;
-      fullChangeLoops = 0;
-    }
+  /** How many beam breaks the configuration has: 0 leaves "4 balls in" to the flywheel touch alone. */
+  public int beamsConfigured() {
+    return (beamBreakTop != null ? 1 : 0) + (beamBreakBottom != null ? 1 : 0);
   }
 
   @Override
   public void periodic() {
-    updateFull();
     checkOverload();
     doIntakeState();
     Logger.recordOutput("Intake/State", getIntakeState());
@@ -195,7 +177,7 @@ public class IntakeSubsystem extends SubsystemBase {
     Logger.recordOutput("Intake/Overload/CooldownSeconds", overload.cooldownRemaining(clock.seconds()));
     Logger.recordOutput("Intake/BeamBreakTop", isTopBroken());
     Logger.recordOutput("Intake/BeamBreakBottom", isBottomBroken());
-    Logger.recordOutput("Intake/Full", full);
+    Logger.recordOutput("Intake/BeamsConfigured", beamsConfigured());
     Logger.recordOutput("Intake/Velocity", intakeMotor.getVelocity());
     Logger.recordOutput("Intake/CommandedPower", intakeMotor.getCommandedPower());
     Logger.recordOutput("Intake/Amps", amps);

@@ -354,8 +354,6 @@ org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard.RECOVERY_PER_SECON
 org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard.RESET_BUDGET = 5.0
 org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard.SEVERE_AMPS = 8.0
 org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard.SEVERE_SECONDS = 0.25
-org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.BEAM_BREAKS_WIRED = false
-org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.FULL_DEBOUNCE_LOOPS = 3
 org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.INTAKE_USES_ENCODER = false
 org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.REVERSE_COAST_S = 0.3
 org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem.REVERSE_RAMP_S = 0.2

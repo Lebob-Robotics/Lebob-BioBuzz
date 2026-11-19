@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
+import org.firstinspires.ftc.teamcode.shooting.feed.FourthBall;
 import org.firstinspires.ftc.teamcode.shooting.feed.IndexerRetry;
 import org.firstinspires.ftc.teamcode.shooting.feed.StackPressure;
 import org.firstinspires.ftc.teamcode.shooting.feed.WheelContact;
@@ -18,6 +19,7 @@ final class BallPath {
   private final IndexerRetry indexerRetry = new IndexerRetry();
   boolean intakeOn = true;
   private boolean wasFull = false;
+  private final FourthBall fourthBall = new FourthBall();
   private final WheelContact wheelContact = new WheelContact();
   private boolean wheelContactFull = false; // A loading ball touched the wheels: the stack is full
   private final StackPressure stackPressure = new StackPressure();
@@ -30,7 +32,7 @@ final class BallPath {
     this.robot = robot;
   }
 
-  /** True while the stack is full: the intake's sensor, or a loading ball touched the wheels. */
+  /** True while the stack is full: a 4th ball in the beam, or a loading ball touched the wheels. */
   boolean stackFull() { return wasFull; }
 
   /**
@@ -90,7 +92,12 @@ final class BallPath {
     Logger.recordOutput("Intake/StackPacked", stackPacked);
     Logger.recordOutput("Intake/Eased", intakeEased);
     robot.intake.setIntakePower(intakeEased ? StackPressure.PACKED_INTAKE_POWER : 1.0);
-    boolean full = robot.intake.isFull() || wheelContactFull;
+    boolean fourBalls = fourthBall.update(nowS, robot.intake.isBeamBlocked(), fire.feedGate.ballLeft(), ejecting,
+        loading && robot.indexer.getIndexerState() == IndexerState.LOAD);
+    Logger.recordOutput("Intake/BeamBlocked", robot.intake.isBeamBlocked());
+    Logger.recordOutput("Intake/FourBalls", fourBalls);
+    boolean full = fourBalls || wheelContactFull;
+    Logger.recordOutput("Intake/Full", full);
     if (full && !wasFull) {
       robot.physicalDriver.rumble(300);
     }
@@ -99,7 +106,7 @@ final class BallPath {
     boolean intakeWanted = robot.tuningMode || !DriverConstants.INTAKE_ONLY_ON_LT
         || loadTrigger > Robot.TRIGGER_PRESSED;
     intakeOn = intakeWanted;
-    robot.intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted, robot.autoIntake));
+    robot.intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted));
     boolean feeding = enabledShot && (!aiming || ready);
     // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
     // the stack at full power against its stopped last roller, or the 4th ball is slow to come up
@@ -181,11 +188,11 @@ final class BallPath {
   }
 
   /**
-   * The intake as LT, B and a full stack ask; in the auto a full stack stops it instead of ejecting, so the Pollen
-   * already taken stays in for the next volley.
+   * The intake as LT, B and a full stack ask. A full stack stops it rather than ejecting: a 5th ball just waits at
+   * the mouth, and in the auto the Pollen already taken stays in for the next volley.
    */
-  static IntakeState intakeCommand(boolean full, boolean ejecting, boolean wanted, boolean auto) {
-    if (auto && full && !ejecting) {
+  static IntakeState intakeCommand(boolean full, boolean ejecting, boolean wanted) {
+    if (full && !ejecting) {
       return IntakeState.STOP;
     }
     return IntakeSubsystem.automaticState(full, ejecting, wanted);

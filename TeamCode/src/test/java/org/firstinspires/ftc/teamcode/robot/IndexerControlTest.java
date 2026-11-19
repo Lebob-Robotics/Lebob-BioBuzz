@@ -104,12 +104,11 @@ public class IndexerControlTest {
     assertTrue("Running free", BallPath.intakeEaseClears(false, 0, true));
   }
 
-  @Test public void theAutoStopsItsIntakeWhenFullInsteadOfEjecting() {
-    IntakeState auto = BallPath.intakeCommand(true, false, true, true);
-    assertEquals(IntakeState.STOP, auto);
-    assertEquals(IntakeState.EJECT, BallPath.intakeCommand(true, false, true, false));
-    assertEquals(IntakeState.EJECT, BallPath.intakeCommand(true, true, true, true));
-    assertEquals(IntakeState.INTAKE, BallPath.intakeCommand(false, false, true, true));
+  @Test public void aFullStackStopsTheIntakeInsteadOfEjecting() {
+    assertEquals(IntakeState.STOP, BallPath.intakeCommand(true, false, true));
+    assertEquals(IntakeState.STOP, BallPath.intakeCommand(true, false, false));
+    assertEquals(IntakeState.EJECT, BallPath.intakeCommand(true, true, true)); // B still ejects
+    assertEquals(IntakeState.INTAKE, BallPath.intakeCommand(false, false, true));
   }
 
   @Test

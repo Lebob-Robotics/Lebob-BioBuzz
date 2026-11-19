@@ -296,7 +296,7 @@ final class RobotTelemetry {
     telemetry.addData("Indexer", robot.indexer.getIndexerState());
     telemetry.addData("Feeder", robot.feeder.getFeederState());
     telemetry.addData("Beam T/B", robot.intake.isTopBroken() + " / " + robot.intake.isBottomBroken()
-        + (robot.intake.isFull() ? "  FULL" : ""));
+        + (robot.isStackFull() ? "  FULL" : ""));
     telemetry.addData("Camera L", robot.vision.describe(VisionSubsystem.Side.LEFT));
     telemetry.addData("Camera R", robot.vision.describe(VisionSubsystem.Side.RIGHT));
   }

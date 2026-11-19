@@ -410,7 +410,7 @@ public class VolleyTuning extends Main {
         : "HOODED (L3: backward B1-B4)");
     telemetry.addData("POSITION", position.status());
     telemetry.addData("Spot", "%s of %d; intake %s; full %s", VolleySpotDrive.name(selectedSpot), VolleySpotDrive.SPOTS,
-        robot().getDriver().left_trigger > Robot.TRIGGER_PRESSED ? "loading (LT)" : "automatic", robot().intake.isFull());
+        robot().getDriver().left_trigger > Robot.TRIGGER_PRESSED ? "loading (LT)" : "automatic", robot().isStackFull());
     if (trial.active()) {
       telemetry.addData("VOLLEY", "Hold RB: %d/4 detected; release or Circle cancels", trial.balls());
     } else if (cal.marksPending()) {

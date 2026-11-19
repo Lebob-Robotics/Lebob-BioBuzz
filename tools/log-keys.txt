@@ -126,10 +126,13 @@ Indexer/Servo3Power
 Indexer/State
 Indexer/UpstreamPower
 Intake/Amps
+Intake/BeamBlocked
 Intake/BeamBreakBottom
 Intake/BeamBreakTop
+Intake/BeamsConfigured
 Intake/CommandedPower
 Intake/Eased
+Intake/FourBalls
 Intake/Full
 Intake/Overload/CooldownSeconds
 Intake/Overload/LoadBudget
