@@ -40,6 +40,8 @@ Auto/Step
 Auto/TimeS
 Auto/VolleySpot
 Auto/WaitingForOdometry
+Drive/AimSpeedLimitMps
+Drive/AimSpeedScale
 Drive/AimSpeedShare
 Drive/Cmd/Forward
 Drive/Cmd/Right

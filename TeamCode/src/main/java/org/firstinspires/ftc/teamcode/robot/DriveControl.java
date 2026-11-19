@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.robot;
 
 import java.util.ArrayDeque;
 import org.firstinspires.ftc.teamcode.control.HeadingHold;
+import org.firstinspires.ftc.teamcode.control.SpeedLimitGovernor;
 import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.robot.Robot.AutoDriver;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
@@ -53,6 +54,7 @@ final class DriveControl {
   private double[] committedTranslation; // Held while a fed ball is still in the shooter; null otherwise
   private double committedSinceS;
   private double[] lastTranslation = {0.0, 0.0};
+  private final SpeedLimitGovernor speedLimit = new SpeedLimitGovernor();
   AutoDriver autoDriver = null;
   /** A heading the auto wants held with the heading lock instead of Pedro's turn, or NaN. */
   double autoHeadingRad = Double.NaN;
@@ -225,6 +227,8 @@ final class DriveControl {
         : holdTranslation(pose, HOLD_MIN_POWER);
     if (aiming && aim != null && !isHolding() && driveOverride == null && !robot.tuningMode) {
       translation = limitToShot(translation, aim, pose);
+    } else {
+      speedLimit.release();
     }
     // The drive runs before this loop's feed check, so lastTranslation is what was commanded as the feed started
     double nowS = robot.clock.seconds();
@@ -270,11 +274,14 @@ final class DriveControl {
   }
 
   /**
-   * The driver's {forward, right} power scaled down, keeping its direction, so the speed it drives at has a shot from
-   * here ({@link SotmSpeedLimit}). The speed is the power's, by the drive's top speeds forward and sideways.
+   * The driver's {forward, right} power scaled down, keeping its direction, so the robot drives no faster than a speed
+   * with a shot from here ({@link SotmSpeedLimit}). The power's speed, by the drive's top speeds, gives the speed asked
+   * for; the scale then follows the measured speed to that limit, since low powers barely move the robot (the wheels'
+   * friction, and the heading lock sharing the power) and scaling the power alone stopped it.
    */
   private double[] limitToShot(double[] translation, Aim aim, FieldPose pose) {
     double share = 1.0;
+    double askedMps = 0.0;
     if (DriverConstants.AIM_SPEED_LIMIT_ON && (translation[0] != 0.0 || translation[1] != 0.0)) {
       double f = robot.driverForwardHeadingRad();
       double fieldX = translation[0] * Math.cos(f) + translation[1] * Math.sin(f);
@@ -284,6 +291,7 @@ final class DriveControl {
       double left = (-fieldX * Math.sin(h) + fieldY * Math.cos(h)) * DriverConstants.DRIVE_STRAFE_MPS_AT_FULL_POWER;
       double vx = ahead * Math.cos(h) - left * Math.sin(h);
       double vy = ahead * Math.sin(h) + left * Math.cos(h);
+      askedMps = Math.hypot(vx, vy);
       double toCellX = robot.aimSelector.aimCellX - pose.xM;
       double toCellY = robot.aimSelector.aimCellY - pose.yM;
       double toCell = Math.hypot(toCellX, toCellY);
@@ -295,8 +303,15 @@ final class DriveControl {
             DriverConstants.AIM_SPEED_LIMIT_MIN_MPS);
       }
     }
+    double limitMps = share * askedMps;
+    double scale = share >= 1.0 ? speedLimit.release()
+        : speedLimit.update(robot.clock.seconds(), share, Math.hypot(translation[0], translation[1]), limitMps,
+            Math.hypot(robot.lastVelocity[0], robot.lastVelocity[1]), DriverConstants.AIM_SPEED_LIMIT_START_POWER,
+            DriverConstants.AIM_SPEED_LIMIT_GAIN);
     Logger.recordOutput("Drive/AimSpeedShare", share);
-    return share >= 1.0 ? translation : new double[] {translation[0] * share, translation[1] * share};
+    Logger.recordOutput("Drive/AimSpeedLimitMps", share >= 1.0 ? -1.0 : limitMps);
+    Logger.recordOutput("Drive/AimSpeedScale", scale);
+    return scale >= 1.0 ? translation : new double[] {translation[0] * scale, translation[1] * scale};
   }
 
   /**
