@@ -17,53 +17,70 @@ public class FourthBallTest {
 
   private boolean load(boolean blocked) { return step(blocked, false, false, true); }
 
-  @Test public void aBallArrivingInTheBeamIsFour() {
-    assertFalse(load(false));
-    assertFalse(load(true)); // One loop could be flicker
-    assertTrue(load(true));
-    assertTrue(step(false, false, false, false)); // Stays four with the beam clear and nothing shot
+  private boolean loadFor(boolean blocked, double s) {
+    boolean four = false;
+    for (int i = 0; i < Math.round(s / DT); i++) {
+      four = load(blocked);
+    }
+    return four;
+  }
+
+  @Test public void aBallPassingThroughTheBeamIsNotTheFourth() {
+    assertFalse(loadFor(false, 0.5));
+    assertFalse(loadFor(true, 0.2)); // 20 Nov 172041: a ball crossed in 0.08 s at full power
+    assertFalse(loadFor(false, 0.5));
+    assertFalse(loadFor(true, 0.2));
+    assertFalse(loadFor(false, 0.1));
+  }
+
+  @Test public void aBallStoppedInTheBeamWhileLoadingIsTheFourth() {
+    load(false);
+    assertTrue(loadFor(true, FourthBall.ARRIVE_S + 0.05));
+    assertTrue(step(true, false, false, false)); // Stays four with LT let go
+    assertTrue(step(false, false, false, false)); // And with the beam clear: nothing was shot
+  }
+
+  @Test public void aBallSittingInTheBeamWithoutLoadingIsNotCounted() {
+    load(false); // A ball stopped mid-pass when LT was let go
+    for (int i = 0; i < 100; i++) {
+      assertFalse(step(true, false, false, false));
+    }
+    assertFalse(loadFor(true, 0.1)); // LT again: it moves on
+    assertFalse(loadFor(false, 0.2));
   }
 
   @Test public void aShotAllowsLoadingWithTheOldFourthBallStillInTheBeam() {
-    load(true);
-    assertTrue(load(true));
+    load(false);
+    loadFor(true, FourthBall.ARRIVE_S + 0.05);
     assertFalse(step(true, true, false, false));
-    assertFalse(load(true)); // Still the old ball: no gap yet
-    assertFalse(load(false)); // It moved up
-    assertFalse(load(true));
-    assertTrue(load(true)); // A new 4th ball
+    assertFalse(loadFor(true, 0.1)); // The old 4th ball moving up
+    assertFalse(loadFor(false, 0.3));
+    assertTrue(loadFor(true, FourthBall.ARRIVE_S + 0.05)); // A new 4th ball
   }
 
-  @Test public void aBallStuckInTheBeamWhileLoadingIsFourAgain() {
-    load(true);
-    load(true);
+  @Test public void aBallThatStaysInTheBeamAfterAShotIsTheFourthAgain() {
+    load(false);
+    loadFor(true, FourthBall.ARRIVE_S + 0.05);
     step(true, true, false, false);
-    boolean four = false;
-    for (int i = 0; i < (int) Math.ceil(FourthBall.STILL_BLOCKED_LOADING_S / DT) + 1; i++) {
-      four = load(true);
-    }
-    assertTrue(four);
+    assertTrue(loadFor(true, FourthBall.ARRIVE_S + 0.05));
   }
 
-  @Test public void notLoadingDoesNotTimeOut() {
-    load(true);
-    load(true);
-    step(true, true, false, false);
-    for (int i = 0; i < 200; i++) {
-      assertFalse(step(true, false, false, false));
-    }
+  @Test public void startingWithABallInTheBeamIsTheFourthPreload() {
+    step(true, false, false, false);
+    assertTrue(step(true, false, false, false));
+    assertTrue(loadFor(true, 0.1));
+  }
+
+  @Test public void startingClearThenBlockedIsNotAPreload() {
+    step(false, false, false, false);
+    step(true, false, false, false);
+    assertFalse(step(true, false, false, false));
   }
 
   @Test public void ejectFollowsTheBeam() {
-    load(true);
-    load(true);
-    assertTrue(step(true, false, true, false));
+    load(false);
+    loadFor(true, FourthBall.ARRIVE_S + 0.05);
     assertFalse(step(false, false, true, false));
     assertFalse(step(false, false, false, false));
-  }
-
-  @Test public void startingWithABallInTheBeamIsFour() {
-    step(true, false, false, false);
-    assertTrue(step(true, false, false, false));
   }
 }

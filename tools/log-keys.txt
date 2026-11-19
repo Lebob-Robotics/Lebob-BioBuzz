@@ -127,6 +127,7 @@ Indexer/State
 Indexer/UpstreamPower
 Intake/Amps
 Intake/BeamBlocked
+Intake/BeamBlockedLoadingS
 Intake/BeamBreakBottom
 Intake/BeamBreakTop
 Intake/BeamsConfigured

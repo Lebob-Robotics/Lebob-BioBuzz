@@ -96,6 +96,7 @@ final class BallPath {
         loading && robot.indexer.getIndexerState() == IndexerState.LOAD);
     Logger.recordOutput("Intake/BeamBlocked", robot.intake.isBeamBlocked());
     Logger.recordOutput("Intake/FourBalls", fourBalls);
+    Logger.recordOutput("Intake/BeamBlockedLoadingS", fourthBall.blockedLoadingS());
     boolean full = fourBalls || wheelContactFull;
     Logger.recordOutput("Intake/Full", full);
     if (full && !wasFull) {
