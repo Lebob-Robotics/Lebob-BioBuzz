@@ -25,6 +25,7 @@ import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem.ShooterState;
 import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
+import org.firstinspires.ftc.teamcode.utils.ManualFeedGate;
 import org.firstinspires.ftc.teamcode.utils.CellSighting;
 import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.utils.PoseHistory;
@@ -119,8 +120,7 @@ public class Robot {
   private double aimRpm = ShootOnTheMoveConstants.AIM_START_RPM; // Last valid shot's, so a brief invalid shot doesn't drop it
   private double rpmTrim = 0; // Driver's, for the rest of the match
   private boolean flywheelSpinUpOn = false;
-  private boolean manualFeeding = false; // RT held without the Cell: set once the wheels are up to speed, until RT is released
-  private double manualHeldSinceS = Double.NaN; // When RT was pressed without the Cell
+  private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private boolean intakeOn = false;
   private boolean wasFull = false;
   private boolean wasDpadUp = false;
@@ -239,21 +239,8 @@ public class Robot {
     // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
     // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
     // time they dip would pull the next ball back out.
-    if (!aiming || aim != null || shooter.isStalled()) {
-      manualFeeding = false;
-      manualHeldSinceS = Double.NaN;
-    } else {
-      double nowS = clock.seconds();
-      if (Double.isNaN(manualHeldSinceS)) {
-        manualHeldSinceS = nowS;
-      }
-      if (!manualFeeding
-          && (shooter.getRpm() >= ShooterTuning.MANUAL_SPEED_SHARE * shooter.getTargetRpm()
-              || nowS - manualHeldSinceS >= ShooterTuning.MANUAL_MAX_SPINUP_S)) {
-        manualFeeding = true;
-      }
-    }
-    boolean manualReady = manualFeeding;
+    boolean manualReady = manualFeedGate.update(aiming && aim == null && !shooter.isStalled(),
+        shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE));
     updateIntakeFeederIndexer(aiming, ready || manualReady);
 
     CommandScheduler.getInstance().run(); // After the states are set, so subsystems act on and log this loop's

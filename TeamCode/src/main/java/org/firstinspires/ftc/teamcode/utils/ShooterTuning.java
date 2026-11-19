@@ -15,11 +15,8 @@ public final class ShooterTuning {
    * the shot table (or the top speed with no Cell in view) and Y runs open loop at full power.
    * Clamped to the top speed the motors can reach.
    */
-  public static double RPM_OVERRIDE = 0;
+  public static double RPM_OVERRIDE = 4440;
 
-  /** Share of the target RPM the wheels must reach before RT feeds when the Cell is not in view. */
-  public static double MANUAL_SPEED_SHARE = 0.85;
-
-  /** Feed anyway after RT has been held this long without the Cell, if the wheels never get there. */
-  public static double MANUAL_MAX_SPINUP_S = 1.0;
+  /** Both wheels must be within this many RPM of the target before RT starts feeding. */
+  public static double MANUAL_RPM_TOLERANCE = 100;
 }
