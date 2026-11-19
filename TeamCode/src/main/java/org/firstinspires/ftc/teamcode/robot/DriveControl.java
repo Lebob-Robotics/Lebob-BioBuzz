@@ -6,6 +6,7 @@ import org.firstinspires.ftc.teamcode.field.FieldPose;
 import org.firstinspires.ftc.teamcode.robot.Robot.AutoDriver;
 import org.firstinspires.ftc.teamcode.shooting.Aim;
 import org.firstinspires.ftc.teamcode.shooting.FireConstants;
+import org.firstinspires.ftc.teamcode.shooting.SotmSpeedLimit;
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem;
 import org.psilynx.psikit.core.Logger;
 
@@ -222,6 +223,9 @@ final class DriveControl {
     double[] translation = !isHolding() ? stickTranslation(maxPower)
         : holdPoint != null && driveOverride == null ? holdPointTranslation(pose)
         : holdTranslation(pose, HOLD_MIN_POWER);
+    if (aiming && aim != null && !isHolding() && driveOverride == null && !robot.tuningMode) {
+      translation = limitToShot(translation, aim, pose);
+    }
     // The drive runs before this loop's feed check, so lastTranslation is what was commanded as the feed started
     double nowS = robot.clock.seconds();
     boolean stickReleased = translation[0] == 0.0 && translation[1] == 0.0;
@@ -263,6 +267,36 @@ final class DriveControl {
       }
     }
     Logger.recordOutput("Drive/HeadingHold/TargetRad", headingHold.getTargetRad());
+  }
+
+  /**
+   * The driver's {forward, right} power scaled down, keeping its direction, so the speed it drives at has a shot from
+   * here ({@link SotmSpeedLimit}). The speed is the power's, by the drive's top speeds forward and sideways.
+   */
+  private double[] limitToShot(double[] translation, Aim aim, FieldPose pose) {
+    double share = 1.0;
+    if (DriverConstants.AIM_SPEED_LIMIT_ON && (translation[0] != 0.0 || translation[1] != 0.0)) {
+      double f = robot.driverForwardHeadingRad();
+      double fieldX = translation[0] * Math.cos(f) + translation[1] * Math.sin(f);
+      double fieldY = translation[0] * Math.sin(f) - translation[1] * Math.cos(f);
+      double h = pose.headingRad;
+      double ahead = (fieldX * Math.cos(h) + fieldY * Math.sin(h)) * DriverConstants.DRIVE_FORWARD_MPS_AT_FULL_POWER;
+      double left = (-fieldX * Math.sin(h) + fieldY * Math.cos(h)) * DriverConstants.DRIVE_STRAFE_MPS_AT_FULL_POWER;
+      double vx = ahead * Math.cos(h) - left * Math.sin(h);
+      double vy = ahead * Math.sin(h) + left * Math.cos(h);
+      double toCellX = robot.aimSelector.aimCellX - pose.xM;
+      double toCellY = robot.aimSelector.aimCellY - pose.yM;
+      double toCell = Math.hypot(toCellX, toCellY);
+      if (toCell > 1e-6) {
+        double ux = toCellX / toCell;
+        double uy = toCellY / toCell;
+        share = SotmSpeedLimit.share(aim.backward, aim.shot.distanceToLipM, vx * ux + vy * uy, -vx * uy + vy * ux,
+            DriverConstants.AIM_SPEED_LIMIT_MARGIN, robot.closeMovingGateBypassed,
+            DriverConstants.AIM_SPEED_LIMIT_MIN_MPS);
+      }
+    }
+    Logger.recordOutput("Drive/AimSpeedShare", share);
+    return share >= 1.0 ? translation : new double[] {translation[0] * share, translation[1] * share};
   }
 
   /**

@@ -13,6 +13,15 @@ public final class DriverConstants {
   // Drive power at full stick while RT or RB is held. Full: the hood, wheels and heading follow the shot's rates
   // now, so the driver doesn't have to slow down to shoot
   public static double AIM_DRIVE_MAX_POWER = 1.0;
+  // While aiming, the sticks drive no faster than the shot table has a shot for at this distance (toward, away and
+  // sideways), with the shot checked at AIM_SPEED_LIMIT_MARGIN times the speed too. Off: any speed, and the shot waits
+  public static boolean AIM_SPEED_LIMIT_ON = true;
+  public static double AIM_SPEED_LIMIT_MARGIN = 1.2;
+  // But never slower than this: backing out past the table's far end has no shot at any speed
+  public static double AIM_SPEED_LIMIT_MIN_MPS = 0.25;
+  // Speed at full power, for the limit: Pedro's measured top speeds (65 and 48 in/s)
+  public static double DRIVE_FORWARD_MPS_AT_FULL_POWER = 1.65;
+  public static double DRIVE_STRAFE_MPS_AT_FULL_POWER = 1.22;
 
   // INIT tells the driver to swap a battery under this at rest (it rumbles once)
   public static double SWAP_BATTERY_V = 12.3;
