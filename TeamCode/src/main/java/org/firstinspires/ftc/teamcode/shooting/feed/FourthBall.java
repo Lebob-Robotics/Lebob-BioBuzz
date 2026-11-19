@@ -25,9 +25,10 @@ public class FourthBall {
   public static double CLEAR_S = 0.15;
   /**
    * A ball blocked this long has passed, so a shorter gap after it is the next ball touching it: 2 balls back to back
-   * read blocked 0.46 s, clear 0.075 s (19 Nov 175919). A ball passing reads blocked 0.39-0.61 s.
+   * read blocked 0.46 s, clear 0.075 s (19 Nov 175919), and 0.33 s, clear 0.13 s (191845). Light through a ball's
+   * holes came at most 0.27 s in.
    */
-  public static double PASS_S = 0.35;
+  public static double PASS_S = 0.3;
   /** The shortest gap between touching balls; shorter is a glitch (19 Nov 175122: 0.034 s). */
   public static double GAP_S = 0.05;
   /** Loading time a ball stays in the beam before it counts as the 4th, held by a full stack. Passes take 0.61 s. */
@@ -108,6 +109,14 @@ public class FourthBall {
     count = 0;
     confirmed = false;
     heldLoadingS = 0;
+  }
+
+  /**
+   * 4 counted, full or not yet shown full: the intake stops so it doesn't push the stack while the beam checks. Kept
+   * running, the 4th ball's push sent the front ball into the wheels (19 Nov 191845).
+   */
+  public boolean fourCounted() {
+    return count >= CAPACITY;
   }
 
   /** Balls the robot holds, as counted. */

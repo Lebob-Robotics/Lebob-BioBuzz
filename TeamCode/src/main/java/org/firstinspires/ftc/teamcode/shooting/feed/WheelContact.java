@@ -27,8 +27,11 @@ public class WheelContact {
   public static double ABOVE_TARGET_RPM = 100;
   /** A target moving more than this within the window isn't held still. */
   public static double TARGET_STEADY_RPM = 100;
-  /** And the target must have held within TARGET_STEADY_RPM this long, window included: the wheels have settled on it. */
-  public static double TARGET_HELD_S = 0.75;
+  /**
+   * And the target must have held within TARGET_STEADY_RPM this long, window included: the wheels have settled on it.
+   * At 0.75 it missed a ball pushed out while loading 0.7 s after the target moved (19 Nov 191845).
+   */
+  public static double TARGET_HELD_S = 0.5;
 
   private final ArrayDeque<double[]> window = new ArrayDeque<>(); // {t, rpm, target}
   private double heldTargetRpm = Double.NaN;

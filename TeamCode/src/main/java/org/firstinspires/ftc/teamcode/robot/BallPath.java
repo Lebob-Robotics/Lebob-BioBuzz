@@ -125,7 +125,7 @@ final class BallPath {
     boolean intakeWanted = robot.tuningMode || !DriverConstants.INTAKE_ONLY_ON_LT
         || loadTrigger > Robot.TRIGGER_PRESSED;
     intakeOn = intakeWanted;
-    robot.intake.setIntakeState(intakeCommand(full, ejecting, intakeWanted));
+    robot.intake.setIntakeState(intakeCommand(full || fourthBall.fourCounted(), ejecting, intakeWanted));
     boolean feeding = enabledShot && (!aiming || ready);
     // A volley slows the indexer only while a ball feeds, so the next can't follow it in; between balls it stages
     // the stack at full power against its stopped last roller, or the 4th ball is slow to come up

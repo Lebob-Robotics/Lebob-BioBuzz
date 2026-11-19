@@ -707,6 +707,6 @@ org.firstinspires.ftc.teamcode.utils.VolleyTrial.TIMEOUT_SECONDS = 12.0
 org.firstinspires.ftc.teamcode.utils.WheelContact.ABOVE_TARGET_RPM = 100.0
 org.firstinspires.ftc.teamcode.utils.WheelContact.DIP_RPM = 300.0
 org.firstinspires.ftc.teamcode.utils.WheelContact.NEAR_TARGET_RPM = 250.0
-org.firstinspires.ftc.teamcode.utils.WheelContact.TARGET_HELD_S = 0.75
+org.firstinspires.ftc.teamcode.utils.WheelContact.TARGET_HELD_S = 0.5
 org.firstinspires.ftc.teamcode.utils.WheelContact.TARGET_STEADY_RPM = 100.0
 org.firstinspires.ftc.teamcode.utils.WheelContact.WINDOW_S = 0.25

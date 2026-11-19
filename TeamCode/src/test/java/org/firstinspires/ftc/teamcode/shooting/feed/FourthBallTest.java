@@ -66,6 +66,26 @@ public class FourthBallTest {
     assertEquals(3, b.count());
   }
 
+  @Test public void theIntakeStopsOnceFourAreCountedWhileTheBeamChecks() {
+    loadFor(false, 0.2);
+    pass();
+    pass();
+    pass();
+    assertFalse(b.fourCounted());
+    loadFor(true, 0.1);
+    assertTrue(b.fourCounted());
+    assertFalse(loadFor(true, 0.2));
+  }
+
+  @Test public void twoQuickBallsCountTwo() {
+    loadFor(false, 0.2);
+    loadFor(true, 0.34); // 19 Nov 191845: blocked 0.33 s, clear 0.13 s, blocked 0.16 s
+    loadFor(false, 0.12);
+    loadFor(true, 0.16);
+    loadFor(false, 0.4);
+    assertEquals(2, b.count());
+  }
+
   @Test public void aSlowSecondBallIsNotFull() {
     loadFor(false, 0.2);
     pass();
