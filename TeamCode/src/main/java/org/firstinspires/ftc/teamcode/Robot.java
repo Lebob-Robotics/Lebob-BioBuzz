@@ -28,6 +28,7 @@ import com.bylazar.field.PanelsField;
 import com.bylazar.gamepad.PanelsGamepad;
 import org.firstinspires.ftc.teamcode.utils.Aim;
 import org.firstinspires.ftc.teamcode.utils.ManualFeedGate;
+import org.firstinspires.ftc.teamcode.utils.LoadingShooterInterlock;
 import org.firstinspires.ftc.teamcode.utils.HoodStepControl;
 import org.firstinspires.ftc.teamcode.utils.HeadingHold;
 import org.firstinspires.ftc.teamcode.utils.LoopWatchdog;
@@ -36,6 +37,7 @@ import org.firstinspires.ftc.teamcode.utils.Pose;
 import org.firstinspires.ftc.teamcode.utils.PoseHistory;
 import org.firstinspires.ftc.teamcode.utils.RpmTrend;
 import org.firstinspires.ftc.teamcode.utils.OneBallFeedGate;
+import org.firstinspires.ftc.teamcode.utils.IndexerRetry;
 import org.firstinspires.ftc.teamcode.utils.Shot;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMove;
 import org.firstinspires.ftc.teamcode.utils.ShootOnTheMoveConstants;
@@ -69,8 +71,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *       The flywheels already track the shot's RPM whenever the Cell is known, so there's no spin-up toggle.</li>
  *   <li>Y held: manual shot at full power, without aiming or waiting. A fallback for when the camera
  *       can't see the Cell.</li>
- *   <li>Left trigger held, or left bumper to toggle: intake. The feeder runs backward to queue the
- *       balls short of the shooter. Both stop at 4 balls once the beam breaks are wired.</li>
+ *   <li>Intake runs continuously, reversing when full. The feeder runs backward to queue the
+ *       balls short of the shooter. At 4 balls the indexer stops and the intake rejects extras.</li>
  *   <li>B: eject. X: stop the flywheels, and keep them stopped even with the Cell known until RT, RB, Y or
  *       B (also resets a stall trip). A: tell the robot
  *       it is facing away from the driver's wall (use it if the heading drifts).</li>
@@ -103,6 +105,8 @@ public class Robot {
 
   public static final double TRIGGER_PRESSED = 0.5;
   private boolean holdFire;
+  private boolean spinOnlyOnFire;
+  private final LoadingShooterInterlock loadingShooter = new LoadingShooterInterlock();
   /** Rumble when the shooter stall guard trips: drivers do not watch telemetry. */
   private static final int STALL_RUMBLE_MS = 1000;
   /** Battery voltage is a separate hub read, so sample it this often. */
@@ -194,6 +198,7 @@ public class Robot {
   private static final double PANELS_TELEMETRY_PERIOD_S = 0.1;
   private static final double DS_TELEMETRY_PERIOD_S = 0.1;
   private double lastTelemetryS = Double.NEGATIVE_INFINITY;
+  private final IndexerRetry indexerRetry = new IndexerRetry();
   private final ManualFeedGate manualFeedGate = new ManualFeedGate();
   private final LoopWatchdog watchdog = new LoopWatchdog();
   // An aimed shot feeds one ball at a time, each once the wheels are back up to speed
@@ -201,11 +206,33 @@ public class Robot {
       ShootOnTheMoveConstants.AIMED_READY_S, ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S,
       ShootOnTheMoveConstants.AIMED_FEED_PULSE_S, ShootOnTheMoveConstants.AIMED_FEED_PAUSE_S,
       ShootOnTheMoveConstants.MIN_BALL_GAP_S);
+  // Lebot Teleop Volley: RT's (and RB's) hooded aimed shot fires as a burst, each ball at the matched wheel speed
+  // (ShootOnTheMoveConstants VOLLEY_*). Off in Lebot Teleop, which then runs exactly as without it
+  private boolean volleyMode = false;
+  private boolean hoodedOnly = false;
+  private double volleyHeadingTrimDeg = Double.NaN;
+  private final OneBallFeedGate volleyFeedGate = new OneBallFeedGate(0.0,
+      ShootOnTheMoveConstants.AIMED_FEED_STOP_UNREADY_S, ShootOnTheMoveConstants.VOLLEY_FEED_PULSE_S,
+      ShootOnTheMoveConstants.VOLLEY_FEED_PAUSE_S,
+      Math.max(0.20, ShootOnTheMoveConstants.VOLLEY_MIN_GAP_S), true);
+  private OneBallFeedGate feedGate = aimedFeedGate; // The one feeding this loop
+  private boolean volleyShot = false; // This loop's shot is a volley
+  // Volley Tuning's settings in place of the constants; NaN (null) for the constant
+  private double volleyFirstTrimDeg = Double.NaN;
+  private double volleyLaterTrimDeg = Double.NaN;
+  private double volleyIndexerPower = Double.NaN;
+  private double volleyFeedPower = Double.NaN;
+  private double volleyBoostRpm = Double.NaN;
+  private Boolean volleyFastRecovery = null;
+  private double volleyHoodDeg = 0; // Launch angle the volley added this loop, for the log
+  // Volley Tuning marks balls with A, B, X, Y and the D-pad, so they do nothing else (heading reset, eject, stop,
+  // full power, trims, presets). The intake and the triggers work as in Lebot Teleop
+  private boolean buttonsReserved = false;
   private double cellSeenAgoS = Double.POSITIVE_INFINITY;
   private boolean aimingAtFieldCell = false; // At the up Cell's field position, not the tracker's sighted one
   private double aimCellX = 0; // The point aimed at this loop, field metres
   private double aimCellY = 0;
-  private boolean intakeOn = false;
+  private boolean intakeOn = true;
   /** Shot direction picked when RT was pressed: true backward, false hooded, null not aiming. */
   private Boolean aimBackwardLatched = null;
   private double backwardBlockedSinceS = Double.NaN;
@@ -382,7 +409,7 @@ public class Robot {
       headingValid = false;
     }
 
-    if (driver.a && !tuningMode) { // Shot Tuning's A marks a ball
+    if (driver.a && buttonsFree()) { // Shot Tuning's A marks a ball
       odometry.setHeading(placedHeadingRad());
       tracker.clear(); // The frame just turned, so the stored Cell and poses no longer apply
       headingValid = true; // The driver says this is right, so vision only trims it from here
@@ -420,6 +447,7 @@ public class Robot {
     Aim aim = aimAtCell(pose, velocity, nowNanos, aiming);
     long tAimed = System.nanoTime();
     double turnDeg = aimTrimDeg(tuningMode, headingTrimDeg, aim != null && aim.backward) + movingHeadingDeg(aim);
+    if (volleyAim(aim) && !Double.isNaN(volleyHeadingTrimDeg)) { turnDeg += volleyHeadingTrimDeg; }
     if (aim != null && turnDeg != 0) {
       aim = aim.turnedBy(Math.toRadians(turnDeg));
     }
@@ -430,6 +458,13 @@ public class Robot {
     // Before the ready check, so it compares the hood and wheels with this loop's shot. After it, a hood target
     // that had just moved 3 degrees (the robot stopped) was judged against the old one, and the ball missed (5 Nov, 095605)
     long tShooter = System.nanoTime();
+    volleyShot = volleyAim(aim);
+    feedGate = volleyShot ? volleyFeedGate : aimedFeedGate;
+    loadingShooter.update(clock.seconds(), spinOnlyOnFire, shotRequested() && !holdFire,
+        shooter.getMaxMeasuredRpm());
+    Logger.recordOutput("Shooter/Loading/State", loadingShooter.state());
+    Logger.recordOutput("Shooter/Loading/SpinBlocked", loadingShooter.blocksSpin());
+    Logger.recordOutput("Shooter/Loading/CanLoad", loadingShooter.canLoad());
     updateShooterAndHood(aiming, aim);
     long tShooterSet = System.nanoTime();
     rpmTrend.update(clock.seconds(), shooter.getRpm());
@@ -439,7 +474,17 @@ public class Robot {
         && shooter.meanRpmWithin(ShootOnTheMoveConstants.RPM_MEAN_BELOW_TARGET,
             ShootOnTheMoveConstants.RPM_MEAN_ABOVE_TARGET)
         && predictedRpmError <= ShootOnTheMoveConstants.RPM_PREDICTED_ABOVE_TARGET;
-    boolean hoodReady = hood.atTargetSteady(hoodToleranceTicks());
+    if (volleyShot) {
+      // Every ball at the same speed, so their flights match and none catches the one ahead
+      flywheelsReady = shooter.atSpeed(ShootOnTheMoveConstants.RPM_TOLERANCE)
+          && shooter.meanRpmWithin(ShootOnTheMoveConstants.VOLLEY_READY_BELOW_RPM,
+              ShootOnTheMoveConstants.VOLLEY_READY_ABOVE_RPM)
+          && predictedRpmError >= -ShootOnTheMoveConstants.VOLLEY_READY_BELOW_RPM
+          && predictedRpmError <= ShootOnTheMoveConstants.VOLLEY_READY_ABOVE_RPM;
+    }
+    // A volley's hood stays put between balls, so after the first it needn't wait to settle
+    boolean hoodReady = volleyShot && volleyFeedGate.ballsLeft() > 0
+        ? hood.atTarget(volleyHoodToleranceTicks()) : hood.atTargetSteady(hoodToleranceTicks());
     boolean motionSteady = updateMotionSteady(aiming, velocity);
     boolean ready = aim != null && motionSteady && ShootOnTheMove.readyToFire(aim, flywheelsReady, hoodReady,
         pose.headingRad, velocity[2], turningRateRadPerSec, closeMovingGateBypassed);
@@ -464,17 +509,22 @@ public class Robot {
     // held hood once the wheels are up to speed, instead of holding the feeder backward forever. It then keeps
     // feeding until RT is released: each ball drops the wheels' RPM, and reversing the feeder every
     // time they dip would pull the next ball back out.
-    boolean manualReady = manualFeedGate.update(shootAll && aim == null && !tuningMode && !shooter.isStalled(),
+    boolean manualReady = manualFeedGate.update(shootAll && aim == null && !tuningMode && !shooter.isStalled()
+        && !holdFire && !loadingShooter.blocksSpin(),
         shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE));
     // One ball also without the Cell in view, at full speed, so a press never empties the robot
     boolean oneBallReady = aim != null ? ready
         : !tuningMode && shooter.atSpeed(ShooterTuning.MANUAL_RPM_TOLERANCE) && !shooter.isStalled();
     // Held fire counts as released: the gate cycled through its pulses with the feeder held, so the first ball
     // got the last 0.06 s of a pulse and fell short (6 Nov, 081518)
-    boolean aimedFeed = aimedFeedGate.update(clock.seconds(), ((shootAll && aim != null) || oneBall) && !holdFire,
+    boolean aimedFeed = feedGate.update(clock.seconds(), ((shootAll && aim != null) || oneBall) && !holdFire && !loadingShooter.blocksSpin(),
         oneBall ? oneBallReady : ready, shooter.getRpm(), shooter.getTargetRpm(), oneBall, shotLost);
-    Logger.recordOutput("Feeder/Gate", aimedFeedGate.stateName());
-    Logger.recordOutput("Feeder/BallLeft", aimedFeedGate.ballLeft());
+    if (volleyMode) { // The other gate starts afresh when the shot switches between volley and one ball
+      (volleyShot ? aimedFeedGate : volleyFeedGate).update(clock.seconds(), false, false, shooter.getRpm(),
+          shooter.getTargetRpm());
+    }
+    Logger.recordOutput("Feeder/Gate", feedGate.stateName());
+    Logger.recordOutput("Feeder/BallLeft", feedGate.ballLeft());
     long tFeed = System.nanoTime();
     updateIntakeFeederIndexer(aiming, aimedFeed || manualReady);
     long tFeedSet = System.nanoTime();
@@ -499,6 +549,9 @@ public class Robot {
     boolean telemetryDue = clock.seconds() - lastTelemetryS >= DS_TELEMETRY_PERIOD_S;
     updateBattery(telemetryDue);
     logAim(aim);
+    if (volleyMode) {
+      logVolley();
+    }
     drawField(pose, aim);
     if (telemetryDue) {
       lastTelemetryS = clock.seconds();
@@ -570,11 +623,12 @@ public class Robot {
 
   /**
    * Null when the Cell hasn't been seen recently. While aiming, the shot direction (hooded or backward)
-   * is picked once, as the one needing less turn, and kept until RT is let go: their headings are 180
-   * degrees apart, so switching between them each loop spins the robot back and forth. Backward is picked
-   * whenever the distance suits it, even while moving too fast for it: the robot then lines up and the hood
-   * goes down, and it fires once slowed. Picking only a ready backward shot turned the robot 180 degrees to
-   * the hooded one whenever the driver was still moving at the press (5 Nov, 092433).
+   * is picked once, as the one ready soonest (ShootOnTheMove.secondsToReady: turn, hood and wheels), and kept
+   * until RT is let go: their headings are 180 degrees apart, so switching between them each loop spins the
+   * robot back and forth. A backward shot blocked only by the robot's speed still counts, SHOT_PICK_BLOCKED_S
+   * later: the robot then lines up and the hood goes down, and it fires once slowed. Picking only a ready
+   * backward shot turned the robot 180 degrees to the hooded one whenever the driver was still moving at the
+   * press (5 Nov, 092433). SHOT_PICK_QUICKEST false picks by distance instead (BACKWARD_PICK_MAX_DIST_M).
    */
   private Aim aimAtCell(Pose pose, double[] velocity, long nowNanos, boolean aiming) {
     tracker.recordPose(nowNanos, pose);
@@ -626,6 +680,11 @@ public class Robot {
     aimCellX = cellX;
     aimCellY = cellY;
     Aim hooded = ShootOnTheMove.aimHooded(pose, aimVelocity[0], aimVelocity[1], cellX, cellY);
+    if (hoodedOnly) {
+      aimBackwardLatched = false;
+      prepositionBackward = false;
+      return hooded;
+    }
     Aim backward = ShootOnTheMove.aimBackward(pose, aimVelocity[0], aimVelocity[1], cellX, cellY);
     if (tuningMode && tuningLive) {
       return tuningBackward ? backward : hooded;
@@ -635,10 +694,18 @@ public class Robot {
       return (tuningBackward ? backward : hooded).withShot(tuningRpm, tuningHoodDeg,
           Math.toRadians(TUNING_HEADING_TOLERANCE_DEG));
     }
-    boolean pickBackward = ShootOnTheMoveConstants.BACKWARD_SHOTS_ON
-        && backward.shot.reason != Shot.Reason.OUT_OF_RANGE
-        && (hooded.shot.reason == Shot.Reason.OUT_OF_RANGE
-            || backward.shot.distanceToLipM <= ShootOnTheMoveConstants.BACKWARD_PICK_MAX_DIST_M);
+    boolean pickBackward;
+    if (!ShootOnTheMoveConstants.BACKWARD_SHOTS_ON || backward.shot.reason == Shot.Reason.OUT_OF_RANGE) {
+      pickBackward = false;
+    } else if (ShootOnTheMoveConstants.SHOT_PICK_QUICKEST) {
+      // Whichever is ready soonest from the heading, hood and wheels now (8 Nov): no backward arc
+      pickBackward = ShootOnTheMove.backwardQuicker(hooded, backward, pose.headingRad,
+          HoodSubsystem.ticksToAngle(hood.getPosition()), shooter.getRpm());
+    } else {
+      pickBackward = hooded.shot.reason == Shot.Reason.OUT_OF_RANGE
+          || backward.shot.distanceToLipM <= ShootOnTheMoveConstants.BACKWARD_PICK_MAX_DIST_M;
+    }
+    Logger.recordOutput("SOTM/PickBackward", pickBackward);
     if (!aiming) {
       aimBackwardLatched = null;
       // The shot RT would pick, so the hood can get there first. Only switched once the other one has
@@ -695,7 +762,7 @@ public class Robot {
 
   /** While aiming, D-pad up and down nudge the RPM, for when the table is a little off on the day. */
   private void updateTrim(boolean aiming) {
-    if (tuningMode) {
+    if (!buttonsFree()) {
       return;
     }
     if (aiming && justPressed(driver.dpad_up, wasDpadUp)) {
@@ -708,14 +775,15 @@ public class Robot {
     wasDpadDown = driver.dpad_down;
   }
 
-  /** Left bumper toggles the intake. */
+  /** Left bumper deliberately rearms a cooled intake overload trip. */
   private void updateToggles() {
     if (tuningMode) {
       return;
     }
     if (justPressed(driver.left_bumper, wasLeftBumper)) {
-      intakeOn = !intakeOn;
+      intake.resetOverload();
     }
+    intakeOn = true; // Collection stays on throughout the running OpMode.
     wasLeftBumper = driver.left_bumper;
   }
 
@@ -889,6 +957,7 @@ public class Robot {
   }
 
   private void updateShooterAndHood(boolean aiming, Aim aim) {
+    volleyHoodDeg = 0;
     boolean validShot = aim != null && aim.shot.valid;
     // A backward shot waiting only for the robot to slow down: hood down and wheels at its speed already
     boolean backwardWaiting = aim != null && aim.backward && !validShot
@@ -902,20 +971,30 @@ public class Robot {
       aimRpm = aim.rpmNow;
     }
 
-    boolean fullPower = driver.y && !tuningMode;
-    boolean eject = driver.b && !tuningMode;
+    boolean fullPower = driver.y && buttonsFree();
+    boolean eject = driver.b && buttonsFree();
     if (aiming || fullPower || eject) {
       shooterStopLatched = false;
-    } else if (driver.x && !tuningMode) {
+    } else if (driver.x && buttonsFree()) {
       shooterStopLatched = true;
     }
+    if (volleyMode) { // Full power back up to speed after each ball of a volley
+      boolean fast = volleyShot && (volleyFastRecovery != null ? volleyFastRecovery
+          : ShootOnTheMoveConstants.VOLLEY_FAST_RECOVERY);
+      shooter.setSpinThresholds(fast ? ShootOnTheMoveConstants.VOLLEY_OPEN_LOOP_BELOW_RPM : Double.NaN,
+          fast ? ShootOnTheMoveConstants.VOLLEY_HANDBACK_RPM : Double.NaN);
+    }
 
-    if (aiming) {
+    if (eject) {
+      shooter.setShooterState(ShooterState.EJECT);
+    } else if (loadingShooter.blocksSpin()) {
+      shooter.setShooterState(ShooterState.STOP); // Heading/hood still track below; no powered idle while filling.
+    } else if (aiming) {
       shooter.setShooterState(ShooterState.AIM);
       // No Cell in view means no shot table to read, so go for the top speed
       shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0
           ? ShooterTuning.RPM_OVERRIDE
-          : aim == null ? shooter.getMaxRpm() : aimRpm + rpmTrim + tableRpmOffset(aim),
+          : aim == null ? shooter.getMaxRpm() : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim),
           ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
     } else if (fullPower) {
       if (ShooterTuning.RPM_OVERRIDE > 0) {
@@ -924,15 +1003,14 @@ public class Robot {
       } else {
         shooter.setShooterState(ShooterState.SHOOT);
       }
-    } else if (eject) {
-      shooter.setShooterState(ShooterState.EJECT);
     } else if (shooterStopLatched || tuningMode) { // The tuning OpModes rest the wheels between shots
       shooter.setShooterState(ShooterState.STOP);
     } else if (shotKnown && ShootOnTheMoveConstants.PRESPIN_ON) {
       // Already at the speed RT would ask for, so a shot doesn't wait on spin-up (0.8 s from idle, 4 Nov)
       shooter.setShooterState(ShooterState.AIM);
       shooter.setTargetRpm(ShooterTuning.RPM_OVERRIDE > 0 ? ShooterTuning.RPM_OVERRIDE
-          : aimRpm + rpmTrim + tableRpmOffset(aim), ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
+          : aimRpm + rpmTrim + tableRpmOffset(aim) + volleyBoostRpm(aim),
+          ShooterTuning.RPM_OVERRIDE > 0 ? 0.0 : rpmRate);
     } else {
       shooter.setShooterState(ShooterState.IDLE);
     }
@@ -951,17 +1029,18 @@ public class Robot {
             : Math.max(HoodSubsystem.minTargetTicks(), HoodSubsystem.angleToTicks(aim.hoodNowDeg)));
       } else if (validShot) { // Otherwise the hood holds its last angle
         // Lift rises as the launch angle falls
-        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.hoodNowDeg - hoodLiftTrimDeg + movingHoodDeg(aim)),
-            -aim.hoodRateDegPerSec);
+        volleyHoodDeg = volleyHoodDeg(aim);
+        hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.hoodNowDeg - hoodLiftTrimDeg + movingHoodDeg(aim)
+            + volleyHoodDeg), -aim.hoodRateDegPerSec);
       }
-    } else if (tuningMode) {
-      return; // The D-pad sets the tuning shot instead
+    } else if (!buttonsFree()) {
+      return; // The D-pad sets the tuning shot, or marks balls, instead
     } else if (driver.dpad_up) {
       hood.setPreset(HoodPreset.FAR);
     } else if (driver.dpad_down) {
       hood.setPreset(HoodPreset.CLOSE);
     }
-    if (tuningMode) {
+    if (!buttonsFree()) {
       return;
     }
     double lift = hood.getTargetLiftDegrees();
@@ -973,50 +1052,94 @@ public class Robot {
     }
   }
 
+  private boolean shotRequested() {
+    boolean requested = driver.right_trigger > TRIGGER_PRESSED || driver.right_bumper
+        || scriptedOneBall || (driver.y && buttonsFree());
+    return requested && !(tuningMode && driver.right_trigger <= TRIGGER_PRESSED
+        && feedGate != null && feedGate.ballsLeft() > 0);
+  }
+
   /**
-   * Shooting runs the indexer and feeder into the shooter with the intake off. An aimed shot holds the
-   * feeder backward and stops the indexer until READY, so no ball is pushed through early. Loading runs the intake and
-   * indexer with the feeder backward, so balls stop short of the shooter. Shooting wins over loading.
+   * Intake collects continuously and reverses at full capacity. An aimed shot holds the
+   * feeder backward and stops the last roller until READY. LT advances that roller gently against
+   * the held feeder until the entrance capacity sensor sees four stored balls. Between shot feeds,
+   * the upstream stage keeps the second/third balls moving toward the stopped last roller.
    */
   private void updateIntakeFeederIndexer(boolean aiming, boolean ready) {
-    boolean shooting = aiming || (driver.y && !tuningMode);
-    boolean intaking = driver.left_trigger > TRIGGER_PRESSED || intakeOn;
-    boolean ejecting = driver.b && !tuningMode;
+    boolean shooting = aiming || (driver.y && buttonsFree());
+    boolean fireRequested = shotRequested();
+    boolean shotAllowed = fireRequested && !holdFire;
+    boolean enabledShot = shotAllowed && !loadingShooter.blocksSpin();
+    boolean ejecting = driver.b && buttonsFree();
+    double feederPower = volleyMode && volleyShot && enabledShot ? volleyFeedPower() : 1.0;
     boolean full = intake.isFull();
-    boolean loading = intaking && !full && !shooting;
-    if (intaking && full && !wasFull) {
+    boolean loading = driver.left_trigger > TRIGGER_PRESSED && !shotAllowed;
+    if (full && !wasFull) {
       physicalDriver.rumble(300);
-    }
-    if (full) {
-      intakeOn = false; // So it doesn't start again by itself once balls are shot
     }
     wasFull = full;
 
-    if (ejecting) {
-      intake.setIntakeState(IntakeState.EJECT);
-      indexer.setIndexerState(IndexerState.EJECT);
-      feeder.setFeederState(FeederState.EJECT);
-    } else if (shooting) {
-      // While an aimed shot waits, the indexer stops too: pushing the stack against the held feeder forced
-      // a ball through before the aim was ready (4 Nov, 084004: 18 deg off, overshot)
-      boolean feeding = (!aiming || ready) && !holdFire;
-      intake.setIntakeState(IntakeState.STOP);
-      indexer.setIndexerState(feeding ? IndexerState.FEED : IndexerState.STOP);
-      feeder.setFeederState(feeding ? FeederState.FEED
-          : aimedFeedGate.feederEmpty() ? FeederState.STOP : FeederState.HOLD);
-    } else if (loading) {
-      intake.setIntakeState(IntakeState.INTAKE);
-      indexer.setIndexerState(IndexerState.FEED);
-      feeder.setFeederState(FeederState.HOLD);
-    } else {
-      intake.setIntakeState(IntakeState.STOP);
-      indexer.setIndexerState(IndexerState.STOP);
-      feeder.setFeederState(FeederState.STOP);
+    intake.setIntakeState(IntakeSubsystem.automaticState(full, ejecting));
+    boolean feeding = enabledShot && (!aiming || ready);
+    double indexerPower = volleyMode && volleyShot && enabledShot ? volleyIndexerPower() : 1.0;
+    IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, driver.left_trigger,
+        holdFire || loadingShooter.blocksSpin(), full);
+    if (!ejecting && (loadingShooter.clearing() || (loading && !loadingShooter.canLoad())
+        || (spinOnlyOnFire && enabledShot && !feeding && feedGate.feedStarts() == 0))) {
+      indexerCommand = IndexerState.STOP;
     }
+    // Retry only after a volley has actually started. All release, clearance and shot gates still apply.
+    boolean retryAllowed = volleyShot && enabledShot && !ejecting && feedGate.feedStarts() > 0
+        && (indexerCommand == IndexerState.STAGE || indexerCommand == IndexerState.FEED);
+    indexerRetry.update(clock.seconds(), retryAllowed, feedGate.ballLeft());
+    if (indexerRetry.paused()) { indexerCommand = IndexerState.STOP; }
+    if (indexerRetry.fullPower()) { indexerPower = 1.0; }
+    indexer.setIndexerState(indexerCommand, indexerPower);
+    Logger.recordOutput("Indexer/Retry/Paused", indexerRetry.paused());
+    Logger.recordOutput("Indexer/Retry/FullPower", indexerRetry.fullPower());
+    if (spinOnlyOnFire && loading && !loadingShooter.canLoad()) {
+      telemetry.addLine("LT: waiting for flywheels to stop");
+    }
+    FeederState feederCommand;
+    if (ejecting) {
+      feederCommand = FeederState.EJECT;
+    } else if (loading || loadingShooter.clearing()) {
+      // Loading/clearance always holds the stack back, even if the last trial's feed gate says empty.
+      feederCommand = FeederState.HOLD;
+    } else if (shooting) {
+      // The last roller isolates the moving upstream queue while an aimed shot waits.
+      // Between a volley's balls the feeder stops, so the next ball isn't pulled back from the wheels
+      boolean volleyBetweenBalls = volleyShot && volleyFeedGate.ballsLeft() > 0
+          && !ShootOnTheMoveConstants.VOLLEY_HOLD_BETWEEN_BALLS;
+      feederCommand = feeding ? FeederState.FEED
+          : feedGate.feederEmpty() || volleyBetweenBalls ? FeederState.STOP : FeederState.HOLD;
+    } else {
+      feederCommand = FeederState.STOP;
+    }
+    if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
+    feeder.setFeederState(feederCommand, feederPower);
+  }
+
+  /** Intake protection only controls its motor; LT, eject and shot gates still control the indexer. */
+  static IndexerState indexerCommand(boolean ejecting, boolean fireRequested, boolean feeding,
+      double leftTrigger, boolean holdFire, boolean full) {
+    if (ejecting) {
+      return IndexerState.EJECT;
+    }
+    // Aim alone is not a request to run the indexer. An armed shot stages the upstream
+    // queue through recovery gaps, with its independent last roller stopped until feeding.
+    if (fireRequested && !holdFire) {
+      return feeding ? IndexerState.FEED : IndexerState.STAGE;
+    }
+    return leftTrigger > TRIGGER_PRESSED && !full ? IndexerState.LOAD : IndexerState.STOP;
   }
 
   private static int feedStopHoodTicks() {
     return (int) Math.round(ShootOnTheMoveConstants.FEED_STOP_HOOD_DEG * HoodSubsystem.TICKS_PER_DEG);
+  }
+
+  private static int volleyHoodToleranceTicks() {
+    return (int) Math.round(ShootOnTheMoveConstants.VOLLEY_HOOD_TOLERANCE_DEG * HoodSubsystem.TICKS_PER_DEG);
   }
 
   private static int hoodToleranceTicks() {
@@ -1219,6 +1342,11 @@ public class Robot {
     telemetry.addData("Alliance", alliance + (poseValid ? "  pose on field" : "  pose not placed yet")
         + (headingValid ? ", heading set" : ", heading from start"));
     telemetry.addData("Aim", aimState);
+    if (volleyMode) {
+      telemetry.addData("Volley", volleyShot ? String.format("balls out %d  (fed %d)  feed %.2f  boost %+.0f",
+          volleyFeedGate.ballsLeft(), volleyFeedGate.feedStarts(), volleyFeedPower(), volleyBoostRpm())
+          : "off for this shot (backward, or no Cell)");
+    }
     if (aim == null) {
       telemetry.addData("Distance", Double.isInfinite(cellSeenAgoS)
           ? "Cell not seen yet: point the cameras at it"
@@ -1246,7 +1374,8 @@ public class Robot {
     telemetry.addData("Shooter", shooter.getShooterState());
     telemetry.addData("Shooter stall", shooter.getStallStatus());
     telemetry.addData("Hood encoders", hood.getEncoderFaultText());
-    telemetry.addData("Intake", intakeOn ? "ON (toggle)" : intake.getIntakeState());
+    telemetry.addData("Intake", intake.getIntakeState());
+    telemetry.addData("Intake overload", intake.getOverloadStatus());
     telemetry.addData("Indexer", indexer.getIndexerState());
     telemetry.addData("Feeder", feeder.getFeederState());
     telemetry.addData("Beam T/B", intake.isTopBroken() + " / " + intake.isBottomBroken()
@@ -1295,6 +1424,9 @@ public class Robot {
   public boolean isFeeding() { return lastFeeding; }
   /** Aims as RT asks but feeds nothing: a scripted test lining up before the shot it means to take. */
   public void setHoldFire(boolean hold) { holdFire = hold; }
+
+  /** Heading/hood may track while filling, but flywheels start only for an enabled shot. */
+  public void setSpinOnlyOnFire(boolean enabled) { spinOnlyOnFire = enabled; }
 
   /** The shortest time from one aimed feed starting to the next. */
   public void setMinFeedSpacingS(double s) { aimedFeedGate.setMinFeedSpacingS(s); }
@@ -1446,7 +1578,10 @@ public class Robot {
   public boolean isUpCellConfirmed() { return visionCorrector.upCellConfirmed(alliance); }
 
   /** True on the loop an aimed feed starts a ball. */
-  public boolean feedStartedThisLoop() { return aimedFeedGate.feedStarted(); }
+  public boolean feedStartedThisLoop() { return feedGate.feedStarted(); }
+
+  /** True on the loop the wheels showed a ball leaving (aimed or volley). */
+  public boolean ballLeftThisLoop() { return feedGate.ballLeft(); }
 
   /** Gamepad 1 merged with the Panels gamepad, as this loop's controls read it. */
   public Gamepad getDriver() { return driver; }
@@ -1462,6 +1597,128 @@ public class Robot {
 
   /** The longest an aimed feed runs before pausing for its ball's dip. */
   public void setFeedPulseS(double s) { aimedFeedGate.setPulseS(s); }
+
+  // ---- Volley (Lebot Teleop Volley, Volley Tuning) ----
+
+  /** RT's and RB's hooded aimed shots fire as a burst (Lebot Teleop Volley). Off, the robot is Lebot Teleop's. */
+  public void setVolleyMode(boolean on) { volleyMode = on; }
+
+  public boolean isVolleyMode() { return volleyMode; }
+
+  /** Volley calibration measures the hooded shot at every test spot. */
+  public void setHoodedOnly(boolean on) { hoodedOnly = on; }
+
+  /** A, B, X, Y and the D-pad do nothing in the robot, so an OpMode can use them (Volley Tuning's marks). */
+  public void setButtonsReserved(boolean on) { buttonsReserved = on; }
+
+  /** Launch angle added to a volley's first ball and to balls 2-4; NaN for the constants'. */
+  public void setVolleyTrimsDeg(double firstDeg, double laterDeg) {
+    volleyFirstTrimDeg = firstDeg;
+    volleyLaterTrimDeg = laterDeg;
+  }
+
+  /** Feeder and indexer power during a volley; NaN for VOLLEY_FEED_POWER. */
+  public void setVolleyFeedPower(double power) { volleyFeedPower = power; }
+
+  /** Separate queue pressure for calibration; NaN follows the feeder as normal Volley TeleOp does. */
+  public void setVolleyIndexerPower(double power) { volleyIndexerPower = power; }
+
+  /** Automatic calibration's aim correction, in addition to the standing shot trim. */
+  public void setVolleyHeadingTrimDeg(double deg) { volleyHeadingTrimDeg = deg; }
+
+  public double volleyIndexerPower() {
+    return Double.isNaN(volleyIndexerPower) ? volleyFeedPower() : volleyIndexerPower;
+  }
+
+  /** RPM over the table's for a volley; NaN for VOLLEY_BOOST_RPM. */
+  public void setVolleyBoostRpm(double rpm) { volleyBoostRpm = rpm; }
+
+  /** Full-power recovery between a volley's balls; null for VOLLEY_FAST_RECOVERY. */
+  public void setVolleyFastRecovery(Boolean on) { volleyFastRecovery = on; }
+
+  /** This loop's shot is a volley: volley mode, a hooded aimed shot, not a tuning tool's. */
+  public boolean isVolleyShot() { return volleyShot; }
+
+  /** Feeds started in this press of the volley trigger. */
+  public int getVolleyFeedStarts() { return volleyFeedGate.feedStarts(); }
+
+  /** Balls seen leaving (wheel dips) in this press of the volley trigger. */
+  public int getVolleyBallsLeft() { return volleyFeedGate.ballsLeft(); }
+
+  /** About the wheel speed the last volley ball left at; NaN if none. */
+  public double getVolleyLeftAtRpm() { return volleyFeedGate.peakAtLeaveRpm(); }
+
+  /** How far the wheels have dropped since the last volley ball left; NaN if none. */
+  public double getVolleyDipDepthRpm() { return volleyFeedGate.lastDipDepthRpm(); }
+
+  /** Launch angle the volley added to the hood this loop. */
+  public double getVolleyHoodDeg() { return volleyHoodDeg; }
+
+  public double volleyFeedPower() {
+    return Double.isNaN(volleyFeedPower) ? ShootOnTheMoveConstants.VOLLEY_FEED_POWER : volleyFeedPower;
+  }
+
+  public double volleyBoostRpm() {
+    return Double.isNaN(volleyBoostRpm) ? ShootOnTheMoveConstants.VOLLEY_BOOST_RPM : volleyBoostRpm;
+  }
+
+  public boolean volleyFastRecovery() {
+    return volleyFastRecovery != null ? volleyFastRecovery : ShootOnTheMoveConstants.VOLLEY_FAST_RECOVERY;
+  }
+
+  private boolean buttonsFree() {
+    return !tuningMode && !buttonsReserved;
+  }
+
+  private boolean volleyAim(Aim aim) {
+    return volleyMode && !tuningMode && aim != null && !aim.backward;
+  }
+
+  private double volleyBoostRpm(Aim aim) {
+    return volleyAim(aim) ? volleyBoostRpm() : 0;
+  }
+
+  /**
+   * Launch angle a volley adds: the steepening for its boost (ShotTableRpm), a share of the steepening for the
+   * wheels' predicted speed off the target (VOLLEY_HOOD_FOLLOW_GAIN), and the trim for the ball about to go.
+   */
+  private double volleyHoodDeg(Aim aim) {
+    if (!volleyAim(aim)) {
+      return 0;
+    }
+    double boost = volleyBoostRpm();
+    double lipM = aim.shot.distanceToLipM;
+    double towardMps = finiteOr0(aim.shot.speedTowardCellMps);
+    double boostDeg = ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, boost);
+    double followDeg = 0;
+    double gain = ShootOnTheMoveConstants.VOLLEY_HOOD_FOLLOW_GAIN;
+    if (gain != 0) {
+      double above = rpmTrend.predicted(ShootOnTheMoveConstants.RPM_LOOKAHEAD_S) - shooter.getTargetRpm() + boost;
+      above = Math.max(boost - ShootOnTheMoveConstants.VOLLEY_READY_BELOW_RPM,
+          Math.min(boost + ShootOnTheMoveConstants.VOLLEY_READY_ABOVE_RPM, above));
+      followDeg = gain * (ShootOnTheMove.hoodOffsetForRpmAbove(lipM, towardMps, above) - boostDeg);
+    }
+    boolean first = volleyFeedGate.ballsLeft() == 0;
+    double trim = first
+        ? (Double.isNaN(volleyFirstTrimDeg) ? ShootOnTheMoveConstants.VOLLEY_FIRST_BALL_TRIM_DEG : volleyFirstTrimDeg)
+        : (Double.isNaN(volleyLaterTrimDeg) ? ShootOnTheMoveConstants.VOLLEY_LATER_BALL_TRIM_DEG : volleyLaterTrimDeg);
+    return finiteOr0(boostDeg + followDeg) + trim;
+  }
+
+  private void logVolley() {
+    Logger.recordOutput("Volley/Shot", volleyShot);
+    Logger.recordOutput("Volley/FeedStarts", volleyFeedGate.feedStarts());
+    Logger.recordOutput("Volley/BallsLeft", volleyFeedGate.ballsLeft());
+    Logger.recordOutput("Volley/LeftAtRpm", volleyFeedGate.peakAtLeaveRpm());
+    Logger.recordOutput("Volley/DipDepthRpm", volleyFeedGate.lastDipDepthRpm());
+    Logger.recordOutput("Volley/DoubleBall",
+        volleyFeedGate.lastDipDepthRpm() > ShootOnTheMoveConstants.VOLLEY_DOUBLE_DIP_RPM);
+    Logger.recordOutput("Volley/HoodDeg", volleyHoodDeg);
+    Logger.recordOutput("Volley/BoostRpm", volleyBoostRpm());
+    Logger.recordOutput("Volley/FeedPower", volleyFeedPower());
+    Logger.recordOutput("Volley/IndexerPower", volleyIndexerPower());
+    Logger.recordOutput("Volley/FastRecovery", volleyFastRecovery());
+  }
 
   public void stop() {
     watchdog.feed(); // A stop that hangs (closing a camera) is reported too

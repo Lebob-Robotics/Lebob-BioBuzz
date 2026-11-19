@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeOverloadGuard;
 
 import java.util.Locale;
 
@@ -42,6 +43,10 @@ public class IndexerIntakeTest extends OpMode {
   private double peakL;
   private double peakR;
   private double peakIntake;
+  private final IntakeOverloadGuard intakeOverload = new IntakeOverloadGuard();
+  private final ElapsedTime overloadClock = new ElapsedTime();
+  private boolean intakePowered;
+  private boolean wasReset;
 
   @Override
   public void init() {
@@ -77,7 +82,19 @@ public class IndexerIntakeTest extends OpMode {
     boolean x = pad.x;
     indexerL.setPower(a ? 1.0 : 0.0);
     indexerR.setPower(b ? 1.0 : 0.0);
-    intake.setPower(x ? 1.0 : 0.0);
+    double motorAmps;
+    try {
+      motorAmps = intakePowered ? intake.getCurrent(CurrentUnit.AMPS) : 0;
+    } catch (RuntimeException e) {
+      motorAmps = Double.NaN;
+    }
+    intakeOverload.update(overloadClock.seconds(), intakePowered, motorAmps);
+    if (pad.left_bumper && !wasReset) {
+      intakeOverload.reset(overloadClock.seconds());
+    }
+    wasReset = pad.left_bumper;
+    intakePowered = x && !intakeOverload.isTripped();
+    intake.setPower(intakePowered ? 1.0 : 0.0);
     feeder.setPower(0.0);
 
     if (readClock.seconds() >= READ_PERIOD_S) {
@@ -95,7 +112,11 @@ public class IndexerIntakeTest extends OpMode {
     telemetry.addData("B  right indexer", String.format(Locale.US, "%s  servo bus %.2f A (peak %.2f)  %s",
         b ? "ON " : "off", servoAmpsControl, peakR, verdict(b, servoAmpsControl)));
     telemetry.addData("X  intake", String.format(Locale.US, "%s  %.2f A (peak %.2f), encoder %d, %.0f ticks/s",
-        x ? "ON " : "off", intakeAmps, peakIntake, intake.getCurrentPosition(), intake.getVelocity()));
+        intakePowered ? "ON " : "off", intakeAmps, peakIntake, intake.getCurrentPosition(), intake.getVelocity()));
+    telemetry.addData("Intake overload", "%s (%d/%d), cooldown %.0f s; clear jam, cool, tap LB to reset",
+        intakeOverload.isLockedOut() ? "LOCKED OUT" : intakeOverload.isTripped() ? intakeOverload.getReason() : "ok",
+        intakeOverload.getTrips(), IntakeOverloadGuard.MAX_TRIPS,
+        Math.ceil(intakeOverload.cooldownRemaining(overloadClock.seconds())));
     telemetry.addData("Guide", "servo free ~0.2 A, stalled ~3.9 A, ~0 A = no power or not plugged in. "
         + "Intake was ~0.9 A running free, ~5-10 A jammed");
     telemetry.update();
