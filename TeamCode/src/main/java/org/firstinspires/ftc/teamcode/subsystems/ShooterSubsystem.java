@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.hardware.GobildaMotor;
 import org.psilynx.psikit.core.Logger;
 
 import java.util.Arrays;
+import org.firstinspires.ftc.teamcode.utils.MotorReversalGuard;
 
 /**
  * Controls the two side-by-side shooter flywheels. Feeding balls into them is
@@ -77,6 +78,10 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   private ShooterState shooterState;
+  private ShooterState requestedState = ShooterState.STOP;
+  private final MotorReversalGuard reversal = new MotorReversalGuard(0.5, 0.75, 100);
+  private double reversalScale = 0;
+
   // Flywheel RPM that AIM holds.
   private double targetRpm = 0.0;
   // Speed AIM sends: the target led by its rate
@@ -84,6 +89,8 @@ public class ShooterSubsystem extends SubsystemBase {
   // Last target actually sent, so slow drifts below TARGET_RESEND_RPM still go out.
   private double sentRpm = Double.NaN;
   private SpinMode spinMode = SpinMode.SPEED;
+  private double spinOpenLoopBelowRpm = Double.NaN; // NaN: OPEN_LOOP_BELOW_RPM
+  private double spinHandbackRpm = Double.NaN; // NaN: HANDBACK_RPM
 
   /** How AIM drives the wheels: the hub's speed control, or out of it while far from the target. */
   enum SpinMode {
@@ -131,7 +138,7 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   private void doShooterState() {
-    if (previousShooterState == shooterState) {
+    if (previousShooterState == shooterState && reversalScale >= 1) {
       return;
     }
 
@@ -157,22 +164,38 @@ public class ShooterSubsystem extends SubsystemBase {
 
   /** The next spin mode for a wheel speed errorRpm off the target (positive when fast). */
   static SpinMode nextSpinMode(SpinMode mode, double errorRpm) {
-    if (errorRpm < -OPEN_LOOP_BELOW_RPM) {
+    return nextSpinMode(mode, errorRpm, OPEN_LOOP_BELOW_RPM, HANDBACK_RPM);
+  }
+
+  /** As above, with these thresholds in place of OPEN_LOOP_BELOW_RPM and HANDBACK_RPM. */
+  static SpinMode nextSpinMode(SpinMode mode, double errorRpm, double openLoopBelowRpm, double handbackRpm) {
+    if (errorRpm < -openLoopBelowRpm) {
       return SpinMode.SPIN_UP;
     }
     if (mode == SpinMode.SPEED) {
-      return errorRpm > OPEN_LOOP_BELOW_RPM ? SpinMode.FAR_ABOVE : SpinMode.SPEED;
+      return errorRpm > openLoopBelowRpm ? SpinMode.FAR_ABOVE : SpinMode.SPEED;
     }
-    return Math.abs(errorRpm) < HANDBACK_RPM ? SpinMode.SPEED : errorRpm > 0 ? SpinMode.FAR_ABOVE : mode;
+    return Math.abs(errorRpm) < handbackRpm ? SpinMode.SPEED : errorRpm > 0 ? SpinMode.FAR_ABOVE : mode;
+  }
+
+  /**
+   * Thresholds for full-power spin-up in place of OPEN_LOOP_BELOW_RPM and HANDBACK_RPM, from now on; NaN for those.
+   * Lebot Teleop Volley's recovery between balls.
+   */
+  public void setSpinThresholds(double openLoopBelowRpm, double handbackRpm) {
+    spinOpenLoopBelowRpm = openLoopBelowRpm;
+    spinHandbackRpm = handbackRpm;
   }
 
   /** In AIM: full power while far below the target, and speed control started afresh on getting back near it. */
   private void updateSpinMode() {
-    if (shooterState != ShooterState.AIM || stallGuard.isTripped()) {
+    if (shooterState != ShooterState.AIM || stallGuard.isTripped() || reversalScale < 1) {
       spinMode = SpinMode.SPEED;
       return;
     }
-    SpinMode next = nextSpinMode(spinMode, getRpm() - commandRpm);
+    SpinMode next = nextSpinMode(spinMode, getRpm() - commandRpm,
+        Double.isNaN(spinOpenLoopBelowRpm) ? OPEN_LOOP_BELOW_RPM : spinOpenLoopBelowRpm,
+        Double.isNaN(spinHandbackRpm) ? HANDBACK_RPM : spinHandbackRpm);
     if (next == SpinMode.SPIN_UP) {
       shooterRight.setOpenLoopPower(1.0);
       shooterLeft.setOpenLoopPower(1.0);
@@ -190,8 +213,13 @@ public class ShooterSubsystem extends SubsystemBase {
     if (newShooterState == ShooterState.STOP && stallGuard.isTripped()) {
       stallGuard.rearm();
     }
-    previousShooterState = shooterState;
-    shooterState = newShooterState;
+    requestedState = newShooterState;
+    int direction = newShooterState == ShooterState.STOP ? 0
+        : newShooterState == ShooterState.EJECT ? -1 : 1;
+    double previousScale = reversalScale;
+    reversalScale = reversal.update(direction, clock.seconds(), Math.max(getRpmLeft(), getRpmRight()));
+    previousShooterState = previousScale < 1 ? null : shooterState;
+    shooterState = reversalScale == 0 ? ShooterState.STOP : newShooterState;
     doShooterState();
   }
 
@@ -326,6 +354,7 @@ public class ShooterSubsystem extends SubsystemBase {
   public void periodic() {
     applyVelocityPidf();
     checkStall();
+    setShooterState(requestedState);
     updateSpinMode();
 
     Logger.recordOutput("Shooter/State", shooterState);
@@ -355,8 +384,12 @@ public class ShooterSubsystem extends SubsystemBase {
       return;
     }
     sentRpm = Double.NaN;
-    shooterRight.setPower(power);
-    shooterLeft.setPower(power);
+    if (power == 0 || reversalScale == 0) {
+      cutShooter();
+      return;
+    }
+    shooterRight.setPower(power * reversalScale);
+    shooterLeft.setPower(power * reversalScale);
   }
 
   // Open-loop zero on both motors. Speed control's zero is a hold-zero setpoint, not off.
@@ -372,7 +405,7 @@ public class ShooterSubsystem extends SubsystemBase {
       return;
     }
     sentRpm = rpm;
-    double ticksPerSec = rpmToTicksPerSec(rpm);
+    double ticksPerSec = rpmToTicksPerSec(rpm * reversalScale);
     shooterRight.setVelocity(ticksPerSec);
     shooterLeft.setVelocity(ticksPerSec);
   }

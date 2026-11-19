@@ -38,4 +38,24 @@ public class ShooterSpinModeTest {
   public void spinUpThatOvershootsBrakes() {
     assertEquals(SpinMode.FAR_ABOVE, ShooterSubsystem.nextSpinMode(SpinMode.SPIN_UP, 200));
   }
+
+  @Test
+  public void volleyThresholdsRecoverABallsDipAtFullPower() {
+    // A 300 RPM dip stays under speed control with the defaults, but a volley spins it up at full power
+    assertEquals(SpinMode.SPEED, ShooterSubsystem.nextSpinMode(SpinMode.SPEED, -300));
+    SpinMode mode = ShooterSubsystem.nextSpinMode(SpinMode.SPEED, -300, 200, 100);
+    assertEquals(SpinMode.SPIN_UP, mode);
+    mode = ShooterSubsystem.nextSpinMode(mode, -150, 200, 100);
+    assertEquals(SpinMode.SPIN_UP, mode);
+    mode = ShooterSubsystem.nextSpinMode(mode, -60, 200, 100);
+    assertEquals(SpinMode.SPEED, mode);
+  }
+
+  @Test
+  public void volleyThresholdsBrakeAnOvershootUnderSpeedControl() {
+    SpinMode mode = ShooterSubsystem.nextSpinMode(SpinMode.SPIN_UP, 150, 200, 100);
+    assertEquals(SpinMode.FAR_ABOVE, mode);
+    mode = ShooterSubsystem.nextSpinMode(mode, 90, 200, 100);
+    assertEquals(SpinMode.SPEED, mode);
+  }
 }

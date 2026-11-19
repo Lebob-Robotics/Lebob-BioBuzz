@@ -99,6 +99,16 @@ public class Main extends PsiKitIterativeOpMode {
     }
     robot = new Robot(hardwareMap, telemetry, gamepad1);
     robot.init();
+    configureRobot(robot);
+  }
+
+  /** For a variant of this TeleOp (Lebot Teleop Volley): changes the robot once it is made. Nothing here. */
+  protected void configureRobot(Robot robot) {
+  }
+
+  /** The robot, for a variant of this TeleOp; null before INIT or if it threw. */
+  protected Robot robot() {
+    return robot;
   }
 
   @Override

@@ -17,6 +17,7 @@ import org.psilynx.psikit.core.Logger;
 public class FeederSubsystem extends SubsystemBase {
   // ---- Tuning ----------------------------------------------------------
   private static final double FEED_POWER = 1.0;
+  private double feedPower = FEED_POWER; // Lebot Teleop Volley's can be lower
   private static final double EJECT_POWER = 1.0;
   private static final double HOLD_POWER = 1.0;
 
@@ -64,7 +65,7 @@ public class FeederSubsystem extends SubsystemBase {
         setFeederPower(0.0);
         break;
       case FEED:
-        setFeederPower(FEED_POWER);
+        setFeederPower(feedPower);
         break;
       case HOLD:
         setFeederPower(-HOLD_POWER);
@@ -79,6 +80,18 @@ public class FeederSubsystem extends SubsystemBase {
     previousFeederState = feederState;
     feederState = newFeederState;
     doFeederState();
+  }
+
+  /** Power while feeding, 0-1; the default is full. Applies at once if feeding now. */
+  public void setFeedPower(double power) {
+    double p = Math.max(0, Math.min(1, power));
+    if (p == feedPower) {
+      return;
+    }
+    feedPower = p;
+    if (feederState == FeederState.FEED) {
+      setFeederPower(feedPower);
+    }
   }
 
   public FeederState getFeederState() {

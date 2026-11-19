@@ -243,6 +243,23 @@ public final class ShootOnTheMoveConstants {
   // A backward shot that stays blocked this long, by speed or by being too close, gives way to the hooded shot
   // if that has one. Driving around the Cell at full stick held a backward pick for 30 s with no shot (5 Nov, 094211)
   public static double BACKWARD_GIVE_UP_S = 1.0;
+  // Both TeleOps take whichever shot, hooded or backward, is ready soonest (8 Nov), now that Shot Tuning and SOTM Tuning
+  // have calibrated both: no more backward arc. False goes back to the arc above (BACKWARD_PICK_MAX_DIST_M).
+  // The time to ready is the longest of the turn, the hood's move and the wheels' change, plus BLOCKED_S if the shot
+  // can't be taken yet (too fast for it). Fitted to Lebot Teleop's logs (1-7 Nov, 40 logs): 58 heading-lock turns,
+  // median 0.50 s for 10-30 degrees, 0.77-0.92 s for 30-90 and 1.15 s for 90-180; 128 hood moves, median 0.23 s for
+  // 4-8 degrees, 0.41 s for 15-25 and 0.47 s for 25-40. The wheels: about 4000 rpm/s at full power
+  public static boolean SHOT_PICK_QUICKEST = true;
+  public static double SHOT_PICK_TURN_BASE_S = 0.35;
+  public static double SHOT_PICK_TURN_DEG_PER_S = 180;
+  public static double SHOT_PICK_HOOD_BASE_S = 0.15;
+  public static double SHOT_PICK_HOOD_DEG_PER_S = 90;
+  public static double SHOT_PICK_RPM_PER_S = 4000;
+  public static double SHOT_PICK_BLOCKED_S = 1.0;
+  // Beyond this the hooded shot is always taken: the backward table is calibrated standing at 0.40-0.81 m only (Shot
+  // Tuning: 331 balls at 0.4-0.8 m, 5 past 0.85), and SOTM Tuning has no backward passes. Its 0.95-2.3 m points
+  // were never shot. Raise once Shot Tuning has searched backward spots out there
+  public static double SHOT_PICK_BACKWARD_MAX_LIP_M = 0.85;
 
   // Added to every hooded shot from the table. -75 (6 Nov) made up for the model's ball being too slow; the model
   // refitted to Shot Tuning's 224 hooded balls (7 Nov) fires what they found without it
@@ -278,6 +295,53 @@ public final class ShootOnTheMoveConstants {
   public static double SOTM_HEADING_DEG_PER_SIDEWAYS_MPS = 0;
   public static double SOTM_BACKWARD_RPM_PER_TOWARD_MPS = 0;
   public static double SOTM_BACKWARD_HEADING_DEG_PER_SIDEWAYS_MPS = 0;
+
+  // ---- Volley (Lebot Teleop Volley and Volley Tuning only; Lebot Teleop never reads these) ----
+  // A volley is RT's aimed hooded shot fired as a burst: each ball goes as soon as the wheels are back at the matched
+  // speed, instead of the one-ball pulse, pause and gap above. One flywheel can't launch four balls at the same
+  // instant; the burst is limited by the wheels' recovery between balls.
+  //
+  // Balls in a burst must leave at the same wheel speed and hood. Modelled (tools/shots, collide.js), two balls 0.1 s
+  // apart at matched speed stay 0.12-0.18 m apart in flight (ball 0.071 m), but a second ball 200-300 RPM slower
+  // lands first and the paths cross within 0.01-0.05 m. So each ball waits for the matched band below, and the feed
+  // power sets how tightly the queue follows the ball ahead.
+  //
+  // RPM added to the table's for a volley, with the hood steepened for it (ShotTableRpm). Boost doesn't widen the
+  // scoring room: modelled at 32 cells it is 75-125 RPM either side at +0, 25 above at +150, 75 either side at +200
+  // to +300. So it stays 0 unless Volley Tuning shows the burst needs the headroom
+  public static double VOLLEY_BOOST_RPM = 0;
+  // How much the hood follows the wheels' predicted speed off the volley target (0 = fixed hood for the burst). Within
+  // the band below the steepening is under 1.5 deg, inside HOOD_TOLERANCE_DEG, and the reading lags 100-250 RPM at
+  // full-power recovery, so following would chase noise and move the hood between balls
+  public static double VOLLEY_HOOD_FOLLOW_GAIN = 0;
+  // Matched band: each ball feeds only with the wheels' mean and their speed RPM_LOOKAHEAD_S ahead this close to
+  // the volley target. Inside the model's worst 75 RPM room on both sides
+  public static double VOLLEY_READY_BELOW_RPM = 75;
+  public static double VOLLEY_READY_ABOVE_RPM = 75;
+  // Launch angle added for the first ball and for balls 2-4 (Volley Tuning finds them)
+  public static double VOLLEY_FIRST_BALL_TRIM_DEG = 0;
+  public static double VOLLEY_LATER_BALL_TRIM_DEG = 0;
+  // Feeder and indexer power during a volley. Lower spaces the queue out, so a ball can't follow the one ahead into
+  // the wheels before they recover. Volley Tuning lowers it on a collision or two balls in one dip
+  public static double VOLLEY_FEED_POWER = 1.0;
+  // Shortest time from a ball seen leaving to the next feed. The wheels' matched band is the main wait
+  public static double VOLLEY_MIN_GAP_S = 0.05;
+  // As AIMED_FEED_PULSE_S and AIMED_FEED_PAUSE_S, for a volley
+  public static double VOLLEY_FEED_PULSE_S = 0.30;
+  public static double VOLLEY_FEED_PAUSE_S = 0.20;
+  // Between balls of a volley the feeder stops rather than running backward, so the next ball stays at the wheels
+  public static boolean VOLLEY_HOLD_BETWEEN_BALLS = false;
+  // Hood within this of its target for balls after the first, without the steady wait (it isn't moving)
+  public static double VOLLEY_HOOD_TOLERANCE_DEG = 1.0;
+  // Full-power recovery after each ball: open loop this far below target, speed control again within the handback.
+  // PID alone took ~0.35 s to recover a 300-430 RPM dip; full power covers it in ~0.08 s (2000-3000 RPM in 0.14 s).
+  // Not yet measured on the robot: the overshoot after it may cost back some of the gain
+  public static boolean VOLLEY_FAST_RECOVERY = true;
+  public static double VOLLEY_OPEN_LOOP_BELOW_RPM = 200;
+  public static double VOLLEY_HANDBACK_RPM = 100;
+  // A ball's dip deeper than this (peak before it to the trough after) is taken as two balls leaving together. A
+  // single ball dropped 300-430 RPM under speed control (5 Nov); not yet measured with full-power recovery
+  public static double VOLLEY_DOUBLE_DIP_RPM = 600;
 
   // ---- Driver ----------------------------------------------------------
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming

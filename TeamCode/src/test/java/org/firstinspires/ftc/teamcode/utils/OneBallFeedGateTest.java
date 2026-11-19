@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.utils;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
@@ -167,5 +168,26 @@ public class OneBallFeedGateTest {
     gate.update(0.00, true, true, 3505, TARGET);
     assertTrue(gate.update(0.10, true, true, 3505, TARGET));
     assertFalse(gate.update(0.11, false, true, 3505, TARGET));
+  }
+
+  @Test public void countsFeedsAndBallsInOnePressAndResetsOnRelease() {
+    OneBallFeedGate gate = new OneBallFeedGate(0.0, Double.POSITIVE_INFINITY, 0.3, 0.2, 0.05);
+    assertTrue(gate.update(0.00, true, true, 3510, TARGET));
+    assertEquals(1, gate.feedStarts());
+    assertEquals(0, gate.ballsLeft());
+    gate.update(0.02, true, true, 3560, TARGET); // Peak during the feed
+    gate.update(0.04, true, false, 3380, TARGET); // 180 under the peak: the ball left
+    assertTrue(gate.ballLeft());
+    assertEquals(1, gate.ballsLeft());
+    assertEquals(3560, gate.peakAtLeaveRpm(), 1e-9);
+    gate.update(0.06, true, false, 3200, TARGET); // Still falling
+    gate.update(0.08, true, false, 3300, TARGET); // Recovering: the dip keeps its deepest
+    assertEquals(360, gate.lastDipDepthRpm(), 1e-9);
+    assertTrue(gate.update(0.15, true, true, 3500, TARGET)); // Back at speed and past the gap: the next ball
+    assertEquals(2, gate.feedStarts());
+    gate.update(0.20, false, true, 3500, TARGET);
+    assertEquals(0, gate.feedStarts());
+    assertEquals(0, gate.ballsLeft());
+    assertTrue(Double.isNaN(gate.lastDipDepthRpm()));
   }
 }
