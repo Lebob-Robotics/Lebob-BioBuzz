@@ -279,6 +279,11 @@ final class DriveControl {
    * for; the scale then follows the measured speed to that limit, since low powers barely move the robot (the wheels'
    * friction, and the heading lock sharing the power) and scaling the power alone stopped it.
    */
+  private double shareAt(Aim aim, double distanceToLipM, double towardMps, double sidewaysMps) {
+    return SotmSpeedLimit.share(aim.backward, distanceToLipM, towardMps, sidewaysMps,
+        DriverConstants.AIM_SPEED_LIMIT_MARGIN, robot.closeMovingGateBypassed, DriverConstants.AIM_SPEED_LIMIT_MIN_MPS);
+  }
+
   private double[] limitToShot(double[] translation, Aim aim, FieldPose pose) {
     double share = 1.0;
     double askedMps = 0.0;
@@ -298,9 +303,25 @@ final class DriveControl {
       if (toCell > 1e-6) {
         double ux = toCellX / toCell;
         double uy = toCellY / toCell;
-        share = SotmSpeedLimit.share(aim.backward, aim.shot.distanceToLipM, vx * ux + vy * uy, -vx * uy + vy * ux,
-            DriverConstants.AIM_SPEED_LIMIT_MARGIN, robot.closeMovingGateBypassed,
-            DriverConstants.AIM_SPEED_LIMIT_MIN_MPS);
+        double d = aim.shot.distanceToLipM;
+        double towardMps = vx * ux + vy * uy;
+        double sidewaysMps = -vx * uy + vy * ux;
+        double mx = robot.lastVelocity[0];
+        double my = robot.lastVelocity[1];
+        double measuredMps = Math.hypot(mx, my);
+        double measuredTowardMps = mx * ux + my * uy;
+        // Here, and where the robot will be by the time it can brake: driving in at 0.7 m/s it crossed into the
+        // slow zone close to the lip and took 0.2 s to get down to its speed
+        double dAhead = d - Math.max(0.0, measuredTowardMps) * DriverConstants.AIM_SPEED_LIMIT_LOOKAHEAD_S;
+        double limit = askedMps * Math.min(shareAt(aim, d, towardMps, sidewaysMps),
+            shareAt(aim, dAhead, towardMps, sidewaysMps));
+        // And the way it is really going, which drifts off the stick's: at 1.14 m/s it had no safe shot while the
+        // stick's direction did
+        if (measuredMps > 0.05) {
+          limit = Math.min(limit, measuredMps
+              * shareAt(aim, d, measuredTowardMps, -mx * uy + my * ux));
+        }
+        share = Math.min(1.0, limit / askedMps);
       }
     }
     double limitMps = share * askedMps;

@@ -23,6 +23,9 @@ public final class DriverConstants {
   // power over 0.15) plus the limit's power by the top speeds, plus KP power per m/s the speed is off the limit and KI
   // per second of it
   public static double AIM_SPEED_LIMIT_START_POWER = 0.15;
+  // The limit also holds where the robot will be this far ahead at its speed toward the Cell, so it slows before
+  // the slow zone close to the lip instead of in it
+  public static double AIM_SPEED_LIMIT_LOOKAHEAD_S = 0.3;
   public static double AIM_SPEED_LIMIT_KP = 0.5;
   public static double AIM_SPEED_LIMIT_KI = 1.5;
   // Speed at full power, for the limit: Pedro's measured top speeds (65 and 48 in/s)
