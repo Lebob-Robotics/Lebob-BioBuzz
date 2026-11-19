@@ -213,7 +213,9 @@ public final class HeadingLockTest {
       if (!r.ramp || Double.isNaN(r.lagDeg)) {
         continue;
       }
-      worstLag = Math.max(worstLag, Math.abs(r.lagDeg));
+      if (Math.abs(r.lagDeg) > Math.abs(worstLag)) {
+        worstLag = r.lagDeg;
+      }
       if (kv * r.rateRadPerSec > ks + 0.02) {
         kvSum += kv + kp * Math.toRadians(r.lagDeg) / r.rateRadPerSec;
         kvN++;
@@ -239,11 +241,11 @@ public final class HeadingLockTest {
     }
     if (kvN > 0) {
       double kvNew = round(Math.max(kv * 0.5, Math.min(kv * 1.5, kvSum / kvN)));
-      if (worstLag > TOLERANCE_DEG && Math.abs(kvNew - kv) >= 0.01) {
+      if (Math.abs(worstLag) > TOLERANCE_DEG && Math.abs(kvNew - kv) >= 0.01) {
         good = false;
         suggested[2] = kvNew;
-        lines.add(String.format(Locale.US, "Trails a moving target by %.1f deg: set HEADING_KV to %.2f", worstLag,
-            kvNew));
+        lines.add(String.format(Locale.US, "%s a moving target by %.1f deg: set HEADING_KV to %.2f",
+            worstLag > 0 ? "Trails" : "Runs ahead of", Math.abs(worstLag), kvNew));
       }
     }
     lines.add(0, good ? "GOOD: nothing to change" : "CHANGE: press X to try the suggested values, A to run again");

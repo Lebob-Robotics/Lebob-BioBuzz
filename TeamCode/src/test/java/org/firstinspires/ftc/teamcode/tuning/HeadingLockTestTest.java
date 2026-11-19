@@ -66,6 +66,15 @@ public class HeadingLockTestTest {
   }
 
   @Test
+  public void runningAheadOfAMovingTargetLowersKv() {
+    HeadingLockTest t = run(0.05, -Math.toRadians(3), 0);
+    double[] s = new double[4];
+    List<String> advice = HeadingLockTest.advice(t.results(), 1.0, 0.06, 0.16, 0.16, s);
+    assertTrue(advice.toString(), advice.get(1).startsWith("Runs ahead of"));
+    assertEquals(0.16 - Math.toRadians(3), s[2], 0.02);
+  }
+
+  @Test
   public void stoppingShortRaisesKs() {
     List<HeadingLockTest.Result> results = new ArrayList<>();
     results.add(new HeadingLockTest.Result("step to +30 deg", false, 0, 0.4, Double.NaN, 0, -2.0, Double.NaN,

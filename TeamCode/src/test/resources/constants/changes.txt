@@ -5,3 +5,5 @@
 org.firstinspires.ftc.teamcode.auto.AutoField.LOADING_ZONE = [-1.22, -0.61, -1.83, -1.5506000000000002]
 # 16 Nov: every auto parks beside the loading zone at its rear end, leaving the zone to a partner
 org.firstinspires.ftc.teamcode.auto.ShootAuto.PARK_LEFT_M = 1.34
+# 19 Nov: the heading lock trailed a moving aim by a steady 0.9-1.8 deg in TeleOp logs, turning at the aim's rate
+org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.HEADING_KV = 0.2

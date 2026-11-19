@@ -28,8 +28,9 @@ public class MecanumDriveSubsystem extends SubsystemBase {
   public static double HEADING_KD = 0.06; // On the error's rate, so it doesn't brake a turn that follows the target
   public static double HEADING_LATENCY_S = 0.08; // The error is judged this far ahead, where the power will act
   // Turn power per rad/s the target heading moves. Strafing near the Cell swings the aimed heading, and P alone
-  // trailed it.
-  public static double HEADING_KV = 0.16;
+  // trailed it. At 0.16, 15-19 Nov TeleOp logs show the robot turning at the aim's rate but a steady 0.9 deg behind
+  // at 0.3 rad/s, 1.5 at 0.6 and 1.8 at 1.1: each asks about 0.04 more power per rad/s
+  public static double HEADING_KV = 0.20;
   // Least turn power while off by more than HEADING_KS_ABOVE_RAD. Standing still, 0.10 didn't turn the robot
   // and 0.15 did; too little left it stuck outside the shot tolerance.
   public static double HEADING_KS = 0.16;
