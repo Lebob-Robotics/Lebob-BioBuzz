@@ -129,6 +129,7 @@ Indexer/Retry/FullPower
 Indexer/Retry/Paused
 Indexer/Servo3Power
 Indexer/State
+Indexer/Unjam/Paused
 Indexer/UpstreamPower
 Intake/Amps
 Intake/BallCount
@@ -151,7 +152,6 @@ Intake/RequestedState
 Intake/StackPacked
 Intake/State
 Intake/Velocity
-Intake/VolleyPush
 Intake/WheelContactFull
 Loop/AimMs
 Loop/DriveMs

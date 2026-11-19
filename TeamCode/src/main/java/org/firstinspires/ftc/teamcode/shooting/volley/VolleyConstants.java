@@ -79,9 +79,10 @@ public final class VolleyConstants {
   // a volley's feed runs until its ball leaves: the indexer pushes a slow ball through, where each pause stopped its
   // last roller and ran the feeder back, and the ball sat there for 4-6 s
   public static boolean VOLLEY_FEED_PULSES = false;
-  // Outside the auto (whose intake already runs), the intake runs forward once a volley's first feed starts, pushing
-  // the stack up: with the intake off a ball sat 5-10 s at full indexer power until pushed by hand
-  public static boolean VOLLEY_INTAKE_PUSHES = true;
+  // Outside the auto, a volley ball blocking the beam this long is backed off (indexer reversed 0.15 s, see
+  // IndexerRetry) and pushed again, until it moves: a free one clears the beam in 0.25-0.5 s
+  public static boolean UNJAM_ON = true;
+  public static double UNJAM_AFTER_S = 1.0;
   public static double VOLLEY_FEED_PULSE_S = 0.30;
   public static double VOLLEY_FEED_PAUSE_S = 0.20;
   // Between balls of a volley the feeder runs backward, as before the first ball, so every ball starts from the

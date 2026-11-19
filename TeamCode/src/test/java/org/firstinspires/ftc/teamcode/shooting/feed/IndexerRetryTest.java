@@ -49,6 +49,15 @@ public class IndexerRetryTest {
     }
   }
 
+  @Test public void aShorterWaitBacksOffSooner() {
+    IndexerRetry retry = new IndexerRetry(1.0);
+    retry.update(0, true, false);
+    retry.update(0.99, true, false);
+    assertFalse(retry.paused());
+    retry.update(1.0, true, false);
+    assertTrue(retry.paused());
+  }
+
   @Test public void loadingOrWaitingBeforeFirstFeedCannotArmRetry() {
     IndexerRetry retry = new IndexerRetry();
     retry.update(0, false, false); retry.update(100, false, false);

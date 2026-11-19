@@ -18,6 +18,7 @@ final class BallPath {
   private final Robot robot;
 
   private final IndexerRetry indexerRetry = new IndexerRetry();
+  private final IndexerRetry beamUnjam = new IndexerRetry(VolleyConstants.UNJAM_AFTER_S);
   boolean intakeOn = true;
   private boolean wasFull = false;
   private final FourthBall fourthBall = new FourthBall();
@@ -105,12 +106,7 @@ final class BallPath {
     }
     Logger.recordOutput("Intake/StackPacked", stackPacked);
     Logger.recordOutput("Intake/Eased", intakeEased);
-    // Once a volley has started the intake pushes the stack up behind its balls: the indexer alone left a ball
-    // sitting 5-10 s at full power until it was pushed by hand (19 Nov Volley Tuning 204019)
-    boolean volleyPush = VolleyConstants.VOLLEY_INTAKE_PUSHES && fire.volleyShot && enabledShot && !ejecting
-        && !robot.autonomous && fire.feedGate.feedStarts() > 0;
-    Logger.recordOutput("Intake/VolleyPush", volleyPush);
-    robot.intake.setIntakePower(intakeEased && !volleyPush ? StackPressure.PACKED_INTAKE_POWER : 1.0);
+    robot.intake.setIntakePower(intakeEased ? StackPressure.PACKED_INTAKE_POWER : 1.0);
     boolean shot = feedShots.update(nowS, fire.feedGate.feedStarted(), fire.feedGate.ballLeft(),
         "FEEDING".equals(fire.feedGate.stateName()), robot.shooter.getRpm(), robot.shooter.getTargetRpm());
     Logger.recordOutput("Intake/BallShot", shot);
@@ -130,8 +126,7 @@ final class BallPath {
     boolean intakeWanted = robot.tuningMode || !DriverConstants.INTAKE_ONLY_ON_LT
         || loadTrigger > Robot.TRIGGER_PRESSED;
     intakeOn = intakeWanted;
-    robot.intake.setIntakeState(volleyPush ? IntakeState.INTAKE
-        : intakeCommand(full || fourthBall.fourCounted(), ejecting, intakeWanted));
+    robot.intake.setIntakeState(intakeCommand(full || fourthBall.fourCounted(), ejecting, intakeWanted));
     boolean feeding = enabledShot && (!aiming || ready);
     // Full power, a volley's feed too: its indexer share (0.75) left balls sitting 3-6 s with the feed running
     // (19 Nov Volley Tuning), as the auto's slowed last roller brought the next ball up too little
@@ -153,8 +148,18 @@ final class BallPath {
         && (indexerCommand == IndexerState.STAGE || indexerCommand == IndexerState.FEED
             || indexerCommand == IndexerState.LOAD);
     indexerRetry.update(robot.clock.seconds(), retryAllowed, fire.feedGate.ballLeft());
-    // The retry's pause: in the auto a short reverse, to back a stuck ball off before full power forward
-    if (indexerRetry.paused()) { indexerCommand = robot.autonomous ? IndexerState.EJECT : IndexerState.STOP; }
+    // Outside the auto, a volley ball sitting at the beam break past UNJAM_AFTER_S is wedged on the early rollers
+    // (19 Nov Volley Tuning: normally 0.25-0.5 s there, but 6.5 and 11.3 s at full power until pushed by hand)
+    boolean unjamAllowed = !robot.autonomous && VolleyConstants.UNJAM_ON && fire.volleyShot && enabledShot && !ejecting
+        && fire.feedGate.feedStarts() > 0
+        && (robot.intake.isBeamBlocked() || beamUnjam.paused()) // The reverse can clear the beam: it still runs out
+        && (indexerCommand == IndexerState.STAGE || indexerCommand == IndexerState.FEED);
+    beamUnjam.update(robot.clock.seconds(), unjamAllowed, false);
+    Logger.recordOutput("Indexer/Unjam/Paused", beamUnjam.paused());
+    // The pause: a short reverse, to back a stuck ball off before full power forward
+    if (indexerRetry.paused() || beamUnjam.paused()) {
+      indexerCommand = robot.autonomous || beamUnjam.paused() ? IndexerState.EJECT : IndexerState.STOP;
+    }
     if (indexerRetry.fullPower()) { indexerPower = 1.0; }
     indexerPower = loadingIndexerPower(indexerCommand, loading, robot.autonomous, indexerPower);
     robot.indexer.setIndexerState(indexerCommand, indexerPower);
@@ -167,7 +172,7 @@ final class BallPath {
         && !VolleyConstants.VOLLEY_HOLD_BETWEEN_BALLS;
     FeederState feederCommand = feederCommand(ejecting, loading || fire.loadingShooter.clearing(), shooting, feeding,
         fireRequested, fire.feedGate.feederEmpty(), volleyBetweenBalls);
-    if (indexerRetry.paused()) { feederCommand = FeederState.STOP; }
+    if (indexerRetry.paused() || beamUnjam.paused()) { feederCommand = FeederState.STOP; }
     robot.feeder.setFeederState(feederCommand, feederPower);
   }
 

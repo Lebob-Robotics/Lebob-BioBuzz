@@ -4,9 +4,14 @@ package org.firstinspires.ftc.teamcode.shooting.feed;
 public final class IndexerRetry {
   public static final double WAIT_SECONDS = 1.5;
   public static final double PAUSE_SECONDS = 0.15;
+  private final double waitSeconds;
   private double since = Double.NaN;
   private boolean paused;
   private boolean fullPower;
+
+  public IndexerRetry() { this(WAIT_SECONDS); }
+
+  public IndexerRetry(double waitSeconds) { this.waitSeconds = waitSeconds; }
 
   public void update(double now, boolean indexingShot, boolean ballLeft) {
     if (!indexingShot || ballLeft) {
@@ -22,7 +27,7 @@ public final class IndexerRetry {
         fullPower = true;
         since = now;
       }
-    } else if (now - since >= WAIT_SECONDS) {
+    } else if (now - since >= waitSeconds) {
       paused = true;
       fullPower = false;
       since = now;
