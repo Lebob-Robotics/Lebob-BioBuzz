@@ -159,6 +159,37 @@ public class ShootOnTheMoveTest {
   }
 
   @Test
+  public void strafingFliesTheTableShotWithTheSameGroundSpeedTowardTheCell() {
+    for (double sideways : new double[] {0.3, 0.6, 0.9, -0.9}) {
+      Shot shot = ShootOnTheMove.calculate(1.2, 0.2, sideways);
+      assertTrue("sideways " + sideways, shot.valid);
+      double ground = shot.targetRpm * ShotTable.EXIT_SPEED_PER_RPM * Math.cos(Math.toRadians(shot.hoodDeg + 9.5));
+      assertEquals(-sideways, ground * Math.sin(shot.turningRad), 1e-6); // Still cancels the sideways speed
+      // Ball ground speed toward the Cell: what the table's flight at the lookup speed has, ball + robot
+      double lookup = 0.2 - ground * (1 - Math.cos(shot.turningRad));
+      Shot table = ShootOnTheMove.calculate(1.2, lookup, 0);
+      assertEquals(table.targetRpm, shot.targetRpm, 0.01);
+      assertEquals(table.hoodDeg, shot.hoodDeg, 1e-3);
+      assertEquals(table.timeOfFlightS, shot.timeOfFlightS, 1e-4);
+      assertEquals(0.2, shot.speedTowardCellMps, 0); // Reported with the real speed
+    }
+  }
+
+  @Test
+  public void withoutTheRangeFixStrafingLooksUpTheRealSpeed() {
+    double saved = SotmConstants.SOTM_SIDEWAYS_RANGE_GAIN;
+    try {
+      SotmConstants.SOTM_SIDEWAYS_RANGE_GAIN = 0;
+      Shot shot = ShootOnTheMove.calculate(1.2, 0.2, 0.9);
+      Shot table = ShootOnTheMove.calculate(1.2, 0.2, 0);
+      assertEquals(table.targetRpm, shot.targetRpm, 1e-9);
+      assertEquals(table.hoodDeg, shot.hoodDeg, 1e-9);
+    } finally {
+      SotmConstants.SOTM_SIDEWAYS_RANGE_GAIN = saved;
+    }
+  }
+
+  @Test
   public void aHoodJumpBlocksFireButIsNotFollowed() {
     Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
     Aim jump = new Aim(aim.shot, aim.targetHeadingRad, aim.lockHeadingRad, 0, aim.headingToleranceRad, false,

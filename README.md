@@ -20,6 +20,8 @@ our own code in `TeamCode`.
 | Shot Tuning | Tuning | `opmodes/tuning/ShotTuning` | Standing shots at test spots, to find each spot's scoring hood (or RPM) range and aim trim; writes `ShotTuning_v2.csv` |
 | SOTM Tuning | Tuning | `opmodes/tuning/SotmTuning` | Planned shoot-on-the-move passes, one ball each; writes `SotmTuning.csv` |
 | Special Shot Calibration | Tuning | `opmodes/tuning/SpecialShotCalibration` | The lob over our Hive into its far Cell; writes `SpecialShot.csv` |
+| Heading Lock Tuning | Tuning | `opmodes/tuning/HeadingLockTuning` | Press A: the robot turns on the spot (steps, then sweeping targets) and says GOOD or which heading gain to change, to what. X tries it. Writes `HeadingLockTuning.csv` |
+| Flywheel Tuning | Tuning | `opmodes/tuning/FlywheelTuning` | Press A: speed steps 2500-4000 rpm; Y: fires the loaded balls one at a time (aim at a net). Says GOOD or which PIDF value to change. X tries it. Writes `FlywheelTuning.csv` |
 | Vision Calibration | Tuning | `opmodes/check/VisionCalibration` | Measures tags, and in INIT sweeps the camera exposure. Nothing moves |
 | Odometry Calibration | Tuning | `opmodes/check/OdometryCalibration` | Measures the Pinpoint pod offsets by spinning in place, for `hardware/PinpointSettings` |
 | Indexer Intake Test | Test | `opmodes/check/IndexerIntakeTest` | Runs each indexer servo and the intake alone and shows what each draws |
@@ -242,6 +244,10 @@ ones.
 
    After tuning, keep a copy with `adb pull /sdcard/FIRST/VolleyTuning_v3.csv`.
 4. **Special Shot Calibration** writes `SpecialShot.csv`, for the lob into the far Cell.
+5. **Heading Lock Tuning** and **Flywheel Tuning** each run their whole test from one button (A) and show a plain
+   result: GOOD, or the constant to change and its new value. X tries the suggestion until the OpMode stops (nothing
+   is saved); copy a value that tests GOOD into `MecanumDriveSubsystem` or `ShooterSubsystem`. Run them after a
+   drive or flywheel change, before Shot Tuning.
 
 Vision Calibration (with `tools/vision/`) and Odometry Calibration are for when a camera or an odometry pod moves.
 

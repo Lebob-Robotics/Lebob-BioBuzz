@@ -71,6 +71,11 @@ Feeder/BallLeft
 Feeder/CommandedPower
 Feeder/Gate
 Feeder/State
+FlywheelTuning/Stage
+FlywheelTuning/TargetRpm
+HeadingTuning/Segment
+HeadingTuning/TargetRad
+HeadingTuning/TargetRateRadPerSec
 Hood/AngleDeg
 Hood/AtTarget
 Hood/DirectMode

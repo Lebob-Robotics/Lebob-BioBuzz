@@ -5,6 +5,8 @@ import static org.junit.Assert.assertTrue;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.opmodes.tuning.FlywheelTuning;
+import org.firstinspires.ftc.teamcode.opmodes.tuning.HeadingLockTuning;
 import org.firstinspires.ftc.teamcode.opmodes.tuning.ShotTuning;
 import org.firstinspires.ftc.teamcode.opmodes.tuning.SotmTuning;
 import org.firstinspires.ftc.teamcode.opmodes.tuning.SpecialShotCalibration;
@@ -43,6 +45,8 @@ public class TuningOpModeTraceTest {
     scenarios.put("shot-tuning-opmode", csv(TuningOpModeTraceTest::shotTuning));
     scenarios.put("sotm-tuning-opmode", csv(TuningOpModeTraceTest::sotmTuning));
     scenarios.put("special-shot-opmode", csv(TuningOpModeTraceTest::specialShot));
+    scenarios.put("heading-lock-opmode", csv(TuningOpModeTraceTest::headingLock));
+    scenarios.put("flywheel-opmode", csv(TuningOpModeTraceTest::flywheel));
     RobotLoopTraceTest.checkTrace("robot/tuning-trace.txt", false, scenarios, "Feeder/BallLeft=true");
   }
 
@@ -197,6 +201,46 @@ public class TuningOpModeTraceTest {
       g.right_stick_x = i < 10 ? 0.3f : 0f;
     });
     r.run("lt-intake", 40, (g, i) -> g.left_trigger = 1f);
+    r.stop();
+  }
+
+  /** Heading Lock Tuning: positioning with the sticks, a full run, trying the suggested values, a run stopped by B. */
+  private static void headingLock(Run r) {
+    r.sim.truth = RobotLoopTraceTest.nearCell(Alliance.BLUE, 2.0);
+    open(r, new HeadingLockTuning());
+    r.init("init", 10, NOTHING);
+    call(r, "onPsiKitStart");
+    r.run("sticks", 30, (g, i) -> g.left_stick_y = i < 15 ? -0.5f : 0f);
+    r.run("a-run", 1450, (g, i) -> g.a = i < 2);
+    r.run("x-suggested", 10, (g, i) -> g.x = i < 2);
+    r.run("a-run-stopped", 100, (g, i) -> {
+      g.a = i < 2;
+      g.b = i >= 60 && i < 62;
+    });
+    r.stop();
+  }
+
+  /** Flywheel Tuning: the speed test, then the ball test with three balls in. */
+  private static void flywheel(Run r) {
+    r.sim = new RobotSim(true); // The sim's cameras and readings need a Robot; the OpMode runs the subsystems itself
+    FlywheelTuning op = new FlywheelTuning();
+    op.hardwareMap = r.sim.hardwareMap;
+    op.telemetry = r.sim.telemetry;
+    op.gamepad1 = r.sim.gamepad;
+    op.gamepad2 = new Gamepad();
+    set(op, "session", SESSION);
+    r.opMode = op;
+    call(r, "onPsiKitInit");
+    r.sim.attachOpMode(op);
+    r.initCode = () -> call(r, "onPsiKitInitLoop");
+    r.loopCode = () -> call(r, "onPsiKitLoop");
+    r.stopCode = () -> call(r, "onPsiKitStop");
+    r.init("init", 10, NOTHING);
+    call(r, "onPsiKitStart");
+    r.run("a-speed-test", 1200, (g, i) -> g.a = i < 2);
+    r.sim.balls = 3;
+    r.run("y-ball-test", 600, (g, i) -> g.y = i < 2);
+    r.run("x-suggested", 10, (g, i) -> g.x = i < 2);
     r.stop();
   }
 

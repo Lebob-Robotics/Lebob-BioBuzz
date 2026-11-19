@@ -28,6 +28,8 @@ ignores.
   `tools/shots/fit-shots.js` fits.
 - `sotm_report.py [SotmTuning.csv] [--pull] [--session S]`: how SOTM Tuning's moving balls did, and fitted
   corrections for `SotmConstants`. Reads the shot table from this repo's `ShotTable.java`.
+- `release_report.py LOG...`: how long balls take from the feed starting to leaving the shooter, from Main and
+  Volley Tuning logs; checks `AimConstants.FEED_DELAY_S` (the median plus about one loop for the pose's age).
 - `gridreport.py LOG [BALLS]`: per-ball rows and webcam frames for a grid run, for `fit-shots.js`.
 
 ## Field webcam

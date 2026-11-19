@@ -141,6 +141,11 @@ final class RobotSim {
     swapClocks(opMode, seen, 0);
   }
 
+  /** An OpMode that runs subsystems of its own beside the sim's Robot: its clocks swapped too. */
+  void attachOpMode(Object opMode) {
+    swapClocks(opMode, Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+  }
+
   static void startLogger() {
     Logger.reset();
     Logger.disableConsoleCapture();

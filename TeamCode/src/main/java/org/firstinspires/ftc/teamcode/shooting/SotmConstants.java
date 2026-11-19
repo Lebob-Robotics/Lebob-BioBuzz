@@ -11,6 +11,10 @@ public final class SotmConstants {
   // model as built: the sideways speed the shooter turns to cancel, and the speed toward the Cell the table looks up
   public static double SOTM_SIDEWAYS_GAIN = 1.0;
   public static double SOTM_TOWARD_GAIN = 1.0;
+  // Share of the ground speed lost to the sideways turn that the lookup makes up for (ShootOnTheMove.calculate). 1 is
+  // exact for the table's model; 0 is the old cancel-sideways-only shot, which landed 4 cm short at 0.5 m/s sideways
+  // and 15-27 cm short at 1 m/s
+  public static double SOTM_SIDEWAYS_RANGE_GAIN = 1.0;
   // Straight corrections per m/s of the speed the shot was looked up with, from SOTM Tuning's spot searches: launch
   // angle added for speed toward the Cell, RPM added for it, and aim turned anticlockwise for sideways speed (left +).
   // All left at 0 as within noise, and the release delay matched FEED_DELAY_S: the moving model is right as built

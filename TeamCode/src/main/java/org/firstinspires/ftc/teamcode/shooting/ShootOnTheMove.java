@@ -34,14 +34,43 @@ public final class ShootOnTheMove {
    * @param sidewaysSpeedMps   across the line to the Cell, positive to the left
    */
   public static Shot calculate(double distanceToLipM, double speedTowardCellMps, double sidewaysSpeedMps) {
+    // Turning to cancel the sideways speed leaves the ball only cos(turning) of its ground speed toward the Cell, so
+    // it would land short (15 cm at 1 m/s sideways). The table's flights are planar with ground speed (ball + robot's
+    // speed toward the Cell), so the shot whose flight is the same is the table's at a slower lookup speed:
+    // lookup = toward - ballGround * (1 - cos(turning)). Solved by repeating, as the shot's ball speed depends on it
+    double lookupSpeedMps = speedTowardCellMps;
+    Shot shot = calculateAtLookupSpeed(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps, lookupSpeedMps);
+    for (int i = 0; i < SIDEWAYS_SOLVE_STEPS && shot.valid && sidewaysSpeedMps != 0; i++) {
+      double lostMps = ballHorizontalSpeedMps(shot.targetRpm, shot.hoodDeg) * (1 - Math.cos(shot.turningRad));
+      double next = speedTowardCellMps - SOTM_SIDEWAYS_RANGE_GAIN * lostMps;
+      if (Math.abs(next - lookupSpeedMps) < 1e-4) {
+        break;
+      }
+      lookupSpeedMps = next;
+      Shot corrected = calculateAtLookupSpeed(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps, lookupSpeedMps);
+      if (!corrected.valid) { // Only the sideways speed pushed it off the table's shots
+        return Shot.impossible(Shot.Reason.SIDEWAYS_TOO_FAST, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps,
+            shot.turningRad);
+      }
+      shot = corrected;
+    }
+    return shot;
+  }
+
+  /** Enough for 1e-4 m/s: each step shrinks the lookup speed's error about tenfold. */
+  private static final int SIDEWAYS_SOLVE_STEPS = 6;
+
+  /** The table's shot at lookupSpeedMps, turned to cancel the sideways speed; reported with the real speeds. */
+  private static Shot calculateAtLookupSpeed(double distanceToLipM, double speedTowardCellMps,
+      double sidewaysSpeedMps, double lookupSpeedMps) {
     double[] distances = ShotTable.DIST_M;
     double[] speeds = ShotTable.VEL_MPS;
     Shot.Reason outsideTable = null;
     if (distanceToLipM < distances[0] || distanceToLipM > distances[distances.length - 1]) {
       outsideTable = Shot.Reason.OUT_OF_RANGE;
-    } else if (speedTowardCellMps > speeds[speeds.length - 1]) {
+    } else if (lookupSpeedMps > speeds[speeds.length - 1]) {
       outsideTable = Shot.Reason.CLOSING_TOO_FAST;
-    } else if (speedTowardCellMps < speeds[0]) {
+    } else if (lookupSpeedMps < speeds[0]) {
       outsideTable = Shot.Reason.BACKING_TOO_FAST;
     }
     if (outsideTable != null) {
@@ -49,7 +78,7 @@ public final class ShootOnTheMove {
           approximateTurningRad(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps));
     }
 
-    TableLookup lookup = new TableLookup(distanceToLipM, speedTowardCellMps);
+    TableLookup lookup = new TableLookup(distanceToLipM, lookupSpeedMps);
     double hoodDifferenceDeg = lookup.spread(ShotTable.HOOD_DEG);
     if (Double.isNaN(hoodDifferenceDeg)) { // A neighbouring cell has no shot, so we're at the edge of what scores
       return Shot.impossible(Shot.Reason.NO_SAFE_SHOT, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps,
