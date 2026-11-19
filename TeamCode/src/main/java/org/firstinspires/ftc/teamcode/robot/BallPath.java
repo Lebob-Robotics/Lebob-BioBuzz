@@ -141,10 +141,13 @@ final class BallPath {
         || (robot.spinOnlyOnFire && enabledShot && !feeding && fire.feedGate.feedStarts() == 0))) {
       indexerCommand = IndexerState.STOP;
     }
-    // Retry only after a volley has actually started. All release, clearance and shot gates still apply.
-    boolean retryAllowed = fire.volleyShot && enabledShot && !ejecting && fire.feedGate.feedStarts() > 0
+    // Retry only after a volley has actually started. All release, clearance and shot gates still apply. Only in the
+    // auto, where it backs a stuck ball off: the indexer's motors push the stack through on their own, and in
+    // TeleOp and Volley Tuning its stop every 1.5 s only held the stack up
+    boolean retryAllowed = robot.autonomous && fire.volleyShot && enabledShot && !ejecting
+        && fire.feedGate.feedStarts() > 0
         && (indexerCommand == IndexerState.STAGE || indexerCommand == IndexerState.FEED
-            || (robot.autonomous && indexerCommand == IndexerState.LOAD));
+            || indexerCommand == IndexerState.LOAD);
     indexerRetry.update(robot.clock.seconds(), retryAllowed, fire.feedGate.ballLeft());
     // The retry's pause: in the auto a short reverse, to back a stuck ball off before full power forward
     if (indexerRetry.paused()) { indexerCommand = robot.autonomous ? IndexerState.EJECT : IndexerState.STOP; }
