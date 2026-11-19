@@ -91,7 +91,8 @@ public class VolleyTuning extends Main {
     robot.setDriveBrake(true);
     robot.setAllianceFromTags(true);
     robot.setHoldFire(true);
-    robot.setSpinOnlyOnFire(true);
+    // The flywheels stay spinning while LT loads and the stack stages before the first feed, as in Lebot Teleop:
+    // stopped for loading and spun up from rest at RB, the volleys tuned weren't the ones the match fires
     history = readCsv();
     pickStartSpot();
   }
