@@ -133,11 +133,12 @@ public class SotmPathTest {
 
   @Test
   public void fieldFrameLineRunsAlongTheStrip() {
-    SotmPath p = SotmPath.place(SotmPath.Kind.STRAIGHT, 1.0, -90, 0, true, 1.1, 1.35);
+    // 0.7 m/s: at 1 m/s (1.2 with the check's margin) strafing past this close is too fast sideways for any shot
+    SotmPath p = SotmPath.place(SotmPath.Kind.STRAIGHT, 0.7, -90, 0, true, 1.1, 1.35);
     assertNotNull(p);
     double[] atFire = p.sample(p.fireS);
     assertEquals(0, atFire[2], 1e-6);
-    assertEquals(-1.0, atFire[3], 0.01);
+    assertEquals(-0.7, atFire[3], 0.01);
   }
 
   @Test

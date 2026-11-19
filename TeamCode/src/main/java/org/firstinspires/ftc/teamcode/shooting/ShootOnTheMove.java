@@ -64,7 +64,7 @@ public final class ShootOnTheMove {
           approximateTurningRad(distanceToLipM, speedTowardCellMps, sidewaysSpeedMps));
     }
 
-    double ballHorizontalSpeedMps = targetRpm * ShotTable.EXIT_SPEED_PER_RPM * Math.cos(Math.toRadians(hoodDeg));
+    double ballHorizontalSpeedMps = ballHorizontalSpeedMps(targetRpm, hoodDeg);
     double sinTurning = -sidewaysSpeedMps / ballHorizontalSpeedMps; // The ball's sideways speed cancels the robot's
     if (!(Math.abs(sinTurning) <= Math.sin(Math.toRadians(MAX_TURNING_DEG)))) { // Also catches NaN
       return Shot.impossible(Shot.Reason.SIDEWAYS_TOO_FAST, distanceToLipM, speedTowardCellMps, sidewaysSpeedMps,
@@ -112,12 +112,19 @@ public final class ShootOnTheMove {
     double dist = Math.max(distances[0], Math.min(distances[distances.length - 1], distanceToLipM));
     double speed = Math.max(speeds[0], Math.min(speeds[speeds.length - 1], speedTowardCellMps));
     double[] rpmAndHood = new TableLookup(dist, speed).nearestShot();
-    double ballHorizontalSpeedMps = rpmAndHood[0] * ShotTable.EXIT_SPEED_PER_RPM
-        * Math.cos(Math.toRadians(rpmAndHood[1]));
+    double ballHorizontalSpeedMps = ballHorizontalSpeedMps(rpmAndHood[0], rpmAndHood[1]);
     if (!(ballHorizontalSpeedMps > 0)) { // Also NaN: none of the four cells has a shot
       return 0.0;
     }
     return clampedTurningRad(-sidewaysSpeedMps / ballHorizontalSpeedMps);
+  }
+
+  /**
+   * The ball's speed along the ground out of the shooter, as the table's flights launch it: LAUNCH_OFFSET_DEG steeper
+   * than the hood. Negative past vertical, where the ball's ground speed comes from the robot driving at the Cell.
+   */
+  static double ballHorizontalSpeedMps(double rpm, double hoodDeg) {
+    return rpm * ShotTable.EXIT_SPEED_PER_RPM * Math.cos(Math.toRadians(hoodDeg + ShotTable.LAUNCH_OFFSET_DEG));
   }
 
   private static double clampedTurningRad(double sinTurning) {
@@ -129,8 +136,8 @@ public final class ShootOnTheMove {
   }
 
   /** Bounds on the shot's rates: a jump between table rows or ranges is not a rate to follow. */
-  private static final double MAX_HOOD_RATE_DEG_PER_SEC = 40;
-  private static final double MAX_RPM_RATE_PER_SEC = 3000;
+  static final double MAX_HOOD_RATE_DEG_PER_SEC = 40;
+  static final double MAX_RPM_RATE_PER_SEC = 3000;
 
   /** Where to point the robot and what shot to take. Everything is in the field frame. */
   public static Aim aim(FieldPose robot, double velocityXMps, double velocityYMps, double cellX, double cellY) {
@@ -181,8 +188,7 @@ public final class ShootOnTheMove {
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
         headingTolerance(g.distanceToClusterM), false,
         both ? shotNow.hoodDeg : shot.hoodDeg, both ? shotNow.targetRpm : shot.targetRpm,
-        both ? rate(shotNow.hoodDeg, shot.hoodDeg, MAX_HOOD_RATE_DEG_PER_SEC) : 0,
-        both ? rate(shotNow.targetRpm, shot.targetRpm, MAX_RPM_RATE_PER_SEC) : 0);
+        both ? rate(shotNow.hoodDeg, shot.hoodDeg) : 0, both ? rate(shotNow.targetRpm, shot.targetRpm) : 0);
   }
 
   /**
@@ -206,7 +212,7 @@ public final class ShootOnTheMove {
     double lockHeadingRad = Angles.normalize(now.directionToCellRad - BACKWARD_DIRECTION_RAD);
     return new Aim(shot, robotHeadingRad, lockHeadingRad, now.directionRateRadPerSec(),
         headingTolerance(g.distanceToClusterM), true, hoodNow, rpmNow, 0,
-        still.valid && stillNow.valid ? rate(stillNow.targetRpm, still.targetRpm, MAX_RPM_RATE_PER_SEC) : 0);
+        still.valid && stillNow.valid ? rate(stillNow.targetRpm, still.targetRpm) : 0);
   }
 
   /**
@@ -253,13 +259,15 @@ public final class ShootOnTheMove {
     return b < secondsToReady(hooded, headingRad, hoodDeg, rpm);
   }
 
-  /** From the shot for a ball leaving now to the one leaving FEED_DELAY_S on. */
-  private static double rate(double now, double atRelease, double max) {
+  /**
+   * From the shot for a ball leaving now to the one leaving FEED_DELAY_S on. Not bounded here: the fire gate must
+   * see a jump's full rate, and only the hood and wheels' feed-forward drops it ({@link Aim#hoodRateToFollowDegPerSec}).
+   */
+  private static double rate(double now, double atRelease) {
     if (!(FEED_DELAY_S > 0)) {
       return 0;
     }
-    double r = (atRelease - now) / FEED_DELAY_S;
-    return Math.abs(r) <= max ? r : 0; // Also catches NaN
+    return (atRelease - now) / FEED_DELAY_S;
   }
 
   /** Where the Cell is from the shooter leadS from now, and how the robot moves relative to it. */
@@ -359,7 +367,7 @@ public final class ShootOnTheMove {
     double errorAtLatestExitRad = errorNowRad + (targetRateRadPerSec - turnRateRadPerSec) * FEED_DELAY_MAX_S;
     return aim.shot.valid
         && (closeMovingAllowed || !tooCloseToShootMoving(aim.shot))
-        && Math.abs(aim.hoodRateDegPerSec) <= MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC
+        && Math.abs(aim.hoodRateDegPerSec) <= MAX_HOOD_RATE_TO_FIRE_DEG_PER_SEC // Also catches NaN
         && flywheelsReady
         && hoodReady
         && Math.abs(errorNowRad) <= aim.headingToleranceRad

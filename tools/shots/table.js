@@ -97,7 +97,8 @@
       'public final class ShotTable {\n' +
       '  private ShotTable() {}\n\n' +
       '  private static final double NaN = Double.NaN;\n\n' +
-      '  public static final double EXIT_SPEED_PER_RPM = ' + p.exitSpeedPerRpm + '; // Ball speed out of the shooter, m/s per flywheel RPM\n\n' +
+      '  public static final double EXIT_SPEED_PER_RPM = ' + p.exitSpeedPerRpm + '; // Ball speed out of the shooter, m/s per flywheel RPM\n' +
+      '  public static final double LAUNCH_OFFSET_DEG = ' + (p.launchOffsetDeg || 0) + '; // The ball leaves this much steeper than HOOD_DEG\n\n' +
       '  public static final double[] DIST_M = ' + javaRow(table.dist) + ';\n' +
       '  public static final double[] VEL_MPS = ' + javaRow(table.vel) + ';\n\n' +
       '  public static final double[][] HOOD_DEG = ' + javaGrid(table.hood) + ';\n\n' +

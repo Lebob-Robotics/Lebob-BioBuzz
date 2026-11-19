@@ -44,7 +44,7 @@ final class ShooterControl {
     // A shot gone for a moment (NO_SAFE_SHOT flickers) keeps its speed: dropping to IDLE braked the wheels, and they
     // then had to come back
     boolean shotJustLost = !shotKnown && nowS - lastShotKnownS <= FireConstants.PRESPIN_HOLD_S;
-    double rpmRate = shotKnown ? aim.rpmRatePerSec : 0.0;
+    double rpmRate = shotKnown ? aim.rpmRateToFollowPerSec() : 0.0;
     // The shot is for the ball leaving FEED_DELAY_S from now. The wheels and hood only have to be there by
     // then, so they follow the shot for now and arrive at this one as the ball leaves. Holding this one
     // already put them a feed delay early.
@@ -117,7 +117,7 @@ final class ShooterControl {
         // Lift rises as the launch angle falls
         volleyHoodDeg = volleyHoodDeg(aim);
         robot.hood.setTargetTicks(HoodSubsystem.angleToTicks(aim.hoodNowDeg - robot.hoodLiftTrimDeg + movingHoodDeg(aim)
-            + volleyHoodDeg), -aim.hoodRateDegPerSec);
+            + volleyHoodDeg), -aim.hoodRateToFollowDegPerSec());
       }
     } else if (!robot.buttonsFree()) {
       return; // The D-pad sets the tuning shot, or marks balls, instead

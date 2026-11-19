@@ -152,8 +152,25 @@ public class ShootOnTheMoveTest {
     assertTrue(shot.valid);
     assertTrue(shot.hoodDeg < 90);
     assertTrue("should turn clockwise", shot.turningRad < 0);
-    double ballHorizontalSpeed = shot.targetRpm * ShotTable.EXIT_SPEED_PER_RPM * Math.cos(Math.toRadians(shot.hoodDeg));
+    // The ball leaves LAUNCH_OFFSET_DEG steeper than the hood, as tools/shots flies it
+    double ballHorizontalSpeed = shot.targetRpm * ShotTable.EXIT_SPEED_PER_RPM
+        * Math.cos(Math.toRadians(shot.hoodDeg + 9.5));
     assertEquals(-0.5, ballHorizontalSpeed * Math.sin(shot.turningRad), TOLERANCE); // Cancels the robot's sideways speed
+  }
+
+  @Test
+  public void aHoodJumpBlocksFireButIsNotFollowed() {
+    Aim aim = ShootOnTheMove.aim(new FieldPose(0, 0, 0), 0, 0, 1.5, 0);
+    Aim jump = new Aim(aim.shot, aim.targetHeadingRad, aim.lockHeadingRad, 0, aim.headingToleranceRad, false,
+        aim.hoodNowDeg, aim.rpmNow, 60, 5000);
+    assertTrue(ShootOnTheMove.readyToFire(aim, true, true, aim.lockHeadingRad, 0));
+    assertFalse(ShootOnTheMove.readyToFire(jump, true, true, jump.lockHeadingRad, 0));
+    assertEquals(0, jump.hoodRateToFollowDegPerSec(), 0);
+    assertEquals(0, jump.rpmRateToFollowPerSec(), 0);
+    Aim slow = new Aim(aim.shot, aim.targetHeadingRad, aim.lockHeadingRad, 0, aim.headingToleranceRad, false,
+        aim.hoodNowDeg, aim.rpmNow, 30, 2000);
+    assertEquals(30, slow.hoodRateToFollowDegPerSec(), 0);
+    assertEquals(2000, slow.rpmRateToFollowPerSec(), 0);
   }
 
   @Test

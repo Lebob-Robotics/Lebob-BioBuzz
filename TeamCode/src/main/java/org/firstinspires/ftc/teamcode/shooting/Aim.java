@@ -29,7 +29,9 @@ public final class Aim {
   public final double rpmNow;
   /**
    * How fast those change as the robot keeps its present velocity, so the hood and wheels can follow a
-   * moving target instead of chasing it. 0 when either shot isn't valid.
+   * moving target instead of chasing it. 0 when either shot isn't valid. A jump between table cells shows as a large
+   * rate, which blocks the fire gate; the hood and wheels follow {@link #hoodRateToFollowDegPerSec} and
+   * {@link #rpmRateToFollowPerSec} instead.
    */
   public final double hoodRateDegPerSec;
   public final double rpmRatePerSec;
@@ -47,6 +49,16 @@ public final class Aim {
     this.lockHeadingRad = lockHeadingRad;
     this.lockRateRadPerSec = lockRateRadPerSec;
     this.headingToleranceRad = headingToleranceRad;
+  }
+
+  /** {@link #hoodRateDegPerSec} for the hood's feed-forward: 0 for a jump, which is not a rate to follow. */
+  public double hoodRateToFollowDegPerSec() {
+    return Math.abs(hoodRateDegPerSec) <= ShootOnTheMove.MAX_HOOD_RATE_DEG_PER_SEC ? hoodRateDegPerSec : 0; // And NaN
+  }
+
+  /** {@link #rpmRatePerSec} for the wheels' feed-forward: 0 for a jump. */
+  public double rpmRateToFollowPerSec() {
+    return Math.abs(rpmRatePerSec) <= ShootOnTheMove.MAX_RPM_RATE_PER_SEC ? rpmRatePerSec : 0; // And NaN
   }
 
   /** This aim pointed rad further anticlockwise, the shot otherwise unchanged. */

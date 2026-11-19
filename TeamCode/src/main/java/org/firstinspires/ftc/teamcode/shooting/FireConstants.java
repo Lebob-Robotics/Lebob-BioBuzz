@@ -13,11 +13,10 @@ public final class FireConstants {
   // Per flywheel. The hub's speed reading steps by about 61 RPM and the wheels settle a step or so above
   // target, so this allows two steps
   public static double RPM_TOLERANCE = 125;
-  // The two wheels' mean, which the aimed shot also needs. The shot table allows 50 RPM, and 50 RPM is about
-  // 0.1 m of range. The misses left fast while slow balls went in, and the wheels lag a target that moves with the
-  // robot's speed, so slow gets more room
+  // The two wheels' mean, which the aimed shot also needs. The shot table only scores within 50 RPM either side
+  // (tools/shots/inputs.json rpmToleranceRpm), and 50 RPM is about 0.1 m of range, so neither side may go past it
   public static double RPM_MEAN_ABOVE_TARGET = 50;
-  public static double RPM_MEAN_BELOW_TARGET = 100;
+  public static double RPM_MEAN_BELOW_TARGET = 50;
   // The speed this far ahead, from its trend, must not be more than this over: wheels climbing back after a ball
   // can be fed near target and overshoot, sending the ball long. Fast side only, and looser than the speed now:
   // wheels slowing toward the target settle rather than undershoot. The mean steps 30 RPM, so the slope needs 0.2 s
