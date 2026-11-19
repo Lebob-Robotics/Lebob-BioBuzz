@@ -24,4 +24,7 @@ public final class DriverConstants {
   // The upstream indexer rollers' power while LT loads. At full power they pushed the front ball past the held-back
   // feeder into the spinning wheels. The last roller stays at its own gentle load power
   public static double LOAD_UPSTREAM_POWER = 0.5;
+  // LT loading stops the last roller (before the feeder): at 0.3 it pushed the front ball past the held-back feeder
+  // into the wheels with 3 balls in. The auto keeps it running to bring its next ball up. Shots run it as before
+  public static boolean LOAD_LAST_ROLLER_COASTS = true;
 }

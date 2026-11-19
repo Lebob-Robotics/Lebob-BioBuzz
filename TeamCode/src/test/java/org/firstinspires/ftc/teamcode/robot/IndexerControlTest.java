@@ -62,6 +62,13 @@ public class IndexerControlTest {
     assertEquals(1.0, BallPath.loadingIndexerPower(IndexerState.EJECT, true, false, 1.0), 1e-9);
   }
 
+  @Test public void loadingStatesAreLoadAndStage() {
+    assertTrue(BallPath.loadsBalls(IndexerState.LOAD));
+    assertTrue(BallPath.loadsBalls(IndexerState.STAGE));
+    assertFalse(BallPath.loadsBalls(IndexerState.FEED));
+    assertFalse(BallPath.loadsBalls(IndexerState.STOP));
+  }
+
   @Test public void packedStackLoadsWithTheLastRollerStopped() {
     assertEquals(IndexerState.STAGE, BallPath.packedLoad(IndexerState.LOAD, true));
     assertEquals(IndexerState.LOAD, BallPath.packedLoad(IndexerState.LOAD, false));

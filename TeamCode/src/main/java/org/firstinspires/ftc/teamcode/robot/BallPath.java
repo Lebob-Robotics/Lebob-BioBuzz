@@ -74,9 +74,13 @@ final class BallPath {
     }
     wasLtPressed = ltPressed;
     boolean watchingWheels = loading && !wheelContactFull && !robot.tuningMode
-        && robot.indexer.getIndexerState() == IndexerState.LOAD && robot.shooter.getShooterState() == ShooterState.AIM;
-    if (wheelContact.update(robot.clock.seconds(), watchingWheels, robot.shooter.getRpm(),
-        robot.shooter.getTargetRpm())) {
+        && loadsBalls(robot.indexer.getIndexerState()) && robot.shooter.getShooterState() == ShooterState.AIM;
+    boolean wheelTouch = wheelContact.update(robot.clock.seconds(), watchingWheels, robot.shooter.getRpm(),
+        robot.shooter.getTargetRpm());
+    // With the beams counting, a loading ball touching the wheels was shot out, not a full stack (19 Nov 173131:
+    // latched full at 3 balls, LT stayed blocked). Without them the touch is still the only sign of full
+    boolean beams = robot.intake.beamsConfigured() > 0;
+    if (wheelTouch && !beams) {
       wheelContactFull = true;
     }
     Logger.recordOutput("Intake/WheelContactFull", wheelContactFull);
@@ -92,8 +96,8 @@ final class BallPath {
     Logger.recordOutput("Intake/StackPacked", stackPacked);
     Logger.recordOutput("Intake/Eased", intakeEased);
     robot.intake.setIntakePower(intakeEased ? StackPressure.PACKED_INTAKE_POWER : 1.0);
-    boolean fourBalls = fourthBall.update(nowS, robot.intake.isBeamBlocked(), fire.feedGate.ballLeft(), ejecting,
-        loading && robot.indexer.getIndexerState() == IndexerState.LOAD);
+    boolean fourBalls = fourthBall.update(nowS, robot.intake.isBeamBlocked(),
+        fire.feedGate.ballLeft() || (wheelTouch && beams), ejecting, loading && loadsBalls(robot.indexer.getIndexerState()));
     Logger.recordOutput("Intake/BeamBlocked", robot.intake.isBeamBlocked());
     Logger.recordOutput("Intake/FourBalls", fourBalls);
     Logger.recordOutput("Intake/BeamBlockedLoadingS", fourthBall.blockedLoadingS());
@@ -117,7 +121,7 @@ final class BallPath {
         ? robot.volleyIndexerPower() : 1.0;
     IndexerState indexerCommand = indexerCommand(ejecting, fireRequested, feeding, loadTrigger,
         robot.holdFire || fire.loadingShooter.blocksSpin(), full);
-    indexerCommand = packedLoad(indexerCommand, stackPacked);
+    indexerCommand = packedLoad(indexerCommand, stackPacked || (!robot.autonomous && DriverConstants.LOAD_LAST_ROLLER_COASTS));
     indexerCommand = autoStage(indexerCommand, robot.autonomous);
     indexerCommand = agitated(indexerCommand, robot.autonomous && robot.autoIndexerPaused, robot.autoIndexerReverse);
     if (!ejecting && (fire.loadingShooter.clearing() || (loading && !fire.loadingShooter.canLoad())
@@ -231,7 +235,15 @@ final class BallPath {
     return loading && !autonomous && loadingCommand ? Math.min(power, DriverConstants.LOAD_UPSTREAM_POWER) : power;
   }
 
-  /** A packed stack loads with its last roller stopped, so nothing creeps the first ball into the wheels. */
+  /** LT loading runs LOAD, or STAGE with the last roller stopped. */
+  static boolean loadsBalls(IndexerState state) {
+    return state == IndexerState.LOAD || state == IndexerState.STAGE;
+  }
+
+  /**
+   * A packed stack, or any LT loading outside the auto (LOAD_LAST_ROLLER_COASTS), loads with its last roller stopped,
+   * so nothing creeps the first ball into the wheels: the early rollers bring the balls up and the feeder holds them.
+   */
   static IndexerState packedLoad(IndexerState command, boolean packed) {
     return packed && command == IndexerState.LOAD ? IndexerState.STAGE : command;
   }
