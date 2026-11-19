@@ -53,6 +53,15 @@ public class IndexerControlTest {
   }
 
 
+  @Test public void ltLoadingEasesTheUpstreamRollers() {
+    double eased = DriverConstants.LOAD_UPSTREAM_POWER;
+    assertEquals(eased, BallPath.loadingIndexerPower(IndexerState.LOAD, true, false, 1.0), 1e-9);
+    assertEquals(eased, BallPath.loadingIndexerPower(IndexerState.STAGE, true, false, 1.0), 1e-9); // Packed
+    assertEquals(1.0, BallPath.loadingIndexerPower(IndexerState.LOAD, true, true, 1.0), 1e-9); // Auto
+    assertEquals(1.0, BallPath.loadingIndexerPower(IndexerState.STAGE, false, false, 1.0), 1e-9); // Shot staging
+    assertEquals(1.0, BallPath.loadingIndexerPower(IndexerState.EJECT, true, false, 1.0), 1e-9);
+  }
+
   @Test public void packedStackLoadsWithTheLastRollerStopped() {
     assertEquals(IndexerState.STAGE, BallPath.packedLoad(IndexerState.LOAD, true));
     assertEquals(IndexerState.LOAD, BallPath.packedLoad(IndexerState.LOAD, false));

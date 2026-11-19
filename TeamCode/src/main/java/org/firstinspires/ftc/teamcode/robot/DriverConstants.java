@@ -21,4 +21,7 @@ public final class DriverConstants {
   public static boolean INTAKE_ONLY_ON_LT = true;
   public static double RPM_TRIM_STEP = 50; // Per D-pad press while aiming
   public static double AIM_START_RPM = 2500; // Held while aiming until the first valid shot. Middle of the table
+  // The upstream indexer rollers' power while LT loads. At full power they pushed the front ball past the held-back
+  // feeder into the spinning wheels. The last roller stays at its own gentle load power
+  public static double LOAD_UPSTREAM_POWER = 0.5;
 }

@@ -123,6 +123,7 @@ final class BallPath {
     // The retry's pause: in the auto a short reverse, to back a stuck ball off before full power forward
     if (indexerRetry.paused()) { indexerCommand = robot.autonomous ? IndexerState.EJECT : IndexerState.STOP; }
     if (indexerRetry.fullPower()) { indexerPower = 1.0; }
+    indexerPower = loadingIndexerPower(indexerCommand, loading, robot.autonomous, indexerPower);
     robot.indexer.setIndexerState(indexerCommand, indexerPower);
     Logger.recordOutput("Indexer/Retry/Paused", indexerRetry.paused());
     Logger.recordOutput("Indexer/Retry/FullPower", indexerRetry.fullPower());
@@ -209,6 +210,16 @@ final class BallPath {
       return command;
     }
     return reverse ? IndexerState.EJECT : IndexerState.STOP;
+  }
+
+  /**
+   * LT loading runs the upstream rollers at LOAD_UPSTREAM_POWER: with IndexerServo3 added, two upstream rollers at
+   * full power pushed the stack past the backward-held feeder and shot the front ball while loading. The auto keeps
+   * full power to stage its next ball in time.
+   */
+  static double loadingIndexerPower(IndexerState command, boolean loading, boolean autonomous, double power) {
+    boolean loadingCommand = command == IndexerState.LOAD || command == IndexerState.STAGE;
+    return loading && !autonomous && loadingCommand ? Math.min(power, DriverConstants.LOAD_UPSTREAM_POWER) : power;
   }
 
   /** A packed stack loads with its last roller stopped, so nothing creeps the first ball into the wheels. */
