@@ -1966,7 +1966,7 @@ shot-tuning-opmode 1964 rb-empty ed4ad7f7a7483418
 shot-tuning-opmode 1965 rb-empty 4888eb7f6a49274b
 shot-tuning-opmode 1966 rb-empty d0b600460389b782
 shot-tuning-opmode 1967 rb-empty f2fc3e6df812d215
-shot-tuning-opmode 1968 rb-empty 5e8a7c1d3d08e84e
+shot-tuning-opmode 1968 rb-empty 9fb27be79b3a9557
 shot-tuning-opmode 1969 rb-empty 93483ef6e5a63e81
 shot-tuning-opmode 1970 rb-empty 7cb6f80adf62a7da
 shot-tuning-opmode 1971 rb-empty d73d63c96d2f0b10
@@ -6959,7 +6959,7 @@ special-shot-opmode 1038 rb-empty 88aea98a5f826e07
 special-shot-opmode 1039 rb-empty 338567a9b41ce217
 special-shot-opmode 1040 rb-empty a5204495ccb94de1
 special-shot-opmode 1041 rb-empty 50dd2cf03c9f24bd
-special-shot-opmode 1042 rb-empty 6b6f071c91006568
+special-shot-opmode 1042 rb-empty 09aff570d20f5568
 special-shot-opmode 1043 rb-empty 1ae84321fb7c987b
 special-shot-opmode 1044 rb-empty 8d7555aa8280a61d
 special-shot-opmode 1045 rb-empty f33082b55f5597bb
