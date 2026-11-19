@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.shooting.feed;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -15,72 +16,94 @@ public class FourthBallTest {
     return b.update(t, blocked, ballLeft, ejecting, loading);
   }
 
-  private boolean load(boolean blocked) { return step(blocked, false, false, true); }
-
-  private boolean loadFor(boolean blocked, double s) {
+  private boolean run(boolean blocked, boolean loading, double s) {
     boolean four = false;
     for (int i = 0; i < Math.round(s / DT); i++) {
-      four = load(blocked);
+      four = step(blocked, false, false, loading);
     }
     return four;
   }
 
-  @Test public void aBallPassingThroughTheBeamIsNotTheFourth() {
-    assertFalse(loadFor(false, 0.5));
-    assertFalse(loadFor(true, 0.2)); // 20 Nov 172041: a ball crossed in 0.08 s at full power
-    assertFalse(loadFor(false, 0.5));
-    assertFalse(loadFor(true, 0.2));
-    assertFalse(loadFor(false, 0.1));
+  private boolean loadFor(boolean blocked, double s) { return run(blocked, true, s); }
+
+  /** A ball passing through the beam while loading. */
+  private boolean pass() {
+    loadFor(true, 0.2);
+    return loadFor(false, 0.4);
   }
 
-  @Test public void aBallStoppedInTheBeamWhileLoadingIsTheFourth() {
-    load(false);
-    assertTrue(loadFor(true, FourthBall.ARRIVE_S + 0.05));
-    assertTrue(step(true, false, false, false)); // Stays four with LT let go
-    assertTrue(step(false, false, false, false)); // And with the beam clear: nothing was shot
+  private void shot() { step(false, true, false, false); }
+
+  @Test public void theFourthBallLoadedStopsLoadingInTheBeam() {
+    loadFor(false, 0.2);
+    assertFalse(pass());
+    assertFalse(pass());
+    assertFalse(pass());
+    assertEquals(3, b.count());
+    loadFor(true, 0.02);
+    assertTrue(loadFor(true, 0.02)); // As soon as it is in the beam
+    assertEquals(4, b.count());
   }
 
-  @Test public void aBallSittingInTheBeamWithoutLoadingIsNotCounted() {
-    load(false); // A ball stopped mid-pass when LT was let go
-    for (int i = 0; i < 100; i++) {
-      assertFalse(step(true, false, false, false));
-    }
-    assertFalse(loadFor(true, 0.1)); // LT again: it moves on
-    assertFalse(loadFor(false, 0.2));
+  @Test public void aSlowBallIsCountedOnce() {
+    loadFor(false, 0.2);
+    loadFor(true, 0.6); // 19 Nov 172621: the second ball sat in the beam 0.48 s
+    assertFalse(loadFor(false, 0.4));
+    assertEquals(1, b.count());
   }
 
-  @Test public void aShotAllowsLoadingWithTheOldFourthBallStillInTheBeam() {
-    load(false);
-    loadFor(true, FourthBall.ARRIVE_S + 0.05);
-    assertFalse(step(true, true, false, false));
-    assertFalse(loadFor(true, 0.1)); // The old 4th ball moving up
-    assertFalse(loadFor(false, 0.3));
-    assertTrue(loadFor(true, FourthBall.ARRIVE_S + 0.05)); // A new 4th ball
+  @Test public void lightThroughABallsHolesIsNotASecondBall() {
+    loadFor(false, 0.2);
+    loadFor(true, 0.1); // 19 Nov 172621: blocked 0.1 s, clear 0.065 s, blocked 0.24 s
+    loadFor(false, 0.06);
+    loadFor(true, 0.24);
+    loadFor(false, 0.4);
+    assertEquals(1, b.count());
   }
 
-  @Test public void aBallThatStaysInTheBeamAfterAShotIsTheFourthAgain() {
-    load(false);
-    loadFor(true, FourthBall.ARRIVE_S + 0.05);
-    step(true, true, false, false);
-    assertTrue(loadFor(true, FourthBall.ARRIVE_S + 0.05));
-  }
-
-  @Test public void startingWithABallInTheBeamIsTheFourthPreload() {
+  @Test public void shotsTakeBallsOffAndLoadingRefillsToFour() {
     step(true, false, false, false);
-    assertTrue(step(true, false, false, false));
-    assertTrue(loadFor(true, 0.1));
+    assertTrue(step(true, false, false, false)); // 4 preloaded
+    shot();
+    assertEquals(3, b.count());
+    run(true, false, 1.0); // The old 4th ball still in the beam, not loading
+    assertFalse(loadFor(true, 0.1)); // Loading moves it up
+    loadFor(false, 0.4);
+    loadFor(true, 0.02);
+    assertTrue(loadFor(true, 0.02)); // The new 4th
   }
 
-  @Test public void startingClearThenBlockedIsNotAPreload() {
+  @Test public void ballsRollingBackIntoTheBeamBetweenShotsAreNotCounted() {
+    loadFor(false, 0.2);
+    pass();
+    pass();
+    run(true, false, 0.5); // Feeder held backward between shots
+    run(false, false, 0.5);
+    assertEquals(2, b.count());
+  }
+
+  @Test public void aBallHeldInTheBeamWhileLoadingIsTheFourth() {
+    loadFor(false, 0.2);
+    assertTrue(loadFor(true, FourthBall.STUCK_S + 0.1)); // Preloads the count never saw
+  }
+
+  @Test public void startingClearIsEmpty() {
     step(false, false, false, false);
-    step(true, false, false, false);
-    assertFalse(step(true, false, false, false));
+    run(true, false, 0.5);
+    assertEquals(0, b.count());
   }
 
-  @Test public void ejectFollowsTheBeam() {
-    load(false);
-    loadFor(true, FourthBall.ARRIVE_S + 0.05);
-    assertFalse(step(false, false, true, false));
+  @Test public void ejectEmptiesTheCount() {
+    step(true, false, false, false);
+    step(true, false, false, false);
+    step(true, false, true, false);
+    assertEquals(0, b.count());
     assertFalse(step(false, false, false, false));
+  }
+
+  @Test public void shotsNeverCountBelowZero() {
+    shot();
+    shot();
+    assertEquals(0, b.count());
   }
 }

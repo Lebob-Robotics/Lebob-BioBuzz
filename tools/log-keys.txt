@@ -126,6 +126,7 @@ Indexer/Servo3Power
 Indexer/State
 Indexer/UpstreamPower
 Intake/Amps
+Intake/BallCount
 Intake/BeamBlocked
 Intake/BeamBlockedLoadingS
 Intake/BeamBreakBottom
